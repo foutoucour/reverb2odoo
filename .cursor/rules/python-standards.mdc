@@ -1,0 +1,100 @@
+---
+description: Python coding standards for the reverb2odoo project
+alwaysApply: true
+---
+
+# Python Coding Standards
+
+## Logging — Use `loguru` instead of `print`
+
+Never use `print()` for output or debugging. Always use `loguru`'s `logger`.
+
+```python
+# BAD
+print("Starting scrape...")
+print(f"Error: {e}")
+
+# GOOD
+from loguru import logger
+
+logger.info("Starting scrape...")
+logger.error(f"Error: {e}")
+```
+
+## File Paths — Use `pathlib.Path` instead of `os.path`
+
+Always use `pathlib.Path` for file and directory operations. Do not use `os.path`.
+
+```python
+# BAD
+import os
+config_path = os.path.join(base_dir, "config", "settings.yml")
+if os.path.exists(config_path):
+    ...
+
+# GOOD
+from pathlib import Path
+
+config_path = Path(base_dir) / "config" / "settings.yml"
+if config_path.exists():
+    ...
+```
+
+## Testing — Always write unit tests
+
+Every module and function must have corresponding unit tests. Use `pytest` as the test framework. Place tests in a `tests/` directory mirroring the source structure.
+
+Always use `pytest.param` with `id` for parameterized test cases. This provides clear, readable test IDs in output.
+
+```python
+# BAD
+@pytest.mark.parametrize("input_val, expected", [
+    ("input1", "output1"),
+    ("input2", "output2"),
+])
+def test_my_function(input_val, expected):
+    assert my_function(input_val) == expected
+
+# GOOD
+@pytest.mark.parametrize("input_val, expected", [
+    pytest.param("input1", "output1", id="handles-basic-input"),
+    pytest.param("input2", "output2", id="handles-alternate-input"),
+])
+def test_my_function(input_val, expected):
+    assert my_function(input_val) == expected
+```
+
+## Dependencies — Pin with upper bound on major version
+
+When adding dependencies, always use a version range that allows patch/minor updates but protects against the next major version: `>=x.y.z,<x+1`.
+
+```toml
+# BAD
+dependencies = [
+    "loguru",
+    "httpx==0.27.0",
+    "beautifulsoup4>=4.12",
+]
+
+# GOOD
+dependencies = [
+    "loguru>=0.7.3,<1",
+    "httpx>=0.27.0,<1",
+    "beautifulsoup4>=4.12.3,<5",
+]
+```
+
+## Running Python — Always use `uv`
+
+Always use `uv` to run Python code and manage dependencies. **Never run `uv` commands inside a sandbox** — they will fail. Always request `required_permissions: ["all"]` when executing `uv` commands via the shell.
+
+```bash
+# Running a script
+uv run python script.py
+
+# Adding a dependency
+uv add package_name
+
+# Running tests
+uv run pytest
+```

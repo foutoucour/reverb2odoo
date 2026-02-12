@@ -1,0 +1,146 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/hal+json
+      Accept-Encoding:
+      - gzip, deflate
+      Accept-Version:
+      - '3.0'
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/hal+json
+      Host:
+      - api.reverb.com
+      User-Agent:
+      - python-httpx/0.28.1
+      X-Display-Currency:
+      - CAD
+    method: GET
+    uri: https://api.reverb.com/api/listings/93749436-suhr-alt-t-with-rosewood-fretboard-2018-present-sonic-blue
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      CF-Cache-Status:
+      - BYPASS
+      CF-RAY:
+      - 9cd0bbea2865abb5-YYZ
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/hal+json
+      Date:
+      - Fri, 13 Feb 2026 02:00:46 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=nVxSVSIYuLoWJggXMG3KyMFizjYHp4xK50MzTzyZRww-1770948046-1.0.1.1-WUESYlRvKrUi64K_UxKmsgHhdb3a.JVDKK3qYwJvYSIjpD4YEwGVXdxYlTjHuax9TTg068wPmL9lsTuFsMmsDvVf63yQbzypjg4UHPwomek;
+        path=/; expires=Fri, 13-Feb-26 02:30:46 GMT; domain=.reverb.com; HttpOnly;
+        Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-headers:
+      - Authorization,Content-Type,Accept,Origin,User-Agent,Cache-Control,Keep-Alive,X-Requested-With,If-Modified-Since,X-Auth-Token,X-Reverb-App,X-Reverb-Embed-Location,X-Reverb-User-Info,X-Reverb-Device-Info,X-Display-Currency,X-Shipping-Region,X-CSRF-Token,Accept-Version,X-Context-Id,X-Item-Region,X-Session-Id,x-datadog-origin,x-datadog-parent-id,x-datadog-sampled,x-datadog-sampling-priority,x-datadog-trace-id,X-Postal-Code,X-Google-Recaptcha-Token,X-Secondary-User-Enabled
+      access-control-allow-methods:
+      - GET,PUT,POST,PATCH,DELETE,HEAD,OPTIONS
+      access-control-allow-origin:
+      - '*'
+      content-security-policy:
+      - 'default-src * ''unsafe-inline'' ''unsafe-eval'' data: blob:; frame-ancestors
+        ''self'' admin.reverb.tools'
+      etag:
+      - W/"bd17cd12a1de608da285780abc3d7943"
+      strict-transport-security:
+      - max-age=631138519
+      vary:
+      - Accept-Language,Accept-Version,X-Display-Currency,X-Shipping-Region,X-Item-Region,X-Postal-Code,
+        Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-download-options:
+      - noopen
+      x-permitted-cross-domain-policies:
+      - none
+      x-rails-version:
+      - 7.2.2.2
+      x-request-id:
+      - 9cd0bbea2865abb5
+      x-reverb-version:
+      - '3.0'
+      x-runtime:
+      - '0.145012'
+      x-xss-protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,141 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/hal+json
+      Accept-Encoding:
+      - gzip, deflate
+      Accept-Version:
+      - '3.0'
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/hal+json
+      Host:
+      - api.reverb.com
+      User-Agent:
+      - python-httpx/0.28.1
+      X-Display-Currency:
+      - CAD
+    method: GET
+    uri: https://api.reverb.com/api/listings/92774275-ibanez-flatv2-msn-josh-smith
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA91b23LbRhL9lSlUks1WEbyA4LXipCRZN0eWvaYcV2WTQg2AATkWgIFxIU2p/LK1
+        X7K1j1v5gn1K/iRfsqcHJEhatCw5sbPMg2UQg+npPt3T0zPdc21I3xgOrF7PtnqdmhHxS2EMjVOX
+        x+LKwG/lixAvjs72Lr6zzMejc/ZIZRM2imQ+QXsgY5lN8AGe54Kn5VMu83BFhr2rs5cKngvf4Tm6
+        WU2rY7aaptW5aPaG7cGw2Teb9rDZBOVsohIn5hHRfFxk8pI9TZVfXOZyumg1htdGIITvcu/S8VQR
+        g6Td67dqRpKKQKQphslEGApwmKeFqBkpz2U8dhKReiLO+Ri0W/Xmm5rhi8xLZZJLFVdIsAnPWC7A
+        gc+KhM0gPHPDQmRsXMicpzLL13BhuWIyzolFTzAeq3wiUpbJcczzIhVMg1pjXsoDiM+456nUBzPU
+        b4XuXzKWJcKTgfTAqoqzOruYCOaFPMukxy5MTYYFwBBEM4zDODTjKn+OZ5BlqeIZDeCqMDdVzCKe
+        hILFwrusA0CQzgTxqcAW6DOZMRFnoIUeIMGOVa4m7KjVb7aZm0p/LErB9ftGaSLMUyYAg2jo9YNx
+        GpsXRSx+MFjGfT8UWY3NJhKDAgEGTeghc3yRgl8gwcNMsSBVUTlYne2VMvMwnLOKLtlPB/jFY1Dy
+        lAzZpIjcwrskVEVeEkhFrGbERcTjIuAegZKykZhHqkjZwyL2AFApH8YuwFCcA8YMtuLX2Vdu+rX+
+        V4RffxXKrw9UqNIGO9LmPWSPARMbAdWvGmikD5Ytx6HKMvZUhXMBrNOq/UJ4kxhExvMhG6lQ+mwf
+        iqma6QcbTXgihtDkKJ+Homob5SlEzYasyzL9WLWcQ3UAIMbrwiOdDUE1zBmUR1pdMZeKHP2t1oqm
+        x4HdmYjHOcSxOrUOdPRl1+6zKPrrJlePMSdTycMh28smm03lbB+yEzmeMC35BmuQ1CS52QulfPZs
+        YX2Pyeo2RcDsDWAVw9IzbLYtx3gCNZcgb4jlKp76QxDPxAyj3GxjKfdlAekHJOOW9tM45HO0n05V
+        OmcPVb4av8jZC+kTQq16t9MkiGxrA6FzfBJVAO2reCXZEUCHkV5BLLgJWUQbY6/1Opew3BCfhtM1
+        g3mKt3AtByoO5Lgg70TqPTFH7MvWa3ayNPgaw69RORUOMBVWytPGUVKBIjbs/uefNNKdX//5L/bl
+        yZq+y1l9h06jVaeKUXA/ZCoRMdsP4XYbBxNM5BUei+9GIhRerjAV4TU9QNs2Z3zOMv2rgmjxcT6n
+        CZGQh5uuKAETONMQOoPsUxUWkdAwwHOtPjqBXczgU4bsLT7gkMi3PubeRMYCRLT/qka+SHmchQu4
+        W8NWf4OncaHNrWU+hUN6MZH5mnwqZwc8AcEjdGcXCsrbRGC/hLfBLlIRwRcshiZtaKc6ysV4zaX+
+        /NMNp5pv+NTRL//OcxHGFYcLTwHvCuOBbHDgrxn5Plj2kNWbrSYz8Z/dXfWoFqG9NMeqNVxbcKqP
+        TmMvLOB9ASXPAPXjIsSKrlRYfXFAKyxmjwrYk1SOJSz1EU/4grMGnCjWZTgqX5bL6LVRFBRoGD2v
+        HdgdX5gWF03T9vots283m2bgu1235ffs/oAWfF9mCWbpcs3fh458di5mtNqHxRiEXHplxniFJTtJ
+        pYf1+9rI+WtHltxjtADLC1Z6jhWA4gGj3etYdXsAIuUrh1b+zBjSe3sAhgvECbE3x6cHew9prHmE
+        tRM/P1vxRI2ftWsLUhjcLeYidf5QFmQ8hSRQOmKYmoFYBSBUb8pwRwWIgjJHxNwNxQobhBZirFIp
+        AMPfKy2JTs8Xbo+b7b7lmrZo9U3eRDzW7fl24Hqu1e8RikERhksVHdIshxrYsQ6IMtZYW/aMNz/W
+        jBDmRhHXGsqHz5+BTFK4aJtsCwT7w5Y9bLdXgWAOfknRCysI4SZINRsh2xm9hGJ4uUZWdqCjSLLC
+        TnPQHXQprJRJApZ08JgK4YjXCTw3haSrpoURhQoraEUK7nmBWCrGcNQIOX0KTh8eghtqJJKV3TXr
+        OordNLrm3e3t6NnhIQnk8RSaSh1w4hXwOWt6LNlY4xCQAG3t1pxEZTkPNY9OjCC56vemdm1sCrB3
+        seMC7O+6BvaPt2mg06x3ejdsqNPs9O5uRgeflVQ+jSWd0NS+MRVsq96yb8hhWy37PnKUVD6NHAff
+        b5PD6tYHN/VhdQf30kdJBXJgzUKIQPvQ0LmB2Q65j4ffbgNrhwSAo/1TWO3R6TY5dkgRR1vdxw4J
+        cLzrApw832ZC7Xa917rhwNvtHgLPe8TPmsqnceCnW6f0DlnS6a7HZGffbbOk3QsFzrY61d0Lzc62
+        GtQO6mOrh9qhmX1+tm1i7JAAT3degK1TYYc08OzJNhPavVV6tOs7h9HWxeF3dqp/ln3i4Wib1e7Q
+        tBvtelB5cLJbGsABMnKxOfKSjj7Kro5JbjmAxbk2UhN0KHq/w9jyWLo6/P/1H/8BVouUBA55l8ex
+        1Zv7Ub81tVDS/igbIxDNLgvw32q2kNxs0fGVjJ0ZRx6Ozuarw+0ic1SBAo7VGyeU8SUyBNdGMkHy
+        jB4mKKsArUmeIwPWaKRT15TRuJ4KZAXduqeihmxkpvlof3/2MA1S02y8Kngo8/mDMjlqhmpWmwgk
+        kvMH/WazNqO8q34KZP4AqaOcy7gxueq/Tq007b98XSRXrjdBbrf+MhnT1hHlHODgBic8ketc4CdS
+        9jrzkDWWdS6m1PUtZoBD9KllRllsvkRVi5npqhbQpizAx6Dd0IQxwEy4W+ivo5eL6O78IjNwR37p
+        y4qu5mSl/7tgOeNImd2dMSTHbpdT84NakW/owUHuJfq8s48MJuUtUJuB4hyUByGx5BbIuHzeeYhW
+        X0yR7sPzA6D4xXq/RJfcgIxPrUttk5TQtE7zvGW2v9lYGpowzVeyWAy9LDK6fr+Ko3kjQs4WpUdZ
+        A4nMb0j4iulbTfQLqqRJJM6LHcqrPhBB0LOsgW8GXQtZVXvgmQNuu2bgdbnXaludQcs33pRcYn5m
+        ZT3RB+LRgKhrRGgmIrF2N2L0ZdaIqITL1MpalHC9dzpQxxv9SomihOqvyFzwzTKd9349w0W93dFJ
+        tC5afbvXa2oXg6IZ7fbeT+6Gj2mUnUFFp6rvR+Ub3cehLOeD0ldp9aFSTCSUnkz4nLIFTiTyifIp
+        d4v1CUaRO94EZSBw33Du+CjB4vcjUq9IXi4T8eV6Cdd9jqKzFB44Nl8gV4g0p4jRSec54abxwanr
+        itj95b/IiaNBF9Wl841M5zJNv6K/3qnGjkWKaqw5QelTsVu1xOi87aIQT4/oJLr8xVFxiKEXOVcv
+        VAXq4jhG1etOmaOmDK7V6/YGdr+LrJHOHns6r2tsWy7AOllrWc3X6nVb7YHV7ll4rZccZMwHFnKx
+        5VK0/BUoMA52DVprkBAQC1dE9Sl4KyOqF6wZOdWOlN9q+jES4oQ7kTWmq8HevY7p+sSpFDOnSKnQ
+        4H3r6cQ9O3zSaUmsp9uEXayN17qqcwGSTUWQayC94i9fBa9eFYk1twf+LLwSV933gjTormGkf/ze
+        EG1jS4tzX4jM4tH8ZHZ6RSHHFlG3QdSxNiGah2GCkGFq+9NZ5r3iV2KQ/B9AtI2tD4LoRdM9s19E
+        e4DonTSpZGNt1q1CwJCnY+F46Vaf/0fEgRGqRe/LjyeUPIxmx7fGpShMWsSl9FTGpfAltXHKpxTJ
+        uirPEejeMhF1icwW1/8HwJRTzWzM5X3Y+TQoYWW7Nn6jfU3kk9Ng4H9/qz7fvc+4xVEY2YfY117v
+        2+eBZZ7fys8d7es25u5pXx8Rpg+xr0+D0u9hX6P5iTt9dOneqs9329e7vSyCzA+xr/zE9AcHfwtu
+        5eeO9nUbc/e0r48I04fY16dB6Q0tlaiwo1LSa4OCOTz0EZrqrTVtIFoIgMtTq8XVFMRPywpDVOch
+        ftXxNmqBQ9SFoyqxrApGeOldUu0y7oXQBQraY+CCQxnB03UQhbL/scKhWC50N9r9oP4dO2XqUl47
+        WcbmuIqBOnzU8+LKBIppI1y+wB+9/axTjLXYUVTcbBDX1a21aowaQz33ogcqwPXtlE3yFW36ki4V
+        0fUUDQENlqkQt35QpQpsFrF+kXiOr0Tm4LaMw5NkbRuAJqDTtDv2oNdtt7sonaYSsgy3cRwfRcIV
+        kijvDnHihwLXVaGmwD0QqoAsMb5+q1T0YoJLL4tTA0YXRFwBeKkLcKZbPjJm7SbDKBnVOmOHJXAz
+        qE4bGqqyLXWKSNjRRcDVqDJzojlWNH3sVL2dSl/oPQzM5V27z3Ifs9yB/g9hD6LxnjUAAA==
+    headers:
+      CF-RAY:
+      - 9cd0bbc10b1074e5-YYZ
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/hal+json
+      Date:
+      - Fri, 13 Feb 2026 02:00:40 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=jOfXo6IaKpXq9J0LllhaWobdxod.6QbP_NANISfkA70-1770948040-1.0.1.1-dVBm9QOP3kgtNGwfNhmqpxyNeGpA5cQDNqHFphHJTpyAoFRSE._JFHbI1omztu_oqWKJGg3v0caN31BPRk.u1I7dl3gLWx3A3VBxMbCfEKI;
+        path=/; expires=Fri, 13-Feb-26 02:30:40 GMT; domain=.reverb.com; HttpOnly;
+        Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-headers:
+      - Authorization,Content-Type,Accept,Origin,User-Agent,Cache-Control,Keep-Alive,X-Requested-With,If-Modified-Since,X-Auth-Token,X-Reverb-App,X-Reverb-Embed-Location,X-Reverb-User-Info,X-Reverb-Device-Info,X-Display-Currency,X-Shipping-Region,X-CSRF-Token,Accept-Version,X-Context-Id,X-Item-Region,X-Session-Id,x-datadog-origin,x-datadog-parent-id,x-datadog-sampled,x-datadog-sampling-priority,x-datadog-trace-id,X-Postal-Code,X-Google-Recaptcha-Token,X-Secondary-User-Enabled
+      access-control-allow-methods:
+      - GET,PUT,POST,PATCH,DELETE,HEAD,OPTIONS
+      access-control-allow-origin:
+      - '*'
+      cf-cache-status:
+      - BYPASS
+      content-security-policy:
+      - 'default-src * ''unsafe-inline'' ''unsafe-eval'' data: blob:; frame-ancestors
+        ''self'' admin.reverb.tools'
+      etag:
+      - W/"efd2fc485b43777ba3792860c6018f6f"
+      strict-transport-security:
+      - max-age=631138519
+      vary:
+      - Accept-Language,Accept-Version,X-Display-Currency,X-Shipping-Region,X-Item-Region,X-Postal-Code
+      - accept-encoding
+      x-content-type-options:
+      - nosniff
+      x-download-options:
+      - noopen
+      x-permitted-cross-domain-policies:
+      - none
+      x-rails-version:
+      - 7.2.2.2
+      x-request-id:
+      - 9cd0bbc10b1074e5
+      x-reverb-version:
+      - '3.0'
+      x-runtime:
+      - '0.139563'
+      x-xss-protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,6 @@
+---
+odoo:
+  hostname: "localhost"
+  database: "my_db"
+  login: "my_user"
+  password: "xxx"

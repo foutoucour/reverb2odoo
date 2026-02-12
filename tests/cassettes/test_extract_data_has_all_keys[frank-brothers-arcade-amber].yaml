@@ -1,0 +1,149 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/hal+json
+      Accept-Encoding:
+      - gzip, deflate
+      Accept-Version:
+      - '3.0'
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/hal+json
+      Host:
+      - api.reverb.com
+      User-Agent:
+      - python-httpx/0.28.1
+      X-Display-Currency:
+      - CAD
+    method: GET
+    uri: https://api.reverb.com/api/listings/88422337-frank-brothers-arcade-amber-korina
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      CF-RAY:
+      - 9cd0bbe389dff80a-YYZ
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/hal+json
+      Date:
+      - Fri, 13 Feb 2026 02:00:45 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=c0SKxFyK8pZyBHJOhIuv3TSBn0YYJmki.ZjZEydSmig-1770948045-1.0.1.1-yyxB0Al7yftMwcBexAWsJBfDTQGxPEBlhOqPzOJ7fVB_WtCw8UYdmCkR48IFSs9VEKqtO4_LX.2hwHs2Q_tPLupmjJLClL9TZRUn0.1q34s;
+        path=/; expires=Fri, 13-Feb-26 02:30:45 GMT; domain=.reverb.com; HttpOnly;
+        Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-headers:
+      - Authorization,Content-Type,Accept,Origin,User-Agent,Cache-Control,Keep-Alive,X-Requested-With,If-Modified-Since,X-Auth-Token,X-Reverb-App,X-Reverb-Embed-Location,X-Reverb-User-Info,X-Reverb-Device-Info,X-Display-Currency,X-Shipping-Region,X-CSRF-Token,Accept-Version,X-Context-Id,X-Item-Region,X-Session-Id,x-datadog-origin,x-datadog-parent-id,x-datadog-sampled,x-datadog-sampling-priority,x-datadog-trace-id,X-Postal-Code,X-Google-Recaptcha-Token,X-Secondary-User-Enabled
+      access-control-allow-methods:
+      - GET,PUT,POST,PATCH,DELETE,HEAD,OPTIONS
+      access-control-allow-origin:
+      - '*'
+      cf-cache-status:
+      - BYPASS
+      content-security-policy:
+      - 'default-src * ''unsafe-inline'' ''unsafe-eval'' data: blob:; frame-ancestors
+        ''self'' admin.reverb.tools'
+      etag:
+      - W/"aa1f111b23c04d20deeb48fdaaf09a65"
+      strict-transport-security:
+      - max-age=631138519
+      vary:
+      - Accept-Language,Accept-Version,X-Display-Currency,X-Shipping-Region,X-Item-Region,X-Postal-Code
+      - accept-encoding
+      x-content-type-options:
+      - nosniff
+      x-download-options:
+      - noopen
+      x-permitted-cross-domain-policies:
+      - none
+      x-rails-version:
+      - 7.2.2.2
+      x-request-id:
+      - 9cd0bbe389dff80a
+      x-reverb-version:
+      - '3.0'
+      x-runtime:
+      - '0.132132'
+      x-xss-protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

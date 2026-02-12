@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[project]
+name = "reverb2odoo"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.1,<9",
+    "httpx>=0.28,<1",
+    "loguru>=0.7,<1",
+    "odoo-client-lib>=2.0,<3",
+    "pyyaml>=6.0,<7",
+    "uritemplate>=4.1,<5",
+]
+
+[project.scripts]
+reverb2odoo = "cli:main"
+
+[dependency-groups]
+dev = [
+    "prek>=0.3.2,<1",
+    "pytest>=8.0,<9",
+    "pytest-asyncio>=0.25,<1",
+    "pytest-recording>=0.13.4,<1",
+    "ruff>=0.15.1,<1",
+    "vcrpy>=8.1.1,<9",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "PT",   # flake8-pytest-style
+]
+ignore = [
+    "PT006", # allow string form for parametrize names ("a, b")
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["reverb_scraper", "odoo_connector", "sync_model", "validate_model", "sync_categories", "cli"]
+
+[tool.recording]
+# Default record mode: "none" replays cassettes only (no network).
+# Use --record-mode=once to record missing cassettes, or
+# --record-mode=all to re-record everything.
+default_cassette_options = { record_mode = "none" }

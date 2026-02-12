@@ -1,0 +1,124 @@
+interactions:
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/hal+json
+      Accept-Encoding:
+      - gzip, deflate
+      Accept-Version:
+      - '3.0'
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/hal+json
+      Host:
+      - api.reverb.com
+      User-Agent:
+      - python-httpx/0.28.1
+      X-Display-Currency:
+      - CAD
+    method: GET
+    uri: https://api.reverb.com/api/listings/93737551-frank-brothers-arcade-one-korina-natural
+  response:
+    body:
+      string: !!binary |
+        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
+    headers:
+      CF-RAY:
+      - 9cd0bbe5a80bcbfd-YYZ
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/hal+json
+      Date:
+      - Fri, 13 Feb 2026 02:00:45 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=jF0UW101D0SDE9b6j1KI4XFJueUEdz_BlBszTA9omWc-1770948045-1.0.1.1-Vv25Tasor4ZPX5WxnWLPHEBnIOsPinEXCE7k_wVIgXS9I3HVc5Fut2GIWf7T4afbjFnEeNlg773D51yUKT8xEiaOc5._oW2w02BR.A.6J.E;
+        path=/; expires=Fri, 13-Feb-26 02:30:45 GMT; domain=.reverb.com; HttpOnly;
+        Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      access-control-allow-headers:
+      - Authorization,Content-Type,Accept,Origin,User-Agent,Cache-Control,Keep-Alive,X-Requested-With,If-Modified-Since,X-Auth-Token,X-Reverb-App,X-Reverb-Embed-Location,X-Reverb-User-Info,X-Reverb-Device-Info,X-Display-Currency,X-Shipping-Region,X-CSRF-Token,Accept-Version,X-Context-Id,X-Item-Region,X-Session-Id,x-datadog-origin,x-datadog-parent-id,x-datadog-sampled,x-datadog-sampling-priority,x-datadog-trace-id,X-Postal-Code,X-Google-Recaptcha-Token,X-Secondary-User-Enabled
+      access-control-allow-methods:
+      - GET,PUT,POST,PATCH,DELETE,HEAD,OPTIONS
+      access-control-allow-origin:
+      - '*'
+      cf-cache-status:
+      - BYPASS
+      content-security-policy:
+      - 'default-src * ''unsafe-inline'' ''unsafe-eval'' data: blob:; frame-ancestors
+        ''self'' admin.reverb.tools'
+      etag:
+      - W/"c9213a939b5bac7e04867b350f9aa0eb"
+      strict-transport-security:
+      - max-age=631138519
+      vary:
+      - Accept-Language,Accept-Version,X-Display-Currency,X-Shipping-Region,X-Item-Region,X-Postal-Code
+      - accept-encoding
+      x-content-type-options:
+      - nosniff
+      x-download-options:
+      - noopen
+      x-permitted-cross-domain-policies:
+      - none
+      x-rails-version:
+      - 7.2.2.2
+      x-request-id:
+      - 9cd0bbe5a80bcbfd
+      x-reverb-version:
+      - '3.0'
+      x-runtime:
+      - '0.120479'
+      x-xss-protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1
