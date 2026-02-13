@@ -1,7 +1,5 @@
 """Tests for odoo_connector helper functions."""
 
-from pathlib import Path
-from textwrap import dedent
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,7 +8,6 @@ from odoo_connector import (
     GUITAR_FIELDS,
     _extract_reverb_item_id,
     _hostname_from_url,
-    _parse_env,
     find_guitar_by_url,
 )
 
@@ -37,84 +34,6 @@ from odoo_connector import (
 )
 def test_hostname_from_url(raw: str, expected: str):
     assert _hostname_from_url(raw) == expected
-
-
-# ── _parse_env ────────────────────────────────────────────────────────────
-
-
-@pytest.mark.parametrize(
-    "yaml_content, expected",
-    [
-        pytest.param(
-            dedent("""\
-                ---
-                odoo:
-                  hostname: "https://myinstance.odoo.com/odoo"
-                  database: "mydb"
-                  login: "admin"
-                  password: "secret"
-            """),
-            {
-                "hostname": "https://myinstance.odoo.com/odoo",
-                "database": "mydb",
-                "login": "admin",
-                "password": "secret",
-            },
-            id="full-https",
-        ),
-        pytest.param(
-            dedent("""\
-                odoo:
-                  hostname: "localhost"
-                  database: "test_db"
-                  login: "user"
-                  password: "pass123"
-            """),
-            {
-                "hostname": "localhost",
-                "database": "test_db",
-                "login": "user",
-                "password": "pass123",
-            },
-            id="minimal-localhost",
-        ),
-        pytest.param(
-            # Numeric port should be stringified
-            dedent("""\
-                odoo:
-                  hostname: "localhost"
-                  database: "db"
-                  login: "u"
-                  password: "p"
-                  port: 8069
-            """),
-            {
-                "hostname": "localhost",
-                "database": "db",
-                "login": "u",
-                "password": "p",
-                "port": "8069",
-            },
-            id="numeric-port-stringified",
-        ),
-    ],
-)
-def test_parse_env(tmp_path: Path, yaml_content: str, expected: dict):
-    yml = tmp_path / "env.yml"
-    yml.write_text(yaml_content, encoding="utf-8")
-    assert _parse_env(yml) == expected
-
-
-def test_parse_env_missing_odoo_key(tmp_path: Path):
-    yml = tmp_path / "bad.yml"
-    yml.write_text("other_key:\n  foo: bar\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="must contain an 'odoo' top-level key"):
-        _parse_env(yml)
-
-
-def test_parse_env_file_not_found():
-    with pytest.raises(FileNotFoundError):
-        _parse_env(Path("/nonexistent/path/env.yml"))
 
 
 # ── _extract_reverb_item_id ───────────────────────────────────────────────

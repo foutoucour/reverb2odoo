@@ -14,7 +14,6 @@ dependencies = [
     "httpx>=0.28,<1",
     "loguru>=0.7,<1",
     "odoo-client-lib>=2.0,<3",
-    "pyyaml>=6.0,<7",
     "uritemplate>=4.1,<5",
 ]
 

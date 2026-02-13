@@ -16,16 +16,16 @@ uv sync
 
 ## Configuration
 
-Create an `env.yml` file at the project root with your Odoo credentials:
+Set the following environment variables with your Odoo credentials:
 
-```yaml
----
-odoo:
-  hostname: "https://myinstance.odoo.com/odoo"
-  database: "mydb"
-  login: "user@example.com"
-  password: "your-password"
+```bash
+export ODOO_HOSTNAME="https://myinstance.odoo.com/odoo"
+export ODOO_DATABASE="mydb"
+export ODOO_LOGIN="user@example.com"
+export ODOO_PASSWORD="your-password"
 ```
+
+You can also pass them as CLI options (`--odoo-hostname`, `--odoo-database`, `--odoo-login`, `--odoo-password`).
 
 ## Usage
 
