@@ -169,7 +169,7 @@ class TestBuildValidationReport:
         assert report[0]["action"] == "skip"
         assert "Reverb API error" in report[0]["warnings"][0]
 
-    def test_sold_listing_warns(self):
+    def test_sold_listing_skipped(self):
         url = "https://reverb.com/item/1-g"
         entries = [self._make_entry(url=url)]
         reverb_data = {
@@ -182,6 +182,8 @@ class TestBuildValidationReport:
 
         report = _build_validation_report(entries, reverb_data)
 
+        assert report[0]["action"] == "skip"
+        assert report[0]["changes"] == {}
         assert any("status: Sold" in w for w in report[0]["warnings"])
 
     def test_no_ship_to_canada_warns(self):

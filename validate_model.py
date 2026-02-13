@@ -132,13 +132,18 @@ def _build_validation_report(
             continue
 
         item["reverb"] = reverb
+
+        # Skip ended / sold listings — nothing to update
+        if reverb.get("sale_ended"):
+            item["warnings"].append(f"status: {reverb.get('status', 'ended/sold')}")
+            report.append(item)
+            continue
+
         item["changes"] = _compute_changes(entry, reverb)
         item["action"] = "update" if item["changes"] else "ok"
 
         # Informational warnings
-        if reverb.get("sale_ended"):
-            item["warnings"].append(f"status: {reverb.get('status', 'ended/sold')}")
-        if reverb.get("ships_to_canada") is False and not reverb.get("sale_ended"):
+        if reverb.get("ships_to_canada") is False:
             item["warnings"].append("does NOT ship to Canada")
 
         report.append(item)
