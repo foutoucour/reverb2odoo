@@ -82,4 +82,87 @@ interactions:
     status:
       code: 200
       message: OK
+- request:
+    body: ''
+    headers:
+      Accept:
+      - application/hal+json
+      Accept-Encoding:
+      - gzip, deflate
+      Accept-Version:
+      - '3.0'
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/hal+json
+      Host:
+      - api.reverb.com
+      User-Agent:
+      - python-httpx/0.28.1
+      X-Display-Currency:
+      - CAD
+    method: GET
+    uri: https://api.reverb.com/api/listings?query=xyznonexistent987654321qqq&per_page=50&page=1
+  response:
+    body:
+      string: '{"total":0,"current_page":1,"per_page":50,"total_pages":1,"_links":{"follow":{"href":"https://api.reverb.com/api/my/follows/search?query=xyznonexistent987654321qqq"},"listing":{"href":"https://reverb.com/sell"}},"humanized_params":"\"xyznonexistent987654321qqq\"
+        Gear","listings":[],"ships_to":"Everywhere Else"}'
+    headers:
+      Accept-Ranges:
+      - bytes
+      CF-Cache-Status:
+      - BYPASS
+      CF-RAY:
+      - 9cd5fcde98fdab7e-YYZ
+      Cache-Control:
+      - max-age=0, private, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '312'
+      Content-Type:
+      - application/hal+json
+      Date:
+      - Fri, 13 Feb 2026 17:18:55 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=xGf7xYQv8a9qMmr4sWaWzTz_OBVFcvtFiRlZKl1Tpuo-1771003135-1.0.1.1-Zp3D0ky6wYsuGJZ0VqRS0wG62jUOC__W_1DT.gVqWFlZTh96GR3t9xsfyn4Dum3MFfd2klpzP9PpoKibdu9jHJ7D6o5DUtPqZ9JCTDp5XuE;
+        path=/; expires=Fri, 13-Feb-26 17:48:55 GMT; domain=.reverb.com; HttpOnly;
+        Secure; SameSite=None
+      access-control-allow-headers:
+      - Authorization,Content-Type,Accept,Origin,User-Agent,Cache-Control,Keep-Alive,X-Requested-With,If-Modified-Since,X-Auth-Token,X-Reverb-App,X-Reverb-Embed-Location,X-Reverb-User-Info,X-Reverb-Device-Info,X-Display-Currency,X-Shipping-Region,X-CSRF-Token,Accept-Version,X-Context-Id,X-Item-Region,X-Session-Id,x-datadog-origin,x-datadog-parent-id,x-datadog-sampled,x-datadog-sampling-priority,x-datadog-trace-id,X-Postal-Code,X-Google-Recaptcha-Token,X-Secondary-User-Enabled
+      access-control-allow-methods:
+      - GET,PUT,POST,PATCH,DELETE,HEAD,OPTIONS
+      access-control-allow-origin:
+      - '*'
+      content-security-policy:
+      - 'default-src * ''unsafe-inline'' ''unsafe-eval'' data: blob:; frame-ancestors
+        ''self'' admin.reverb.tools'
+      etag:
+      - W/"3a8eedd92751c8fe310aaaed0c7e623b"
+      strict-transport-security:
+      - max-age=631138519
+      vary:
+      - Accept-Language,Accept-Version,X-Display-Currency,X-Shipping-Region,X-Item-Region,X-Postal-Code,
+        Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-download-options:
+      - noopen
+      x-permitted-cross-domain-policies:
+      - none
+      x-rails-version:
+      - 7.2.2.2
+      x-request-id:
+      - 9cd5fcde98fdab7e
+      x-reverb-version:
+      - '3.0'
+      x-runtime:
+      - '0.053779'
+      x-xss-protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
 version: 1
