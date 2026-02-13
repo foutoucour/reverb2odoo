@@ -1,5 +1,10 @@
 # reverb2odoo
 
+[![CI](https://github.com/foutoucour/reverb2odoo/actions/workflows/ci.yml/badge.svg)](https://github.com/foutoucour/reverb2odoo/actions/workflows/ci.yml)
+[![Daily Validation](https://github.com/foutoucour/reverb2odoo/actions/workflows/validate.yml/badge.svg)](https://github.com/foutoucour/reverb2odoo/actions/workflows/validate.yml)
+[![Weekly Sync](https://github.com/foutoucour/reverb2odoo/actions/workflows/sync.yml/badge.svg)](https://github.com/foutoucour/reverb2odoo/actions/workflows/sync.yml)
+[![Daily Sync (Wanna)](https://github.com/foutoucour/reverb2odoo/actions/workflows/sync-wanna.yml/badge.svg)](https://github.com/foutoucour/reverb2odoo/actions/workflows/sync-wanna.yml)
+
 CLI tool to sync guitar listings from [Reverb.com](https://reverb.com) into an [Odoo](https://www.odoo.com) database. It searches the Reverb public API, compares results against existing Odoo records, and creates or updates entries as needed.
 
 ## Requirements
