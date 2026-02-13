@@ -1,0 +1,82 @@
+name: Daily Validation
+
+on:
+  schedule:
+    # Every day at midnight UTC
+    - cron: "0 0 * * *"
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  validate:
+    name: Validate Odoo entries against Reverb
+    runs-on: ubuntu-latest
+
+    env:
+      ODOO_HOSTNAME: ${{ secrets.ODOO_HOSTNAME }}
+      ODOO_DATABASE: ${{ secrets.ODOO_DATABASE }}
+      ODOO_LOGIN: ${{ secrets.ODOO_LOGIN }}
+      ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run validate --all
+        id: validate
+        run: |
+          uv run reverb2odoo validate --all --yes 2>&1 | tee validate-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Open PR on failure
+        if: steps.validate.outputs.exit_code != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +"%Y-%m-%d")
+          BRANCH="fix/validate-failure-${DATE}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+
+          mkdir -p reports
+          cp validate-output.txt "reports/validate-failure-${DATE}.txt"
+
+          git add reports/
+          git commit -m "report: validation failure on ${DATE}"
+          git push -u origin "$BRANCH"
+
+          BODY="## Automated validation failed
+
+          The daily \`reverb2odoo validate --all\` run failed on **${DATE}**.
+
+          The full output log is attached in \`reports/validate-failure-${DATE}.txt\`.
+
+          ### Next steps
+
+          1. Review the log to identify which model(s) or listing(s) caused the failure.
+          2. Fix the underlying issue (Odoo data, Reverb connectivity, etc.).
+          3. Re-run the workflow manually from the **Actions** tab or merge this PR once resolved."
+
+          gh pr create \
+            --title "Validation failure — ${DATE}" \
+            --body "$BODY" \
+            --label "bug" \
+            --assignee foutoucour \
+            --head "$BRANCH" \
+            --base main
