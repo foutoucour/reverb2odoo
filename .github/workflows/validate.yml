@@ -52,16 +52,22 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git checkout -b "$BRANCH"
+          # Create or reset the branch
+          git fetch origin "$BRANCH" 2>/dev/null && git checkout "$BRANCH" && git reset --hard origin/main || git checkout -b "$BRANCH"
 
           mkdir -p reports
           cp validate-output.txt "reports/validate-failure-${DATE}.txt"
 
           git add reports/
           git commit -m "report: validation failure on ${DATE}"
-          git push -u origin "$BRANCH"
+          git push --force-with-lease -u origin "$BRANCH"
 
-          BODY="## Automated validation failed
+          # Only create a PR if one doesn't already exist for this branch
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number -q '.[0].number')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} already exists — updated branch with latest log."
+          else
+            BODY="## Automated validation failed
 
           The daily \`reverb2odoo validate --all\` run failed on **${DATE}**.
 
@@ -73,10 +79,11 @@ jobs:
           2. Fix the underlying issue (Odoo data, Reverb connectivity, etc.).
           3. Re-run the workflow manually from the **Actions** tab or merge this PR once resolved."
 
-          gh pr create \
-            --title "Validation failure — ${DATE}" \
-            --body "$BODY" \
-            --label "bug" \
-            --assignee foutoucour \
-            --head "$BRANCH" \
-            --base main
+            gh pr create \
+              --title "Validation failure — ${DATE}" \
+              --body "$BODY" \
+              --label "bug" \
+              --assignee foutoucour \
+              --head "$BRANCH" \
+              --base main
+          fi
