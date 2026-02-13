@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import click
 
-from sync_categories import cli as sync_categories_cmd
 from sync_model import cli as sync_cmd
 from validate_model import cli as validate_cmd
 
@@ -25,7 +24,6 @@ def main() -> None:
 
 main.add_command(sync_cmd)
 main.add_command(validate_cmd)
-main.add_command(sync_categories_cmd)
 
 if __name__ == "__main__":
     main()
