@@ -9,21 +9,13 @@ permissions:
   pull-requests: write
 
 jobs:
-  # ── Pre-commit (ruff lint + format) ────────────────────────────────
-  pre-commit:
-    name: Pre-commit checks
+  # ── Prek (ruff lint + format) ──────────────────────────────────────
+  prek:
+    name: Prek checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
-      - name: Install Python
-        run: uv python install 3.13
-
-      - uses: pre-commit/action@v3.0.1
+      - uses: j178/prek-action@v1
 
   # ── Tests ──────────────────────────────────────────────────────────
   tests:
@@ -61,7 +53,7 @@ jobs:
   report:
     name: Report results
     if: always()
-    needs: [pre-commit, tests]
+    needs: [prek, tests]
     runs-on: ubuntu-latest
     steps:
       - name: Build comment body
@@ -69,7 +61,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const precommit = '${{ needs.pre-commit.result }}';
+            const prek      = '${{ needs.prek.result }}';
             const tests     = '${{ needs.tests.result }}';
 
             const icon = (s) => s === 'success' ? '✅' : s === 'skipped' ? '⏭️' : '❌';
@@ -79,7 +71,7 @@ jobs:
               '',
               '| Job | Status |',
               '|-----|--------|',
-              `| Pre-commit (ruff) | ${icon(precommit)} \`${precommit}\` |`,
+              `| Prek (ruff) | ${icon(prek)} \`${prek}\` |`,
               `| Tests | ${icon(tests)} \`${tests}\` |`,
               '',
               `> Triggered by commit \`${context.sha.slice(0, 8)}\``,
@@ -102,3 +94,4 @@ jobs:
           comment-id: ${{ steps.find.outputs.comment-id }}
           edit-mode: replace
           body: ${{ steps.body.outputs.comment }}
+
