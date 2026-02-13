@@ -1,6 +1,6 @@
 """Tests for validate_model — Odoo→Reverb validation / sanitization."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -343,7 +343,7 @@ class TestApplyValidationUpdates:
 class TestScrapeReverbUrls:
     """Unit tests for _scrape_reverb_urls with mocked ReverbScraper."""
 
-    def test_scrapes_reverb_urls_only(self):
+    async def test_scrapes_reverb_urls_only(self):
         entries = [
             {"x_studio_url": "https://reverb.com/item/1-guitar"},
             {"x_studio_url": "https://other.com/guitar"},
@@ -355,25 +355,30 @@ class TestScrapeReverbUrls:
             {"url": "https://reverb.com/item/2-bass", "name": "Bass"},
         ]
 
-        with patch("validate_model.asyncio.run") as mock_run:
-            mock_run.return_value = mock_results
-            result = _scrape_reverb_urls(entries)
+        mock_scraper = AsyncMock()
+        mock_scraper.extract_many.return_value = mock_results
+
+        with patch("validate_model.ReverbScraper") as MockCls:
+            mock_instance = AsyncMock()
+            mock_instance.__aenter__.return_value = mock_scraper
+            MockCls.return_value = mock_instance
+            result = await _scrape_reverb_urls(entries)
 
         assert len(result) == 2
         assert "https://reverb.com/item/1-guitar" in result
         assert "https://reverb.com/item/2-bass" in result
         assert "https://other.com/guitar" not in result
 
-    def test_empty_entries_returns_empty(self):
-        result = _scrape_reverb_urls([])
+    async def test_empty_entries_returns_empty(self):
+        result = await _scrape_reverb_urls([])
         assert result == {}
 
-    def test_no_reverb_urls_returns_empty(self):
+    async def test_no_reverb_urls_returns_empty(self):
         entries = [
             {"x_studio_url": "https://other.com/guitar"},
             {"x_studio_url": ""},
         ]
-        result = _scrape_reverb_urls(entries)
+        result = await _scrape_reverb_urls(entries)
         assert result == {}
 
 
@@ -432,12 +437,12 @@ class TestFetchAllModels:
                 {
                     "id": 10,
                     "x_studio_slug": "electric-guitars",
-                    "x_studio_default_shipping_price": 250.0,
+                    "x_studio_shipping_default_price": 250.0,
                 },
                 {
                     "id": 20,
                     "x_studio_slug": "effects-and-pedals",
-                    "x_studio_default_shipping_price": 35.0,
+                    "x_studio_shipping_default_price": 35.0,
                 },
             ],
         )
@@ -482,7 +487,7 @@ class TestFetchAllModels:
                 {
                     "id": 10,
                     "x_studio_slug": "electric-guitars",
-                    "x_studio_default_shipping_price": 300.0,
+                    "x_studio_shipping_default_price": 300.0,
                 },
             ],
         )
@@ -514,8 +519,8 @@ class TestFetchAllModels:
                 },
             ],
             cat_records=[
-                {"id": 10, "x_studio_slug": "guitars", "x_studio_default_shipping_price": 250.0},
-                {"id": 20, "x_studio_slug": "pedals", "x_studio_default_shipping_price": 35.0},
+                {"id": 10, "x_studio_slug": "guitars", "x_studio_shipping_default_price": 250.0},
+                {"id": 20, "x_studio_slug": "pedals", "x_studio_shipping_default_price": 35.0},
             ],
         )
 
@@ -545,10 +550,12 @@ class TestCollectModelData:
         conn.get_model.return_value = guitar
         return conn
 
-    def test_no_entries_returns_empty_result(self):
+    async def test_no_entries_returns_empty_result(self):
         conn = self._mock_conn(guitar_entries=[])
 
-        result = _collect_model_data(conn, model_id=1, model_name="Test", default_shipping=250.0)
+        result = await _collect_model_data(
+            conn, model_id=1, model_name="Test", default_shipping=250.0
+        )
 
         assert result["model_id"] == 1
         assert result["model_name"] == "Test"
@@ -557,7 +564,7 @@ class TestCollectModelData:
         assert result["report"] == []
         assert result["update_count"] == 0
 
-    def test_collects_entries_and_scrapes(self):
+    async def test_collects_entries_and_scrapes(self):
         url = "https://reverb.com/item/1-guitar"
         entries = [
             {
@@ -572,23 +579,28 @@ class TestCollectModelData:
             }
         ]
         reverb_result = {
-            "url": url,
-            "name": "Guitar",
-            "price": "4000.00",
-            "price_display": "C$4,000",
-            "offers_enabled": True,
-            "sale_ended": False,
-            "published_at": "2025-06-20",
-            "shipping_price": "250.00",
-            "ships_to_canada": True,
-            "status": "Live",
+            url: {
+                "url": url,
+                "name": "Guitar",
+                "price": "4000.00",
+                "price_display": "C$4,000",
+                "offers_enabled": True,
+                "sale_ended": False,
+                "published_at": "2025-06-20",
+                "shipping_price": "250.00",
+                "ships_to_canada": True,
+                "status": "Live",
+            }
         }
 
         conn = self._mock_conn(guitar_entries=entries)
 
-        with patch("validate_model.asyncio.run") as mock_run:
-            mock_run.return_value = [reverb_result]
-            result = _collect_model_data(
+        with patch(
+            "validate_model._scrape_reverb_urls",
+            new_callable=AsyncMock,
+            return_value=reverb_result,
+        ):
+            result = await _collect_model_data(
                 conn, model_id=1, model_name="Test", default_shipping=250.0
             )
 
@@ -597,10 +609,10 @@ class TestCollectModelData:
         assert len(result["report"]) == 1
         assert result["update_count"] == 1  # price changed 5000 → 4000
 
-    def test_echoes_back_model_metadata(self):
+    async def test_echoes_back_model_metadata(self):
         conn = self._mock_conn(guitar_entries=[])
 
-        result = _collect_model_data(
+        result = await _collect_model_data(
             conn, model_id=42, model_name="My Model", default_shipping=99.0
         )
 

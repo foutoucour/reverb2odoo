@@ -530,7 +530,7 @@ class TestFindModel:
                 {
                     "id": 110,
                     "x_studio_slug": "electric-guitars",
-                    "x_studio_default_shipping_price": 250.0,
+                    "x_studio_shipping_default_price": 250.0,
                 }
             ],
         )
@@ -591,7 +591,7 @@ class TestFindModel:
                 {
                     "id": 109,
                     "x_studio_slug": "effects-and-pedals",
-                    "x_studio_default_shipping_price": 35.0,
+                    "x_studio_shipping_default_price": 35.0,
                 }
             ],
         )
@@ -769,12 +769,12 @@ class TestFetchAllModels:
                 {
                     "id": 10,
                     "x_studio_slug": "electric-guitars",
-                    "x_studio_default_shipping_price": 250.0,
+                    "x_studio_shipping_default_price": 250.0,
                 },
                 {
                     "id": 20,
                     "x_studio_slug": "effects-and-pedals",
-                    "x_studio_default_shipping_price": 35.0,
+                    "x_studio_shipping_default_price": 35.0,
                 },
             ],
         )
@@ -822,8 +822,8 @@ class TestFetchAllModels:
                 },
             ],
             cat_records=[
-                {"id": 10, "x_studio_slug": "guitars", "x_studio_default_shipping_price": 250.0},
-                {"id": 20, "x_studio_slug": "pedals", "x_studio_default_shipping_price": 35.0},
+                {"id": 10, "x_studio_slug": "guitars", "x_studio_shipping_default_price": 250.0},
+                {"id": 20, "x_studio_slug": "pedals", "x_studio_shipping_default_price": 35.0},
             ],
         )
 

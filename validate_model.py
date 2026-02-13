@@ -49,7 +49,7 @@ def _is_reverb_url(url: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _scrape_reverb_urls(
+async def _scrape_reverb_urls(
     entries: list[dict],
     *,
     default_shipping: float = DEFAULT_SHIPPING,
@@ -71,15 +71,12 @@ def _scrape_reverb_urls(
 
     shipping_str = f"{default_shipping:.2f}"
 
-    async def _fetch() -> list[dict]:
-        async with ReverbScraper(
-            currency="CAD",
-            shipping_region="CA",
-            default_shipping=shipping_str,
-        ) as scraper:
-            return await scraper.extract_many(urls)
-
-    results_list = asyncio.run(_fetch())
+    async with ReverbScraper(
+        currency="CAD",
+        shipping_region="CA",
+        default_shipping=shipping_str,
+    ) as scraper:
+        results_list = await scraper.extract_many(urls)
 
     results: dict[str, dict] = {}
     for url, data in zip(urls, results_list, strict=True):
@@ -227,7 +224,7 @@ def _apply_validation_updates(conn, report: list[dict]) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _collect_model_data(
+async def _collect_model_data(
     conn,
     *,
     model_id: int,
@@ -236,7 +233,7 @@ def _collect_model_data(
 ) -> dict[str, Any]:
     """Fetch Odoo entries and scrape Reverb for a single model.
 
-    This is the **I/O-heavy** phase and is safe to run inside a thread.
+    This is the **I/O-heavy** phase.
 
     Returns a dict with keys:
 
@@ -263,7 +260,7 @@ def _collect_model_data(
 
     reverb_count = sum(1 for e in entries if _is_reverb_url(e.get("x_studio_url", "")))
     logger.info("[{}] Scraping {} Reverb URL(s)…", model_name, reverb_count)
-    reverb_data = _scrape_reverb_urls(entries, default_shipping=default_shipping)
+    reverb_data = await _scrape_reverb_urls(entries, default_shipping=default_shipping)
     logger.success("[{}] Scraped {} Reverb listing(s)", model_name, len(reverb_data))
 
     report = _build_validation_report(entries, reverb_data)
@@ -296,11 +293,13 @@ def _validate_single_model(
     logger.info("Resolved model '{}' → x_models id={}", model_name, model_id)
     logger.info("Default shipping: C${:.2f}", default_shipping)
 
-    data = _collect_model_data(
-        conn,
-        model_id=model_id,
-        model_name=model_name,
-        default_shipping=default_shipping,
+    data = asyncio.run(
+        _collect_model_data(
+            conn,
+            model_id=model_id,
+            model_name=model_name,
+            default_shipping=default_shipping,
+        )
     )
 
     if not data["entries"]:
@@ -379,11 +378,13 @@ def cli(
         with ThreadPoolExecutor(max_workers=n_workers) as pool:
             future_to_idx = {
                 pool.submit(
-                    _collect_model_data,
-                    conn,
-                    model_id=mi["id"],
-                    model_name=mi["name"],
-                    default_shipping=mi["default_shipping"],
+                    asyncio.run,
+                    _collect_model_data(
+                        conn,
+                        model_id=mi["id"],
+                        model_name=mi["name"],
+                        default_shipping=mi["default_shipping"],
+                    ),
                 ): idx
                 for idx, mi in enumerate(all_model_info)
             }
