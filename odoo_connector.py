@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 import odoolib
 from loguru import logger
 
-
 # ---------------------------------------------------------------------------
 # Config helpers
 # ---------------------------------------------------------------------------
@@ -33,10 +32,10 @@ def _hostname_from_url(raw: str) -> str:
 
 
 def get_connection(
-        hostname: str,
-        database: str,
-        login: str,
-        password: str,
+    hostname: str,
+    database: str,
+    login: str,
+    password: str,
 ) -> odoolib.main.Connection:
     """Return an authenticated ``odoolib`` connection.
 
@@ -97,9 +96,9 @@ GUITAR_FIELDS: list[str] = [
 
 
 def find_guitar_by_url(
-        conn: odoolib.main.Connection,
-        url: str,
-        fields: list[str] | None = None,
+    conn: odoolib.main.Connection,
+    url: str,
+    fields: list[str] | None = None,
 ) -> dict | None:
     """Look up a single ``x_guitar`` record by its Reverb / listing URL.
 
