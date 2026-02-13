@@ -1,0 +1,96 @@
+name: Weekly Sync
+
+on:
+  schedule:
+    # Every Sunday at midnight UTC
+    - cron: "0 0 * * 0"
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Sync all models from Reverb to Odoo
+    runs-on: ubuntu-latest
+
+    env:
+      ODOO_HOSTNAME: ${{ secrets.ODOO_HOSTNAME }}
+      ODOO_DATABASE: ${{ secrets.ODOO_DATABASE }}
+      ODOO_LOGIN: ${{ secrets.ODOO_LOGIN }}
+      ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run sync --all
+        id: sync
+        run: |
+          uv run reverb2odoo sync --all --yes 2>&1 | tee sync-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload sync log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-log
+          path: sync-output.txt
+
+      - name: Open PR on failure
+        if: steps.sync.outputs.exit_code != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE=$(date -u +"%Y-%m-%d")
+          BRANCH="fix/sync-failure-${DATE}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create or reset the branch
+          git fetch origin "$BRANCH" 2>/dev/null && git checkout "$BRANCH" && git reset --hard origin/main || git checkout -b "$BRANCH"
+
+          mkdir -p reports
+          cp sync-output.txt "reports/sync-failure-${DATE}.txt"
+
+          git add reports/
+          git commit -m "report: sync failure on ${DATE}"
+          git push --force-with-lease -u origin "$BRANCH"
+
+          # Only create a PR if one doesn't already exist for this branch
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number -q '.[0].number')
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #${EXISTING_PR} already exists — updated branch with latest log."
+          else
+            BODY="## Automated sync failed
+
+          The weekly \`reverb2odoo sync --all\` run failed on **${DATE}**.
+
+          The full output log is attached in \`reports/sync-failure-${DATE}.txt\`.
+
+          ### Next steps
+
+          1. Review the log to identify which model(s) or listing(s) caused the failure.
+          2. Fix the underlying issue (Odoo data, Reverb connectivity, etc.).
+          3. Re-run the workflow manually from the **Actions** tab or merge this PR once resolved."
+
+            gh pr create \
+              --title "Sync failure — ${DATE}" \
+              --body "$BODY" \
+              --label "bug" \
+              --assignee foutoucour \
+              --head "$BRANCH" \
+              --base main
+          fi
