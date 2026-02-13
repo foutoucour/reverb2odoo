@@ -1,0 +1,39 @@
+[32m2026-02-13 15:17:29.200[0m | [1mINFO    [0m | [36modoo_connector[0m:[36mget_connection[0m:[36m52[0m - [1mConnecting to Odoo at lespaulpedia.odoo.com:443 (jsonrpcs)…[0m
+Traceback (most recent call last):
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/bin/reverb2odoo", line 10, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1485, in __call__
+    return self.main(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1406, in main
+    rv = self.invoke(ctx)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1873, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+                           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1269, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 824, in invoke
+    return callback(*args, **kwargs)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/validate_model.py", line 365, in cli
+    all_model_info = _fetch_all_models(conn)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/sync_model.py", line 142, in _fetch_all_models
+    cat_records = cat_model.search_read([("id", "in", list(cat_ids))], cat_fields)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 279, in search_read
+    records = self.read(record_ids, fields or [], context=context or {})
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 243, in proxy
+    result = self.connection.get_service('object').execute_kw(
+                                            self.connection.database,
+    ...<3 lines>...
+                                            method,
+                                            args, kw)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 131, in proxy
+    result = self.connector.send(self.service_name, method, *args)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 106, in send
+    return json_rpc(self.url, "call", {"service": service_name, "method": method, "args": args})
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/tools.py", line 21, in json_rpc
+    raise JsonRPCException(result["error"])
+odoolib.tools.JsonRPCException: {'code': 0, 'message': 'Odoo Server Error', 'data': {'name': 'builtins.ValueError', 'message': "Invalid field 'x_studio_default_shipping_price' on 'x_reverb_category'", 'arguments': ["Invalid field 'x_studio_default_shipping_price' on 'x_reverb_category'"], 'context': {}, 'debug': 'Traceback (most recent call last):\n  File "/home/odoo/src/odoo/19.0/odoo/orm/models.py", line 3851, in _determine_fields_to_fetch\n    field = self._fields[field_name]\n            ~~~~~~~~~~~~^^^^^^^^^^^^\nKeyError: \'x_studio_default_shipping_price\'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File "/home/odoo/src/odoo/19.0/odoo/http.py", line 2273, in _serve_db\n    return service_model.retrying(serve_func, env=self.env)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/service/model.py", line 184, in retrying\n    result = func()\n             ^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/http.py", line 2328, in _serve_ir_http\n    response = self.dispatcher.dispatch(rule.endpoint, args)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/http.py", line 2543, in dispatch\n    result = self.request.registry[\'ir.http\']._dispatch(endpoint)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/addons/base/models/ir_http.py", line 355, in _dispatch\n    result = endpoint(**request.params)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/http.py", line 788, in route_wrapper\n    result = endpoint(self, *args, **params_ok)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/custom/trial/saas_trial/controllers/main.py", line 474, in jsonrpc\n    res = super().jsonrpc(service, method, args)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/http.py", line 788, in route_wrapper\n    result = endpoint(self, *args, **params_ok)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/addons/rpc/controllers/jsonrpc.py", line 16, in jsonrpc\n    return dispatch_rpc(service, method, args)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/http.py", line 439, in dispatch_rpc\n    return dispatch(method, params)\n           ^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/service/model.py", line 129, in dispatch\n    res = execute_cr(cr, uid, model, method_, args, kw)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/service/model.py", line 146, in execute_cr\n    result = retrying(partial(call_kw, recs, method, args, kw), env)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/service/model.py", line 184, in retrying\n    result = func()\n             ^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/service/model.py", line 93, in call_kw\n    result = method(recs, *args, **kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/orm/models.py", line 3489, in read\n    self._origin.fetch(fields)\n  File "/home/odoo/src/odoo/19.0/odoo/orm/models.py", line 3792, in fetch\n    fields_to_fetch = self._determine_fields_to_fetch(field_names, ignore_when_in_cache=True)\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File "/home/odoo/src/odoo/19.0/odoo/orm/models.py", line 3853, in _determine_fields_to_fetch\n    raise ValueError(f"Invalid field {field_name!r} on {self._name!r}") from e\nValueError: Invalid field \'x_studio_default_shipping_price\' on \'x_reverb_category\'\n'}}
