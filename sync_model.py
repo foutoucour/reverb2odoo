@@ -109,8 +109,17 @@ def _fetch_guitars(conn, model_id: int) -> list[dict]:
     )
 
 
-def _fetch_all_models(conn) -> list[dict[str, Any]]:
+def _fetch_all_models(conn, *, wanna_only: bool = False) -> list[dict[str, Any]]:
     """Fetch every ``x_models`` record and resolve category / shipping info.
+
+    Parameters
+    ----------
+    conn
+        Odoo XML-RPC connection wrapper.
+    wanna_only : bool
+        When *True*, only return models whose ``x_studio_wanna`` field is
+        set.  This lets you sync just the models you have flagged as
+        "wanted" in Odoo.
 
     Returns a list of dicts, each with the same shape as
     :func:`_find_model`:
@@ -122,7 +131,8 @@ def _fetch_all_models(conn) -> list[dict[str, Any]]:
     """
     models = conn.get_model("x_models")
     fields = ["x_name", "x_studio_reverb_category_id"]
-    records = models.search_read([], fields)
+    domain: list = [("x_studio_wanna", "=", True)] if wanna_only else []
+    records = models.search_read(domain, fields)
 
     if not records:
         logger.warning("No models found in Odoo.")
@@ -524,6 +534,11 @@ def _collect_sync_data(
 @click.option("--dry-run", is_flag=True, help="Preview changes without writing to Odoo.")
 @click.option("--yes", "-y", "auto_yes", is_flag=True, help="Skip confirmation prompts.")
 @click.option(
+    "--wanna",
+    is_flag=True,
+    help="Only sync models flagged as 'wanna' (x_studio_wanna) in Odoo. Implies --all.",
+)
+@click.option(
     "--workers",
     type=int,
     default=DEFAULT_WORKERS,
@@ -540,6 +555,7 @@ def cli(
     no_category: bool,
     dry_run: bool,
     auto_yes: bool,
+    wanna: bool,
     workers: int,
 ) -> None:
     """Search Reverb for MODEL_NAME, then update/create entries in Odoo.
@@ -547,6 +563,10 @@ def cli(
     MODEL_NAME is the guitar model to sync (e.g. "Frank Brothers Arcane").
     Use --all to sync every model in the database at once.
     """
+    # --wanna implies --all
+    if wanna:
+        all_models = True
+
     if not all_models and not model_name:
         raise click.UsageError("Provide a MODEL_NAME or use --all.")
 
@@ -562,7 +582,7 @@ def cli(
 
     # --all: sync every model in the database (multi-threaded) -----------------
     if all_models:
-        all_model_info = _fetch_all_models(conn)
+        all_model_info = _fetch_all_models(conn, wanna_only=wanna)
         if not all_model_info:
             logger.warning("No models found — nothing to do.")
             return
