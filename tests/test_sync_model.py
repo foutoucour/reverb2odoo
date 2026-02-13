@@ -87,7 +87,7 @@ class TestComputeChanges:
         entry = {
             "x_studio_value": 5000.0,
             "x_studio_accept_offers": True,
-            "x_studio_published_at_1": "2025-06-20 00:00:00",
+            "x_studio_published_at": "2025-06-20 00:00:00",
             "x_studio_is_available": True,
             "x_studio_shipping": 250.0,
         }
@@ -186,7 +186,7 @@ class TestComputeChanges:
             "x_studio_accept_offers": True,
             "x_studio_is_available": True,
             "x_studio_shipping": 250.0,
-            "x_studio_published_at_1": "2025-01-01 00:00:00",
+            "x_studio_published_at": "2025-01-01 00:00:00",
         }
         reverb = {
             "price": "5000.00",
@@ -196,7 +196,7 @@ class TestComputeChanges:
             "published_at": "2025-06-20",
         }
         changes = _compute_changes(entry, reverb)
-        assert changes["x_studio_published_at_1"] == "2025-06-20 00:00:00"
+        assert changes["x_studio_published_at"] == "2025-06-20 00:00:00"
 
     def test_relists_marks_available(self):
         entry = {
@@ -259,7 +259,7 @@ class TestReverbToOdooVals:
         assert vals["x_studio_active"] is True
         assert vals["x_studio_accept_offers"] is True
         assert vals["x_studio_taxed"] is False
-        assert vals["x_studio_published_at_1"] == "2025-06-20 00:00:00"
+        assert vals["x_studio_published_at"] == "2025-06-20 00:00:00"
 
     def test_sold_listing_uses_default_shipping(self):
         reverb = {
@@ -302,7 +302,7 @@ class TestReverbToOdooVals:
             "published_at": "",
         }
         vals = _reverb_to_odoo_vals(reverb, model_id=1)
-        assert "x_studio_published_at_1" not in vals
+        assert "x_studio_published_at" not in vals
 
 
 # ── _build_report ─────────────────────────────────────────────────────────
@@ -335,7 +335,7 @@ class TestBuildReport:
             "x_studio_accept_offers": True,
             "x_studio_is_available": True,
             "x_studio_shipping": 250.0,
-            "x_studio_published_at_1": "2025-06-20 00:00:00",
+            "x_studio_published_at": "2025-06-20 00:00:00",
         }
         base.update(kwargs)
         return base
@@ -530,7 +530,7 @@ class TestFindModel:
                 {
                     "id": 110,
                     "x_studio_slug": "electric-guitars",
-                    "x_studio_default_shipping_price": 250.0,
+                    "x_studio_shipping_default_price": 250.0,
                 }
             ],
         )
@@ -591,7 +591,7 @@ class TestFindModel:
                 {
                     "id": 109,
                     "x_studio_slug": "effects-and-pedals",
-                    "x_studio_default_shipping_price": 35.0,
+                    "x_studio_shipping_default_price": 35.0,
                 }
             ],
         )
@@ -769,12 +769,12 @@ class TestFetchAllModels:
                 {
                     "id": 10,
                     "x_studio_slug": "electric-guitars",
-                    "x_studio_default_shipping_price": 250.0,
+                    "x_studio_shipping_default_price": 250.0,
                 },
                 {
                     "id": 20,
                     "x_studio_slug": "effects-and-pedals",
-                    "x_studio_default_shipping_price": 35.0,
+                    "x_studio_shipping_default_price": 35.0,
                 },
             ],
         )
@@ -822,8 +822,8 @@ class TestFetchAllModels:
                 },
             ],
             cat_records=[
-                {"id": 10, "x_studio_slug": "guitars", "x_studio_default_shipping_price": 250.0},
-                {"id": 20, "x_studio_slug": "pedals", "x_studio_default_shipping_price": 35.0},
+                {"id": 10, "x_studio_slug": "guitars", "x_studio_shipping_default_price": 250.0},
+                {"id": 20, "x_studio_slug": "pedals", "x_studio_shipping_default_price": 35.0},
             ],
         )
 

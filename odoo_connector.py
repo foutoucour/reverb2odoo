@@ -161,7 +161,7 @@ GUITAR_FIELDS: list[str] = [
     "x_studio_my_cad_ttc",
     "x_studio_target_price_ht",
     "x_studio_target_price_ttc",
-    "x_studio_published_at_1",
+    "x_studio_published_at",
 ]
 
 

@@ -85,11 +85,11 @@ def _find_model(conn, model_name: str) -> dict[str, Any]:
     if cat_ref:
         cat_id = cat_ref[0] if isinstance(cat_ref, (list, tuple)) else cat_ref
         cat_model = conn.get_model("x_reverb_category")
-        cat_fields = ["x_studio_slug", "x_studio_default_shipping_price"]
+        cat_fields = ["x_studio_slug", "x_studio_shipping_default_price"]
         cat_records = cat_model.search_read([("id", "=", cat_id)], cat_fields)
         if cat_records:
             category_slug = cat_records[0].get("x_studio_slug") or None
-            cat_ship = cat_records[0].get("x_studio_default_shipping_price")
+            cat_ship = cat_records[0].get("x_studio_shipping_default_price")
             if cat_ship:
                 default_shipping = float(cat_ship)
 
@@ -138,7 +138,7 @@ def _fetch_all_models(conn) -> list[dict[str, Any]]:
     cat_map: dict[int, dict] = {}
     if cat_ids:
         cat_model = conn.get_model("x_reverb_category")
-        cat_fields = ["x_studio_slug", "x_studio_default_shipping_price"]
+        cat_fields = ["x_studio_slug", "x_studio_shipping_default_price"]
         cat_records = cat_model.search_read([("id", "in", list(cat_ids))], cat_fields)
         for c in cat_records:
             cat_map[c["id"]] = c
@@ -154,7 +154,7 @@ def _fetch_all_models(conn) -> list[dict[str, Any]]:
             cat_rec = cat_map.get(cat_id)
             if cat_rec:
                 category_slug = cat_rec.get("x_studio_slug") or None
-                cat_ship = cat_rec.get("x_studio_default_shipping_price")
+                cat_ship = cat_rec.get("x_studio_shipping_default_price")
                 if cat_ship:
                     default_shipping = float(cat_ship)
 
@@ -246,8 +246,8 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
     # Published at
     if published_at:
         new_val = published_at + " 00:00:00"
-        if entry.get("x_studio_published_at_1") != new_val:
-            changes["x_studio_published_at_1"] = new_val
+        if entry.get("x_studio_published_at") != new_val:
+            changes["x_studio_published_at"] = new_val
 
     # Availability
     if sale_ended and entry.get("x_studio_is_available") is True:
@@ -291,7 +291,7 @@ def _reverb_to_odoo_vals(
         "x_studio_taxed": False,
     }
     if published:
-        vals["x_studio_published_at_1"] = published + " 00:00:00"
+        vals["x_studio_published_at"] = published + " 00:00:00"
 
     return vals
 
