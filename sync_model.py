@@ -246,8 +246,8 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
     # Published at
     if published_at:
         new_val = published_at + " 00:00:00"
-        if entry.get("x_studio_published_at_1") != new_val:
-            changes["x_studio_published_at_1"] = new_val
+        if entry.get("x_studio_published_at") != new_val:
+            changes["x_studio_published_at"] = new_val
 
     # Availability
     if sale_ended and entry.get("x_studio_is_available") is True:
@@ -291,7 +291,7 @@ def _reverb_to_odoo_vals(
         "x_studio_taxed": False,
     }
     if published:
-        vals["x_studio_published_at_1"] = published + " 00:00:00"
+        vals["x_studio_published_at"] = published + " 00:00:00"
 
     return vals
 

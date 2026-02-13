@@ -94,7 +94,7 @@ class TestBuildValidationReport:
             "x_studio_accept_offers": True,
             "x_studio_is_available": True,
             "x_studio_shipping": 250.0,
-            "x_studio_published_at_1": "2025-06-20 00:00:00",
+            "x_studio_published_at": "2025-06-20 00:00:00",
         }
         base.update(kwargs)
         return base
@@ -575,7 +575,7 @@ class TestCollectModelData:
                 "x_studio_accept_offers": True,
                 "x_studio_is_available": True,
                 "x_studio_shipping": 250.0,
-                "x_studio_published_at_1": "2025-06-20 00:00:00",
+                "x_studio_published_at": "2025-06-20 00:00:00",
             }
         ]
         reverb_result = {
