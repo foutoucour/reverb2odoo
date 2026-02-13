@@ -21,7 +21,7 @@ from typing import Any
 import click
 from loguru import logger
 
-from odoo_connector import GUITAR_FIELDS, get_connection
+from odoo_connector import GUITAR_FIELDS
 from reverb_scraper import ReverbScraper
 
 #: Default shipping cost assumed when Reverb does not return one.
@@ -530,7 +530,9 @@ def _collect_sync_data(
     show_default=True,
     help="Number of worker threads for --all mode.",
 )
+@click.pass_context
 def cli(
+    ctx: click.Context,
     model_name: str | None,
     all_models: bool,
     search_query: str | None,
@@ -556,7 +558,7 @@ def cli(
     else:
         effective_category = _CATEGORY_FROM_DB
 
-    conn = get_connection()
+    conn = ctx.obj["conn"]
 
     # --all: sync every model in the database (multi-threaded) -----------------
     if all_models:

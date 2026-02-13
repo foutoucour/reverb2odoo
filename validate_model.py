@@ -19,7 +19,6 @@ from typing import Any
 import click
 from loguru import logger
 
-from odoo_connector import get_connection
 from reverb_scraper import ReverbScraper
 from sync_model import (
     DEFAULT_SHIPPING,
@@ -342,7 +341,9 @@ def _validate_single_model(
     show_default=True,
     help="Number of worker threads for --all mode.",
 )
+@click.pass_context
 def cli(
+    ctx: click.Context,
     model_name: str | None,
     all_models: bool,
     dry_run: bool,
@@ -357,7 +358,7 @@ def cli(
     if not all_models and not model_name:
         raise click.UsageError("Provide a MODEL_NAME or use --all.")
 
-    conn = get_connection()
+    conn = ctx.obj["conn"]
 
     # --all: validate every model in the database (multi-threaded) -------------
     if all_models:

@@ -1,38 +1,18 @@
 """
-Connect to an Odoo instance using odoo-client-lib and the credentials
-stored in env.yml.
+Connect to an Odoo instance using odoo-client-lib.
+
+Credentials are supplied as explicit arguments (sourced from environment
+variables / CLI options by the caller).
 """
 
-from pathlib import Path
 from urllib.parse import urlparse
 
 import odoolib
-import yaml
 from loguru import logger
 
 # ---------------------------------------------------------------------------
 # Config helpers
 # ---------------------------------------------------------------------------
-
-
-def _parse_env(path: Path = Path("env.yml")) -> dict:
-    """Parse the env.yml YAML config file.
-
-    Expected format::
-
-        ---
-        odoo:
-          hostname: "https://myinstance.odoo.com/odoo"
-          database: "mydb"
-          login: "user"
-          password: "secret"
-
-    Returns a flat dict of key/value pairs found under the ``odoo`` key.
-    """
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict) or "odoo" not in data:
-        raise ValueError(f"{path} must contain an 'odoo' top-level key")
-    return {str(k): str(v) for k, v in data["odoo"].items()}
 
 
 def _hostname_from_url(raw: str) -> str:
@@ -51,28 +31,31 @@ def _hostname_from_url(raw: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def get_connection(env_path: Path = Path("env.yml")) -> odoolib.main.Connection:
+def get_connection(
+    hostname: str,
+    database: str,
+    login: str,
+    password: str,
+) -> odoolib.main.Connection:
     """Return an authenticated ``odoolib`` connection.
 
-    Reads credentials from *env_path* and infers protocol / port from
-    the hostname URL scheme.
+    *hostname* may be a full URL (``https://mydb.odoo.com/odoo``) or a
+    bare host (``localhost``).  Protocol and port are inferred from the
+    URL scheme.
     """
-    cfg = _parse_env(env_path)
-    raw_host = cfg.get("hostname", "localhost")
-    hostname = _hostname_from_url(raw_host)
+    clean_host = _hostname_from_url(hostname)
 
-    # Infer protocol & port from the URL
-    is_https = raw_host.startswith("https://")
-    protocol = cfg.get("protocol", "jsonrpcs" if is_https else "jsonrpc")
-    port = int(cfg.get("port", 443 if is_https else 8069))
+    is_https = hostname.startswith("https://")
+    protocol = "jsonrpcs" if is_https else "jsonrpc"
+    port = 443 if is_https else 8069
 
-    logger.info("Connecting to Odoo at {}:{} ({})…", hostname, port, protocol)
+    logger.info("Connecting to Odoo at {}:{} ({})…", clean_host, port, protocol)
 
     connection = odoolib.get_connection(
-        hostname=hostname,
-        database=cfg["database"],
-        login=cfg["login"],
-        password=cfg["password"],
+        hostname=clean_host,
+        database=database,
+        login=login,
+        password=password,
         protocol=protocol,
         port=port,
     )
@@ -263,8 +246,18 @@ def _extract_reverb_item_id(url: str) -> str | None:
 
 
 def main():
-    """Connect to Odoo and fetch a few records to verify the connection."""
-    conn = get_connection()
+    """Connect to Odoo and fetch a few records to verify the connection.
+
+    Reads credentials from the standard ``ODOO_*`` environment variables.
+    """
+    import os
+
+    conn = get_connection(
+        hostname=os.environ["ODOO_HOSTNAME"],
+        database=os.environ["ODOO_DATABASE"],
+        login=os.environ["ODOO_LOGIN"],
+        password=os.environ["ODOO_PASSWORD"],
+    )
 
     # Read the current user (use search_read without ID filter as fallback)
     user_model = conn.get_model("res.users")

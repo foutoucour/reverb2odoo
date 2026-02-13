@@ -271,7 +271,6 @@ dependencies = [
     { name = "httpx" },
     { name = "loguru" },
     { name = "odoo-client-lib" },
-    { name = "pyyaml" },
     { name = "uritemplate" },
 ]
 
@@ -291,7 +290,6 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "loguru", specifier = ">=0.7,<1" },
     { name = "odoo-client-lib", specifier = ">=2.0,<3" },
-    { name = "pyyaml", specifier = ">=6.0,<7" },
     { name = "uritemplate", specifier = ">=4.1,<5" },
 ]
 
