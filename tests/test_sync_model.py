@@ -76,6 +76,10 @@ class TestSyncCli:
         result = self.runner.invoke(cli, ["--all", "--workers", "abc"])
         assert result.exit_code != 0
 
+    def test_wanna_shown_in_help(self):
+        result = self.runner.invoke(cli, ["--help"])
+        assert "--wanna" in result.output
+
 
 # ── _compute_changes ──────────────────────────────────────────────────────
 
@@ -836,6 +840,34 @@ class TestFetchAllModels:
         assert call_domain[0][0] == "id"
         assert call_domain[0][1] == "in"
         assert set(call_domain[0][2]) == {10, 20}
+
+    def test_wanna_only_filters_domain(self):
+        """When wanna_only=True the search domain filters on x_studio_wanna."""
+        conn = self._mock_conn(
+            [
+                {"id": 1, "x_name": "Wanted", "x_studio_reverb_category_id": False},
+            ]
+        )
+
+        _fetch_all_models(conn, wanna_only=True)
+
+        models_mock = conn.get_model("x_models")
+        call_domain = models_mock.search_read.call_args[0][0]
+        assert call_domain == [("x_studio_wanna", "=", True)]
+
+    def test_wanna_only_false_uses_empty_domain(self):
+        """Default (wanna_only=False) searches all models."""
+        conn = self._mock_conn(
+            [
+                {"id": 1, "x_name": "Model A", "x_studio_reverb_category_id": False},
+            ]
+        )
+
+        _fetch_all_models(conn, wanna_only=False)
+
+        models_mock = conn.get_model("x_models")
+        call_domain = models_mock.search_read.call_args[0][0]
+        assert call_domain == []
 
 
 # ── _collect_sync_data (mocked I/O) ──────────────────────────────────────
