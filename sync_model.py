@@ -306,6 +306,11 @@ def _reverb_to_odoo_vals(
     return vals
 
 
+def _is_brand_new(reverb: dict) -> bool:
+    """Return *True* if the Reverb listing is labelled "Brand New"."""
+    return reverb.get("condition", "").lower() == "brand new"
+
+
 def _build_report(
     reverb_results: list[dict],
     odoo_entries: list[dict],
@@ -322,6 +327,9 @@ def _build_report(
     - ``changes``: field updates for ``"update"``
     - ``create_vals``: full values dict for ``"create"``
     - ``warnings``: list of informational strings
+
+    Brand-new listings that do not already exist in Odoo are automatically
+    skipped — only used / second-hand items are created.
     """
     odoo_by_url: dict[str, dict] = {}
     for e in odoo_entries:
@@ -351,6 +359,9 @@ def _build_report(
             item["entry"] = existing
             item["changes"] = _compute_changes(existing, r)
             item["action"] = "update" if item["changes"] else "ok"
+        elif _is_brand_new(r):
+            item["action"] = "skip"
+            item["warnings"].append("skipped: brand new")
         else:
             item["create_vals"] = _reverb_to_odoo_vals(r, model_id, default_shipping)
             item["action"] = "create"
