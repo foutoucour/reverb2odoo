@@ -12,7 +12,9 @@ from sync_model import (
     _clean_url,
     _collect_sync_data,
     _compute_changes,
+    _download_image_base64,
     _fetch_all_models,
+    _find_entries_without_image,
     _find_model,
     _is_brand_new,
     _print_report,
@@ -1051,3 +1053,254 @@ class TestCollectSyncData:
             category=None,
             default_shipping=250.0,
         )
+
+
+# ── _download_image_base64 ───────────────────────────────────────────────
+
+
+class TestDownloadImageBase64:
+    """Unit tests for _download_image_base64 (mocked HTTP)."""
+
+    def test_returns_base64_on_success(self):
+        fake_content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        mock_response = MagicMock()
+        mock_response.content = fake_content
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.return_value = mock_response
+
+        with patch("sync_model.httpx.Client", return_value=mock_client):
+            result = _download_image_base64("https://images.reverb.com/photo.jpg")
+
+        assert result is not None
+        import base64
+
+        assert base64.b64decode(result) == fake_content
+
+    def test_returns_none_for_empty_url(self):
+        assert _download_image_base64("") is None
+
+    def test_returns_none_for_none_url(self):
+        # photo_url can be None when not present in API response
+        assert _download_image_base64(None) is None
+
+    def test_returns_none_on_http_error(self):
+        import httpx
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Not Found", request=MagicMock(), response=MagicMock()
+        )
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.return_value = mock_response
+
+        with patch("sync_model.httpx.Client", return_value=mock_client):
+            result = _download_image_base64("https://images.reverb.com/missing.jpg")
+
+        assert result is None
+
+    def test_returns_none_on_connection_error(self):
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.side_effect = Exception("Connection refused")
+
+        with patch("sync_model.httpx.Client", return_value=mock_client):
+            result = _download_image_base64("https://images.reverb.com/photo.jpg")
+
+        assert result is None
+
+
+# ── _find_entries_without_image ──────────────────────────────────────────
+
+
+class TestFindEntriesWithoutImage:
+    """Unit tests for _find_entries_without_image."""
+
+    def test_returns_ids_without_image(self):
+        conn = MagicMock()
+        guitar = MagicMock()
+        guitar.search_read.return_value = [{"id": 100}, {"id": 300}]
+        conn.get_model.return_value = guitar
+
+        result = _find_entries_without_image(conn, [100, 200, 300])
+
+        assert result == {100, 300}
+        guitar.search_read.assert_called_once_with(
+            [("id", "in", [100, 200, 300]), ("x_studio_image", "=", False)],
+            ["id"],
+        )
+
+    def test_empty_ids_returns_empty_set(self):
+        conn = MagicMock()
+        result = _find_entries_without_image(conn, [])
+        assert result == set()
+        conn.get_model.assert_not_called()
+
+    def test_all_have_images(self):
+        conn = MagicMock()
+        guitar = MagicMock()
+        guitar.search_read.return_value = []
+        conn.get_model.return_value = guitar
+
+        result = _find_entries_without_image(conn, [100, 200])
+        assert result == set()
+
+
+# ── _apply_updates (image handling) ──────────────────────────────────────
+
+
+class TestApplyUpdatesImages:
+    """Tests for image download behaviour in _apply_updates."""
+
+    def _mock_conn(self, create_return=9999, no_image_ids=None):
+        """Build a mock connection that also handles x_studio_image queries."""
+        conn = MagicMock()
+        model = MagicMock()
+        model.create.return_value = create_return
+
+        def _search_read(domain, fields, **kwargs):
+            # Handle the _find_entries_without_image query
+            if fields == ["id"]:
+                return [{"id": eid} for eid in (no_image_ids or [])]
+            return []
+
+        model.search_read.side_effect = _search_read
+        conn.get_model.return_value = model
+        return conn, model
+
+    def test_create_downloads_image(self):
+        conn, model = self._mock_conn(create_return=500)
+        report = [
+            {
+                "action": "create",
+                "reverb": {"photo_url": "https://img.reverb.com/photo.jpg", "name": "G"},
+                "create_vals": {"x_name": "Guitar", "x_studio_models": 42},
+            },
+        ]
+
+        with patch("sync_model._download_image_base64", return_value="FAKEBASE64") as mock_dl:
+            upd, crt = _apply_updates(conn, report)
+
+        assert crt == 1
+        mock_dl.assert_called_once_with("https://img.reverb.com/photo.jpg")
+        # The vals passed to create should include the image
+        call_vals = model.create.call_args[0][0]
+        assert call_vals["x_studio_image"] == "FAKEBASE64"
+        assert call_vals["x_name"] == "Guitar"
+
+    def test_create_without_photo_url(self):
+        conn, model = self._mock_conn(create_return=500)
+        report = [
+            {
+                "action": "create",
+                "reverb": {"photo_url": "", "name": "G"},
+                "create_vals": {"x_name": "Guitar", "x_studio_models": 42},
+            },
+        ]
+
+        with patch("sync_model._download_image_base64", return_value=None):
+            upd, crt = _apply_updates(conn, report)
+
+        assert crt == 1
+        call_vals = model.create.call_args[0][0]
+        assert "x_studio_image" not in call_vals
+
+    def test_create_image_download_fails_gracefully(self):
+        conn, model = self._mock_conn(create_return=500)
+        report = [
+            {
+                "action": "create",
+                "reverb": {"photo_url": "https://img.reverb.com/photo.jpg", "name": "G"},
+                "create_vals": {"x_name": "Guitar", "x_studio_models": 42},
+            },
+        ]
+
+        with patch("sync_model._download_image_base64", return_value=None):
+            upd, crt = _apply_updates(conn, report)
+
+        # Entry should still be created, just without image
+        assert crt == 1
+        call_vals = model.create.call_args[0][0]
+        assert "x_studio_image" not in call_vals
+
+    def test_update_downloads_image_when_missing(self):
+        conn, model = self._mock_conn(no_image_ids=[100])
+        report = [
+            {
+                "action": "update",
+                "entry": {"id": 100},
+                "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
+                "changes": {"x_studio_value": 4000.0},
+            },
+        ]
+
+        with patch("sync_model._download_image_base64", return_value="IMGDATA"):
+            upd, crt = _apply_updates(conn, report)
+
+        assert upd == 1
+        call_args = model.write.call_args[0]
+        assert call_args[0] == 100
+        assert call_args[1]["x_studio_value"] == 4000.0
+        assert call_args[1]["x_studio_image"] == "IMGDATA"
+
+    def test_update_skips_image_when_already_present(self):
+        # no_image_ids is empty → entry 100 already has an image
+        conn, model = self._mock_conn(no_image_ids=[])
+        report = [
+            {
+                "action": "update",
+                "entry": {"id": 100},
+                "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
+                "changes": {"x_studio_value": 4000.0},
+            },
+        ]
+
+        with patch("sync_model._download_image_base64") as mock_dl:
+            upd, crt = _apply_updates(conn, report)
+
+        assert upd == 1
+        mock_dl.assert_not_called()
+        call_args = model.write.call_args[0]
+        assert "x_studio_image" not in call_args[1]
+
+    def test_does_not_mutate_original_create_vals(self):
+        conn, model = self._mock_conn(create_return=500)
+        original_vals = {"x_name": "Guitar", "x_studio_models": 42}
+        report = [
+            {
+                "action": "create",
+                "reverb": {"photo_url": "https://img.reverb.com/photo.jpg", "name": "G"},
+                "create_vals": original_vals,
+            },
+        ]
+
+        with patch("sync_model._download_image_base64", return_value="IMG"):
+            _apply_updates(conn, report)
+
+        # The original dict should not be mutated
+        assert "x_studio_image" not in original_vals
+
+    def test_does_not_mutate_original_changes(self):
+        conn, model = self._mock_conn(no_image_ids=[100])
+        original_changes = {"x_studio_value": 4000.0}
+        report = [
+            {
+                "action": "update",
+                "entry": {"id": 100},
+                "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
+                "changes": original_changes,
+            },
+        ]
+
+        with patch("sync_model._download_image_base64", return_value="IMG"):
+            _apply_updates(conn, report)
+
+        # The original dict should not be mutated
+        assert "x_studio_image" not in original_changes

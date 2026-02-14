@@ -14,11 +14,13 @@ multi-threaded Reverb searching.
 from __future__ import annotations
 
 import asyncio
+import base64
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 import click
+import httpx
 from loguru import logger
 
 from odoo_connector import GUITAR_FIELDS
@@ -39,6 +41,42 @@ DEFAULT_WORKERS = 4
 def _clean_url(url: str) -> str:
     """Strip query-string from a URL for comparison purposes."""
     return url.split("?")[0]
+
+
+def _download_image_base64(photo_url: str) -> str | None:
+    """Download an image from *photo_url* and return base64-encoded bytes.
+
+    Used to populate the ``x_studio_image`` field in Odoo with the first
+    photo from a Reverb listing.
+
+    Returns ``None`` if the URL is empty or the download fails.
+    """
+    if not photo_url:
+        return None
+    try:
+        with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+            response = client.get(photo_url)
+            response.raise_for_status()
+            return base64.b64encode(response.content).decode("ascii")
+    except Exception as e:
+        logger.warning("Failed to download image from {}: {}", photo_url, e)
+        return None
+
+
+def _find_entries_without_image(conn, entry_ids: list[int]) -> set[int]:
+    """Return the subset of *entry_ids* that have no ``x_studio_image`` set.
+
+    Uses a single Odoo query with a domain filter so that image binary data
+    is never transferred over the wire.
+    """
+    if not entry_ids:
+        return set()
+    guitar = conn.get_model("x_guitar")
+    no_img = guitar.search_read(
+        [("id", "in", entry_ids), ("x_studio_image", "=", False)],
+        ["id"],
+    )
+    return {r["id"] for r in no_img}
 
 
 def _find_model(conn, model_name: str) -> dict[str, Any]:
@@ -433,22 +471,53 @@ def _print_report(report: list[dict]) -> tuple[int, int]:
 def _apply_updates(conn, report: list[dict]) -> tuple[int, int]:
     """Write changes (updates + creates) to Odoo.
 
+    For **creates**, the first Reverb listing photo is downloaded and
+    stored in ``x_studio_image``.  For **updates**, the image is only
+    downloaded when the existing Odoo entry has no image yet.
+
     Returns (updated, created).
     """
     guitar = conn.get_model("x_guitar")
+
+    # Pre-check: which entries being updated lack an image?
+    update_ids = [item["entry"]["id"] for item in report if item["action"] == "update"]
+    ids_without_image = _find_entries_without_image(conn, update_ids)
+
     updated = 0
     created = 0
 
     for item in report:
         if item["action"] == "update":
             eid = item["entry"]["id"]
-            logger.info("Updating id={}: {}", eid, item["changes"])
-            guitar.write(eid, item["changes"])
+            changes = dict(item["changes"])
+
+            # Download image if the entry has no image yet
+            if eid in ids_without_image:
+                photo_url = item.get("reverb", {}).get("photo_url", "")
+                image_b64 = _download_image_base64(photo_url)
+                if image_b64:
+                    changes["x_studio_image"] = image_b64
+                    logger.info("  ↳ downloaded image for id={}", eid)
+
+            # Log changes without the (potentially huge) image blob
+            log_changes = {k: v for k, v in changes.items() if k != "x_studio_image"}
+            logger.info("Updating id={}: {}", eid, log_changes)
+            guitar.write(eid, changes)
             updated += 1
+
         elif item["action"] == "create":
-            vals = item["create_vals"]
+            vals = dict(item["create_vals"])
+
+            # Download image for the new entry
+            photo_url = item.get("reverb", {}).get("photo_url", "")
+            image_b64 = _download_image_base64(photo_url)
+            if image_b64:
+                vals["x_studio_image"] = image_b64
+
             logger.info("Creating: {}", vals.get("x_name", "")[:50])
             new_id = guitar.create(vals)
+            if image_b64:
+                logger.info("  ↳ downloaded image for id={}", new_id)
             logger.success("  → created id={}", new_id)
             created += 1
 
