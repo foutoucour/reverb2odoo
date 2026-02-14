@@ -23,8 +23,10 @@ from reverb_scraper import ReverbScraper
 from sync_model import (
     DEFAULT_SHIPPING,
     _compute_changes,
+    _download_image_base64,
     _fetch_all_models,
     _fetch_guitars,
+    _find_entries_without_image,
     _find_model,
 )
 
@@ -203,11 +205,18 @@ def _print_validation_report(report: list[dict]) -> int:
 def _apply_validation_updates(conn, report: list[dict]) -> int:
     """Write validation changes back to Odoo.
 
-    Only updates existing records (no creates).
+    Only updates existing records (no creates).  When an entry being
+    updated has no ``x_studio_image``, the first Reverb listing photo is
+    downloaded and included in the update.
 
     Returns the number of records updated.
     """
     guitar = conn.get_model("x_guitar")
+
+    # Pre-check: which entries being updated lack an image?
+    update_ids = [item["entry"]["id"] for item in report if item["action"] == "update"]
+    ids_without_image = _find_entries_without_image(conn, update_ids)
+
     updated = 0
 
     for item in report:
@@ -216,8 +225,21 @@ def _apply_validation_updates(conn, report: list[dict]) -> int:
         changes = item["changes"]
         if not changes:
             continue
+
         eid = item["entry"]["id"]
-        logger.info("Updating id={}: {}", eid, changes)
+        changes = dict(changes)
+
+        # Download image if the entry has no image yet
+        if eid in ids_without_image:
+            photo_url = (item.get("reverb") or {}).get("photo_url", "")
+            image_b64 = _download_image_base64(photo_url)
+            if image_b64:
+                changes["x_studio_image"] = image_b64
+                logger.info("  ↳ downloaded image for id={}", eid)
+
+        # Log changes without the (potentially huge) image blob
+        log_changes = {k: v for k, v in changes.items() if k != "x_studio_image"}
+        logger.info("Updating id={}: {}", eid, log_changes)
         guitar.write(eid, changes)
         updated += 1
 

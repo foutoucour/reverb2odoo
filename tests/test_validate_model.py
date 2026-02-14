@@ -621,3 +621,118 @@ class TestCollectModelData:
         assert result["model_id"] == 42
         assert result["model_name"] == "My Model"
         assert result["default_shipping"] == 99.0
+
+
+# ── _apply_validation_updates (image handling) ───────────────────────────
+
+
+class TestApplyValidationUpdatesImages:
+    """Tests for image download behaviour in _apply_validation_updates."""
+
+    def _mock_conn(self, no_image_ids=None):
+        conn = MagicMock()
+        model = MagicMock()
+
+        def _search_read(domain, fields, **kwargs):
+            if fields == ["id"]:
+                return [{"id": eid} for eid in (no_image_ids or [])]
+            return []
+
+        model.search_read.side_effect = _search_read
+        conn.get_model.return_value = model
+        return conn, model
+
+    def test_downloads_image_when_missing(self):
+        conn, model = self._mock_conn(no_image_ids=[100])
+        report = [
+            {
+                "action": "update",
+                "entry": {"id": 100},
+                "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
+                "changes": {"x_studio_value": 4000.0},
+            },
+        ]
+
+        with patch("validate_model._download_image_base64", return_value="IMGDATA"):
+            updated = _apply_validation_updates(conn, report)
+
+        assert updated == 1
+        call_args = model.write.call_args[0]
+        assert call_args[0] == 100
+        assert call_args[1]["x_studio_value"] == 4000.0
+        assert call_args[1]["x_studio_image"] == "IMGDATA"
+
+    def test_skips_image_when_already_present(self):
+        conn, model = self._mock_conn(no_image_ids=[])
+        report = [
+            {
+                "action": "update",
+                "entry": {"id": 100},
+                "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
+                "changes": {"x_studio_value": 4000.0},
+            },
+        ]
+
+        with patch("validate_model._download_image_base64") as mock_dl:
+            updated = _apply_validation_updates(conn, report)
+
+        assert updated == 1
+        mock_dl.assert_not_called()
+        call_args = model.write.call_args[0]
+        assert "x_studio_image" not in call_args[1]
+
+    def test_image_download_fails_gracefully(self):
+        conn, model = self._mock_conn(no_image_ids=[100])
+        report = [
+            {
+                "action": "update",
+                "entry": {"id": 100},
+                "reverb": {"photo_url": "https://img.reverb.com/broken.jpg"},
+                "changes": {"x_studio_value": 4000.0},
+            },
+        ]
+
+        with patch("validate_model._download_image_base64", return_value=None):
+            updated = _apply_validation_updates(conn, report)
+
+        assert updated == 1
+        call_args = model.write.call_args[0]
+        assert call_args[1]["x_studio_value"] == 4000.0
+        assert "x_studio_image" not in call_args[1]
+
+    def test_does_not_mutate_original_changes(self):
+        conn, model = self._mock_conn(no_image_ids=[100])
+        original_changes = {"x_studio_value": 4000.0}
+        report = [
+            {
+                "action": "update",
+                "entry": {"id": 100},
+                "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
+                "changes": original_changes,
+            },
+        ]
+
+        with patch("validate_model._download_image_base64", return_value="IMG"):
+            _apply_validation_updates(conn, report)
+
+        assert "x_studio_image" not in original_changes
+
+    def test_no_reverb_data_skips_image(self):
+        """When reverb data is None (e.g. skip action promoted), no crash."""
+        conn, model = self._mock_conn(no_image_ids=[100])
+        report = [
+            {
+                "action": "update",
+                "entry": {"id": 100},
+                "reverb": None,
+                "changes": {"x_studio_value": 4000.0},
+            },
+        ]
+
+        with patch("validate_model._download_image_base64", return_value=None) as mock_dl:
+            updated = _apply_validation_updates(conn, report)
+
+        assert updated == 1
+        mock_dl.assert_called_once_with("")
+        call_args = model.write.call_args[0]
+        assert "x_studio_image" not in call_args[1]
