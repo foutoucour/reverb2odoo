@@ -14,6 +14,7 @@ from sync_model import (
     _compute_changes,
     _fetch_all_models,
     _find_model,
+    _is_brand_new,
     _print_report,
     _reverb_to_odoo_vals,
     _search_reverb,
@@ -79,6 +80,30 @@ class TestSyncCli:
     def test_wanna_shown_in_help(self):
         result = self.runner.invoke(cli, ["--help"])
         assert "--wanna" in result.output
+
+
+# ── _is_brand_new ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "condition, expected",
+    [
+        pytest.param("Brand New", True, id="exact-brand-new"),
+        pytest.param("brand new", True, id="lowercase"),
+        pytest.param("BRAND NEW", True, id="uppercase"),
+        pytest.param("Excellent", False, id="excellent"),
+        pytest.param("Very Good", False, id="very-good"),
+        pytest.param("Mint", False, id="mint"),
+        pytest.param("Good", False, id="good"),
+        pytest.param("", False, id="empty-string"),
+    ],
+)
+def test_is_brand_new(condition: str, expected: bool):
+    assert _is_brand_new({"condition": condition}) == expected
+
+
+def test_is_brand_new_missing_field():
+    assert _is_brand_new({}) is False
 
 
 # ── _compute_changes ──────────────────────────────────────────────────────
@@ -345,7 +370,9 @@ class TestBuildReport:
         return base
 
     def test_new_listing_creates(self):
-        reverb_results = [self._make_reverb(url="https://reverb.com/item/999-new")]
+        reverb_results = [
+            self._make_reverb(url="https://reverb.com/item/999-new", condition="Excellent")
+        ]
         odoo_entries = []
 
         report = _build_report(reverb_results, odoo_entries, model_id=42)
@@ -353,6 +380,31 @@ class TestBuildReport:
         assert len(report) == 1
         assert report[0]["action"] == "create"
         assert report[0]["create_vals"]["x_studio_models"] == 42
+
+    def test_brand_new_listing_skipped(self):
+        reverb_results = [
+            self._make_reverb(url="https://reverb.com/item/999-new", condition="Brand New")
+        ]
+        odoo_entries = []
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42)
+
+        assert len(report) == 1
+        assert report[0]["action"] == "skip"
+        assert any("brand new" in w for w in report[0]["warnings"])
+        assert report[0]["create_vals"] == {}
+
+    def test_brand_new_existing_still_updated(self):
+        """A brand-new listing that already exists in Odoo should still be updated."""
+        url = "https://reverb.com/item/1-g"
+        reverb_results = [self._make_reverb(url=url, condition="Brand New", price="4000.00")]
+        odoo_entries = [self._make_odoo(url=url)]
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42)
+
+        assert len(report) == 1
+        assert report[0]["action"] == "update"
+        assert report[0]["changes"]["x_studio_value"] == 4000.0
 
     def test_existing_up_to_date(self):
         url = "https://reverb.com/item/1-g"
@@ -422,7 +474,7 @@ class TestBuildReport:
         reverb_results = [
             self._make_reverb(url="https://reverb.com/item/1-g"),
             self._make_reverb(url="https://reverb.com/item/2-g", price="999.00"),
-            self._make_reverb(url="https://reverb.com/item/3-new"),
+            self._make_reverb(url="https://reverb.com/item/3-new", condition="Excellent"),
         ]
         odoo_entries = [
             self._make_odoo(url="https://reverb.com/item/1-g"),
@@ -433,6 +485,21 @@ class TestBuildReport:
 
         actions = [r["action"] for r in report]
         assert actions == ["ok", "update", "create"]
+
+    def test_mixed_with_brand_new_skipped(self):
+        reverb_results = [
+            self._make_reverb(url="https://reverb.com/item/1-g"),
+            self._make_reverb(url="https://reverb.com/item/2-new", condition="Brand New"),
+            self._make_reverb(url="https://reverb.com/item/3-used", condition="Very Good"),
+        ]
+        odoo_entries = [
+            self._make_odoo(url="https://reverb.com/item/1-g"),
+        ]
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42)
+
+        actions = [r["action"] for r in report]
+        assert actions == ["ok", "skip", "create"]
 
 
 # ── _print_report ─────────────────────────────────────────────────────────
