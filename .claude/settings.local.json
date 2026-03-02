@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(printenv:*)",
+      "Bash(uv run:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:platform.openai.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:community.openai.com)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:datawookie.dev)"
+    ]
+  }
+}

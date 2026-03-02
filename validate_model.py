@@ -419,13 +419,12 @@ def cli(
                 idx = future_to_idx[future]
                 try:
                     collected[idx] = future.result()
-                except Exception:
+                # catch all to avoid crashing the whole batch
+                # It is hard to predict what might go wrong in the scraping phase,
+                # and we want to continue processing other models even if one fails.
+                except Exception:  # noqa
                     mi = all_model_info[idx]
-                    logger.exception(
-                        "Error collecting data for '{}' (id={})",
-                        mi["name"],
-                        mi["id"],
-                    )
+                    logger.error(f"Error collecting data for '{mi['name']}' (id={mi['id']})")
                     collected[idx] = {
                         "model_id": mi["id"],
                         "model_name": mi["name"],
