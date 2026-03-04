@@ -44,11 +44,29 @@ uv run reverb2odoo --help
 ### `sync` — Search Reverb and sync into Odoo
 
 Search Reverb for a guitar model, then create new entries and update existing ones in Odoo.
+Matching is done first by exact URL (query-string ignored), then by Reverb numeric item ID — so listings that were renamed on Reverb (slug changed) are updated in place rather than duplicated.
 
 ### `validate` — Refresh existing entries from Reverb
 
 Starting from existing Odoo records that have a Reverb URL, fetch the current listing data and update fields that have
 drifted (price, availability, shipping, etc.).
+
+### `dedup` — Find and remove duplicate listings
+
+Scans all `x_guitar` records and reports duplicates in two categories:
+
+| Category | Description |
+|---|---|
+| **Exact URL duplicates** | Records sharing the same URL (query-string ignored) |
+| **Same Reverb item ID** | Records with the same numeric item ID but a different URL slug (listing renamed/relisted on Reverb) |
+
+In each group the record to keep is chosen by priority: active+available first, then lowest Odoo ID.
+
+```bash
+uv run reverb2odoo dedup                   # report only
+uv run reverb2odoo dedup --delete          # prompt before deleting each duplicate
+uv run reverb2odoo dedup --delete --yes    # delete all duplicates without prompting
+```
 
 ### `gpt-files` — Generate ChatGPT knowledge-base files
 

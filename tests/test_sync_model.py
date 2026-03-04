@@ -18,6 +18,7 @@ from sync_model import (
     _find_model,
     _is_brand_new,
     _print_report,
+    _reverb_item_id,
     _reverb_to_odoo_vals,
     _round_price,
     _search_reverb,
@@ -50,6 +51,40 @@ from sync_model import (
 )
 def test_clean_url(url: str, expected: str):
     assert _clean_url(url) == expected
+
+
+# ── _reverb_item_id ───────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        pytest.param(
+            "https://reverb.com/item/94370297-godin-stadium",
+            "94370297",
+            id="standard-reverb-url",
+        ),
+        pytest.param(
+            "https://reverb.com/item/94370297-godin-stadium?show_sold=true",
+            "94370297",
+            id="with-query-string",
+        ),
+        pytest.param(
+            "https://reverb.com/item/94370297",
+            "94370297",
+            id="no-slug",
+        ),
+        pytest.param("https://reverb.com/shop/some-shop", None, id="non-item-url"),
+        pytest.param("", None, id="empty-string"),
+        pytest.param(
+            "https://reverb.com/item/abc-not-numeric",
+            None,
+            id="non-numeric-id",
+        ),
+    ],
+)
+def test_reverb_item_id(url: str, expected: str | None):
+    assert _reverb_item_id(url) == expected
 
 
 # ── CLI (Click) ───────────────────────────────────────────────────────────
@@ -474,6 +509,32 @@ class TestBuildReport:
 
         assert len(report) == 1
         assert report[0]["action"] == "ok"
+
+    def test_slug_changed_matches_by_item_id(self):
+        """When Reverb renames a listing the URL slug changes but item ID stays the same.
+        The existing Odoo entry should be updated, not duplicated."""
+        old_url = "https://reverb.com/item/9999-old-slug"
+        new_url = "https://reverb.com/item/9999-new-slug"
+        reverb_results = [self._make_reverb(url=new_url, price="4000.00")]
+        odoo_entries = [self._make_odoo(url=old_url)]
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42)
+
+        assert len(report) == 1
+        assert report[0]["action"] == "update"
+        assert report[0]["entry"] is not None
+
+    def test_different_item_id_creates(self):
+        """A genuinely new listing (different item ID) should still be created."""
+        reverb_results = [
+            self._make_reverb(url="https://reverb.com/item/8888-new-guitar", condition="Excellent")
+        ]
+        odoo_entries = [self._make_odoo(url="https://reverb.com/item/9999-old-guitar")]
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42)
+
+        assert len(report) == 1
+        assert report[0]["action"] == "create"
 
     def test_existing_needs_update(self):
         url = "https://reverb.com/item/1-g"

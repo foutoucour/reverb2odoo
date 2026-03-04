@@ -19,6 +19,7 @@ import sys
 import click
 from loguru import logger
 
+from dedup_model import cli as dedup_cmd
 from gpt_model import cli as gpt_files_cmd
 from odoo_connector import get_connection
 from sync_model import cli as sync_cmd
@@ -76,6 +77,7 @@ def main(
 main.add_command(sync_cmd)
 main.add_command(validate_cmd)
 main.add_command(gpt_files_cmd)
+main.add_command(dedup_cmd)
 
 if __name__ == "__main__":
     main()

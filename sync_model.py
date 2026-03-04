@@ -18,6 +18,7 @@ import base64
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
+from urllib.parse import urlparse
 
 import click
 import httpx
@@ -54,6 +55,22 @@ DEFAULT_WORKERS = 4
 def _clean_url(url: str) -> str:
     """Strip query-string from a URL for comparison purposes."""
     return url.split("?")[0]
+
+
+def _reverb_item_id(url: str) -> str | None:
+    """Extract the leading numeric Reverb item ID from a listing URL.
+
+    ``https://reverb.com/item/94370297-godin-…`` → ``"94370297"``
+
+    Returns ``None`` for non-Reverb or non-item URLs.
+    """
+    p = urlparse(url)
+    parts = p.path.strip("/").split("/")
+    if len(parts) >= 2 and parts[-2] == "item":
+        segment = parts[-1].split("-")[0]
+        if segment.isdigit():
+            return segment
+    return None
 
 
 def _download_image_base64(photo_url: str) -> str | None:
@@ -388,8 +405,13 @@ def _build_report(
     default.  Pass ``include_brand_new=True`` to create them as well.
     """
     odoo_by_url: dict[str, dict] = {}
+    odoo_by_item_id: dict[str, dict] = {}
     for e in odoo_entries:
-        odoo_by_url[_clean_url(e.get("x_studio_url", ""))] = e
+        clean = _clean_url(e.get("x_studio_url", ""))
+        odoo_by_url[clean] = e
+        item_id = _reverb_item_id(clean)
+        if item_id:
+            odoo_by_item_id[item_id] = e
 
     report: list[dict] = []
 
@@ -410,6 +432,10 @@ def _build_report(
             continue
 
         existing = odoo_by_url.get(_clean_url(url))
+        if not existing:
+            item_id = _reverb_item_id(url)
+            if item_id:
+                existing = odoo_by_item_id.get(item_id)
 
         if existing:
             item["entry"] = existing

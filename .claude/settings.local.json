@@ -15,7 +15,9 @@
       "Bash(git push:*)",
       "Bash(uv sync:*)",
       "Bash(python3:*)",
-      "Bash(.venv/bin/python3:*)"
+      "Bash(.venv/bin/python3:*)",
+      "Bash(env:*)",
+      "Bash(.venv/bin/python:*)"
     ]
   }
 }
