@@ -283,19 +283,17 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
     offers = reverb.get("offers_enabled", False)
     published_at = reverb.get("published_at", "")
 
-    # Price (x_studio_value)
-    if price > 0 and abs(price - entry.get("x_studio_value", 0)) > 0.01:
-        changes["x_studio_value"] = price
+    # Price (x_studio_value) — compare rounded to absorb CAD/USD conversion noise
+    if price > 0 and _round_price(price) != _round_price(entry.get("x_studio_value", 0)):
+        changes["x_studio_value"] = _round_price(price)
 
     # Offers
     if offers != entry.get("x_studio_accept_offers"):
         changes["x_studio_accept_offers"] = offers
 
-    # Published at
-    if published_at:
-        new_val = published_at + " 00:00:00"
-        if entry.get("x_studio_published_at") != new_val:
-            changes["x_studio_published_at"] = new_val
+    # Published at — only set if not already stored
+    if published_at and not entry.get("x_studio_published_at"):
+        changes["x_studio_published_at"] = published_at + " 00:00:00"
 
     # Availability
     if sale_ended and entry.get("x_studio_is_available") is True:
@@ -309,8 +307,8 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
         ship = reverb.get("shipping_price")
         if ship is not None:
             ship_f = float(ship)
-            if abs(ship_f - entry.get("x_studio_shipping", 0)) > 0.01:
-                changes["x_studio_shipping"] = ship_f
+            if _round_price(ship_f) != _round_price(entry.get("x_studio_shipping", 0)):
+                changes["x_studio_shipping"] = _round_price(ship_f)
 
     return changes
 
@@ -331,8 +329,8 @@ def _reverb_to_odoo_vals(
         "x_studio_url": reverb.get("url", ""),
         "x_studio_models": model_id,
         "x_studio_model_type": "Guitar",
-        "x_studio_value": price,
-        "x_studio_shipping": ship_f,
+        "x_studio_value": _round_price(price),
+        "x_studio_shipping": _round_price(ship_f),
         "x_studio_is_available": not reverb.get("sale_ended", False),
         "x_studio_active": True,
         "x_studio_accept_offers": reverb.get("offers_enabled", False),
@@ -342,6 +340,11 @@ def _reverb_to_odoo_vals(
         vals["x_studio_published_at"] = published + " 00:00:00"
 
     return vals
+
+
+def _round_price(price: float) -> float:
+    """Round *price* to the nearest $10 to absorb currency-conversion noise."""
+    return round(price / 10) * 10
 
 
 def _is_brand_new(reverb: dict) -> bool:
@@ -354,6 +357,8 @@ def _build_report(
     odoo_entries: list[dict],
     model_id: int,
     default_shipping: float = DEFAULT_SHIPPING,
+    *,
+    include_brand_new: bool = False,
 ) -> list[dict]:
     """Cross-reference Reverb search results against existing Odoo entries.
 
@@ -366,8 +371,8 @@ def _build_report(
     - ``create_vals``: full values dict for ``"create"``
     - ``warnings``: list of informational strings
 
-    Brand-new listings that do not already exist in Odoo are automatically
-    skipped — only used / second-hand items are created.
+    Brand-new listings that do not already exist in Odoo are skipped by
+    default.  Pass ``include_brand_new=True`` to create them as well.
     """
     odoo_by_url: dict[str, dict] = {}
     for e in odoo_entries:
@@ -397,7 +402,7 @@ def _build_report(
             item["entry"] = existing
             item["changes"] = _compute_changes(existing, r)
             item["action"] = "update" if item["changes"] else "ok"
-        elif _is_brand_new(r):
+        elif _is_brand_new(r) and not include_brand_new:
             item["action"] = "skip"
             item["warnings"].append("skipped: brand new")
         else:
@@ -542,6 +547,7 @@ def _collect_sync_data(
     category_slug: str | None,
     default_shipping: float,
     search_query: str | None = None,
+    include_brand_new: bool = False,
 ) -> dict[str, Any]:
     """Search Reverb and fetch Odoo entries for a single model.
 
@@ -580,7 +586,13 @@ def _collect_sync_data(
     odoo_entries = _fetch_guitars(conn, model_id)
     logger.info("[{}] Found {} existing entries", model_name, len(odoo_entries))
 
-    report = _build_report(reverb_results, odoo_entries, model_id, default_shipping)
+    report = _build_report(
+        reverb_results,
+        odoo_entries,
+        model_id,
+        default_shipping,
+        include_brand_new=include_brand_new,
+    )
     update_count = sum(1 for item in report if item["action"] == "update")
     create_count = sum(1 for item in report if item["action"] == "create")
 
@@ -611,6 +623,12 @@ def _collect_sync_data(
     is_flag=True,
     help="Search across all Reverb categories.",
 )
+@click.option(
+    "--include-brand-new",
+    "include_brand_new",
+    is_flag=True,
+    help="Also create brand-new listings (skipped by default).",
+)
 @click.option("--dry-run", is_flag=True, help="Preview changes without writing to Odoo.")
 @click.option("--yes", "-y", "auto_yes", is_flag=True, help="Skip confirmation prompts.")
 @click.option(
@@ -633,6 +651,7 @@ def cli(
     search_query: str | None,
     category: str | None,
     no_category: bool,
+    include_brand_new: bool,
     dry_run: bool,
     auto_yes: bool,
     wanna: bool,
@@ -686,6 +705,7 @@ def cli(
                     category_slug=mi["category_slug"],
                     default_shipping=mi["default_shipping"],
                     search_query=search_query,
+                    include_brand_new=include_brand_new,
                 ): idx
                 for idx, mi in enumerate(all_model_info)
             }
@@ -789,6 +809,7 @@ def cli(
         category_slug=resolved_category,
         default_shipping=default_shipping,
         search_query=search_query,
+        include_brand_new=include_brand_new,
     )
 
     if not data["reverb_results"]:

@@ -19,6 +19,7 @@ from sync_model import (
     _is_brand_new,
     _print_report,
     _reverb_to_odoo_vals,
+    _round_price,
     _search_reverb,
     cli,
 )
@@ -108,6 +109,25 @@ def test_is_brand_new_missing_field():
     assert _is_brand_new({}) is False
 
 
+# ── _round_price ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "price, expected",
+    [
+        pytest.param(0.0, 0.0, id="zero"),
+        pytest.param(10.0, 10.0, id="exact-multiple"),
+        pytest.param(8.0, 10.0, id="rounds-up"),
+        pytest.param(11.0, 10.0, id="rounds-down"),
+        pytest.param(16.0, 20.0, id="rounds-up-to-20"),
+        pytest.param(15.0, 20.0, id="midpoint-banker-rounds-up-to-even"),
+        pytest.param(5000.0, 5000.0, id="large-exact-multiple"),
+    ],
+)
+def test_round_price(price: float, expected: float):
+    assert _round_price(price) == expected
+
+
 # ── _compute_changes ──────────────────────────────────────────────────────
 
 
@@ -146,6 +166,23 @@ class TestComputeChanges:
         }
         changes = _compute_changes(entry, reverb)
         assert changes["x_studio_value"] == 4500.0
+
+    def test_price_fx_noise_ignored(self):
+        """Small price drift within $50 (CAD FX noise) should not trigger an update."""
+        entry = {
+            "x_studio_value": 5000.0,
+            "x_studio_accept_offers": True,
+            "x_studio_is_available": True,
+            "x_studio_shipping": 250.0,
+        }
+        reverb = {
+            "price": "4999.00",  # rounds to same $5000 bucket
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_studio_value" not in changes
 
     def test_offers_toggled_off(self):
         entry = {
@@ -211,13 +248,33 @@ class TestComputeChanges:
         changes = _compute_changes(entry, reverb)
         assert changes["x_studio_shipping"] == 300.0
 
-    def test_published_at_update(self):
+    def test_published_at_not_updated_when_already_set(self):
+        """published_at should not be overwritten once stored in Odoo."""
         entry = {
             "x_studio_value": 5000.0,
             "x_studio_accept_offers": True,
             "x_studio_is_available": True,
             "x_studio_shipping": 250.0,
             "x_studio_published_at": "2025-01-01 00:00:00",
+        }
+        reverb = {
+            "price": "5000.00",
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+            "published_at": "2025-06-20",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_studio_published_at" not in changes
+
+    def test_published_at_set_when_empty(self):
+        """published_at should be populated when the Odoo field is empty."""
+        entry = {
+            "x_studio_value": 5000.0,
+            "x_studio_accept_offers": True,
+            "x_studio_is_available": True,
+            "x_studio_shipping": 250.0,
+            "x_studio_published_at": False,
         }
         reverb = {
             "price": "5000.00",
@@ -320,7 +377,7 @@ class TestReverbToOdooVals:
         }
         vals = _reverb_to_odoo_vals(reverb, model_id=10, default_shipping=35.0)
 
-        assert vals["x_studio_shipping"] == 35.0
+        assert vals["x_studio_shipping"] == 40.0  # _round_price(35) = 40
 
     def test_missing_published_at(self):
         reverb = {
@@ -502,6 +559,18 @@ class TestBuildReport:
 
         actions = [r["action"] for r in report]
         assert actions == ["ok", "skip", "create"]
+
+    def test_include_brand_new_creates_instead_of_skipping(self):
+        reverb_results = [
+            self._make_reverb(url="https://reverb.com/item/2-new", condition="Brand New"),
+        ]
+        odoo_entries = []
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42, include_brand_new=True)
+
+        assert len(report) == 1
+        assert report[0]["action"] == "create"
+        assert report[0]["create_vals"]["x_studio_models"] == 42
 
 
 # ── _print_report ─────────────────────────────────────────────────────────

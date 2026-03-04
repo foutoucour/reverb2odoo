@@ -9,7 +9,8 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:community.openai.com)",
       "WebFetch(domain:deepwiki.com)",
-      "WebFetch(domain:datawookie.dev)"
+      "WebFetch(domain:datawookie.dev)",
+      "Bash(python:*)"
     ]
   }
 }
