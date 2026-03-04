@@ -18,6 +18,17 @@ from typing import Any
 
 import click
 from loguru import logger
+from rich import box
+from rich.console import Console
+from rich.markup import escape
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from reverb_scraper import ReverbScraper
 from sync_model import (
@@ -29,6 +40,8 @@ from sync_model import (
     _find_entries_without_image,
     _find_model,
 )
+
+_console = Console()
 
 REVERB_DOMAIN = "reverb.com/item/"
 
@@ -154,45 +167,54 @@ def _build_validation_report(
 
 
 def _print_validation_report(report: list[dict]) -> int:
-    """Print a human-readable validation report.
+    """Print a rich validation report table.
 
     Returns the number of entries that need updating.
     """
-    sep = "=" * 100
-    print(f"\n{sep}")
-    print(f"{'ID':<6} {'Name':<55} {'Price':<14} {'Status'}")
-    print(sep)
+    from rich.table import Table
+
+    table = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="bold", highlight=False)
+    table.add_column("ID", style="dim", width=8, justify="right")
+    table.add_column("Name")
+    table.add_column("Price", width=14)
+    table.add_column("Status")
 
     update_count = 0
     for item in report:
         entry = item["entry"]
-        eid = entry["id"]
-        name = entry.get("x_name", "")[:54]
+        eid = str(entry["id"])
+        name = escape(entry.get("x_name", "")[:54])
         reverb = item.get("reverb") or {}
-        price = reverb.get("price_display", "")
+        price = escape(reverb.get("price_display", "") or "")
         changes = item["changes"]
         warnings = item["warnings"]
 
         if item["action"] == "skip":
-            warn_str = "; ".join(warnings) if warnings else ""
-            print(f"{eid:<6} {name:<55} {price:<14} ⚠ {warn_str}")
+            warn_str = escape("; ".join(warnings)) if warnings else ""
+            table.add_row(eid, name, price, f"[dim]⚠ {warn_str}[/dim]")
         elif changes:
             update_count += 1
-            warn_str = f"  (⚠ {'; '.join(warnings)})" if warnings else ""
-            print(f"{eid:<6} {name:<55} {price:<14} ~ NEEDS UPDATE{warn_str}")
+            warn_str = escape(f"  (⚠ {'; '.join(warnings)})") if warnings else ""
+            table.add_row(eid, name, price, f"[bold yellow]~ NEEDS UPDATE[/bold yellow]{warn_str}")
             for field, new_val in changes.items():
                 old_val = entry.get(field, "—")
-                print(f"{'':>6} {'':>55} {'':>14}   {field}: {old_val} → {new_val}")
+                diff = (
+                    f"  [dim]{escape(field)}:[/dim]"
+                    f" {escape(str(old_val))} [dim]→[/dim] [bold]{escape(str(new_val))}[/bold]"
+                )
+                table.add_row("", "", "", diff)
         else:
-            warn_str = f"  ({'; '.join(warnings)})" if warnings else ""
-            print(f"{eid:<6} {name:<55} {price:<14} ✓ up to date{warn_str}")
+            pass  # counted in summary; not shown to reduce noise
 
-    skip_count = sum(1 for i in report if i["action"] == "skip")
+    _console.print()
+    _console.print(table)
+    skip_count = sum(1 for item in report if item["action"] == "skip")
     ok_count = len(report) - update_count - skip_count
-    print(sep)
-    print(
-        f"\n  Total: {len(report)}  |  Up to date: {ok_count}"
-        f"  |  Need update: {update_count}  |  Skipped: {skip_count}"
+    _console.print(
+        f"  Total: [bold]{len(report)}[/bold]"
+        f"  Up to date: [green]{ok_count}[/green]"
+        f"  Need update: [yellow]{update_count}[/yellow]"
+        f"  Skipped: [dim]{skip_count}[/dim]"
     )
     return update_count
 
@@ -270,9 +292,9 @@ async def _collect_model_data(
     - ``report`` – validation report list
     - ``update_count`` – number of entries that need updating
     """
-    logger.info("[{}] Fetching Odoo entries…", model_name)
+    logger.debug("[{}] Fetching Odoo entries…", model_name)
     entries = _fetch_guitars(conn, model_id)
-    logger.info("[{}] Found {} guitar entries", model_name, len(entries))
+    logger.debug("[{}] Found {} guitar entries", model_name, len(entries))
 
     if not entries:
         return {
@@ -286,9 +308,9 @@ async def _collect_model_data(
         }
 
     reverb_count = sum(1 for e in entries if _is_reverb_url(e.get("x_studio_url", "")))
-    logger.info("[{}] Scraping {} Reverb URL(s)…", model_name, reverb_count)
+    logger.debug("[{}] Scraping {} Reverb URL(s)…", model_name, reverb_count)
     reverb_data = await _scrape_reverb_urls(entries, default_shipping=default_shipping)
-    logger.success("[{}] Scraped {} Reverb listing(s)", model_name, len(reverb_data))
+    logger.debug("[{}] Scraped {} Reverb listing(s)", model_name, len(reverb_data))
 
     report = _build_validation_report(entries, reverb_data)
     update_count = sum(1 for item in report if item["action"] == "update")
@@ -402,62 +424,80 @@ def cli(
 
         # Phase 1 — collect data in parallel (I/O-heavy) ----------------------
         collected: list[dict[str, Any]] = [{}] * len(all_model_info)
-        with ThreadPoolExecutor(max_workers=n_workers) as pool:
-            future_to_idx = {
-                pool.submit(
-                    asyncio.run,
-                    _collect_model_data(
-                        conn,
-                        model_id=mi["id"],
-                        model_name=mi["name"],
-                        default_shipping=mi["default_shipping"],
-                    ),
-                ): idx
-                for idx, mi in enumerate(all_model_info)
-            }
-            for future in as_completed(future_to_idx):
-                idx = future_to_idx[future]
-                try:
-                    collected[idx] = future.result()
-                # catch all to avoid crashing the whole batch
-                # It is hard to predict what might go wrong in the scraping phase,
-                # and we want to continue processing other models even if one fails.
-                except Exception:  # noqa
-                    mi = all_model_info[idx]
-                    logger.error(f"Error collecting data for '{mi['name']}' (id={mi['id']})")
-                    collected[idx] = {
-                        "model_id": mi["id"],
-                        "model_name": mi["name"],
-                        "default_shipping": mi["default_shipping"],
-                        "entries": [],
-                        "reverb_data": {},
-                        "report": [],
-                        "update_count": 0,
-                    }
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=_console,
+        ) as progress:
+            task = progress.add_task(
+                f"[cyan]Scraping Reverb data[/cyan] ({n_workers} workers)…",
+                total=len(all_model_info),
+            )
+            with ThreadPoolExecutor(max_workers=n_workers) as pool:
+                future_to_idx = {
+                    pool.submit(
+                        asyncio.run,
+                        _collect_model_data(
+                            conn,
+                            model_id=mi["id"],
+                            model_name=mi["name"],
+                            default_shipping=mi["default_shipping"],
+                        ),
+                    ): idx
+                    for idx, mi in enumerate(all_model_info)
+                }
+                for future in as_completed(future_to_idx):
+                    idx = future_to_idx[future]
+                    try:
+                        collected[idx] = future.result()
+                    # catch all to avoid crashing the whole batch
+                    # It is hard to predict what might go wrong in the scraping phase,
+                    # and we want to continue processing other models even if one fails.
+                    except Exception:  # noqa
+                        mi = all_model_info[idx]
+                        _console.print(
+                            f"  [bold red]✗[/bold red] [red]Error collecting data for"
+                            f" '{escape(mi['name'])}' (id={mi['id']})[/red]"
+                        )
+                        collected[idx] = {
+                            "model_id": mi["id"],
+                            "model_name": mi["name"],
+                            "default_shipping": mi["default_shipping"],
+                            "entries": [],
+                            "reverb_data": {},
+                            "report": [],
+                            "update_count": 0,
+                        }
+                    progress.advance(task)
 
         # Phase 2 — print reports & apply updates sequentially -----------------
         total_updated = 0
         for i, data in enumerate(collected, 1):
-            sep = "━" * 100
-            logger.info(
-                "\n{}\n  [{}/{}]  Model: '{}' (id={})\n{}",
-                sep,
-                i,
-                len(collected),
-                data["model_name"],
-                data["model_id"],
-                sep,
+            update_count = data["update_count"]
+
+            # Compact one-liner for models with nothing to do
+            if not data["entries"] or update_count == 0:
+                if not data["entries"]:
+                    note = "[dim]no entries[/dim]"
+                else:
+                    ok_count = sum(1 for item in data["report"] if item["action"] == "ok")
+                    note = f"[dim]{ok_count} listing(s) up to date[/dim]"
+                _console.print(
+                    f"  [dim][{i}/{len(collected)}][/dim]  {escape(data['model_name'])}"
+                    f"  [green]✓[/green]  {note}"
+                )
+                continue
+
+            _console.print()
+            _console.rule(
+                f"[bold]\\[{i}/{len(collected)}][/bold]  {escape(data['model_name'])}"
+                f"  [dim](id={data['model_id']})[/dim]"
             )
 
-            if not data["entries"]:
-                logger.warning("No entries to validate — nothing to do.")
-                continue
-
             update_count = _print_validation_report(data["report"])
-
-            if update_count == 0:
-                logger.success("Everything is up to date — nothing to do.")
-                continue
 
             if dry_run:
                 logger.info("Dry-run mode — no changes written to Odoo.")

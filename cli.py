@@ -14,11 +14,18 @@ Odoo credentials are read from environment variables (``ODOO_HOSTNAME``,
 
 from __future__ import annotations
 
+import sys
+
 import click
+from loguru import logger
 
 from odoo_connector import get_connection
 from sync_model import cli as sync_cmd
 from validate_model import cli as validate_cmd
+
+# Reconfigure loguru: clean single-line format, no timestamps or file references.
+logger.remove()
+logger.add(sys.stderr, format="<level>{message}</level>", colorize=True, level="INFO")
 
 
 @click.group()

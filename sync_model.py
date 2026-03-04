@@ -22,9 +22,22 @@ from typing import Any
 import click
 import httpx
 from loguru import logger
+from rich import box
+from rich.console import Console
+from rich.markup import escape
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from odoo_connector import GUITAR_FIELDS
 from reverb_scraper import ReverbScraper
+
+_console = Console()
 
 #: Default shipping cost assumed when Reverb does not return one.
 DEFAULT_SHIPPING = 250.0
@@ -261,7 +274,7 @@ def _search_reverb(
             seen.add(url)
             unique.append(r)
 
-    logger.info("Reverb search '{}': {} unique listing(s)", query, len(unique))
+    logger.debug("Reverb search '{}': {} unique listing(s)", query, len(unique))
     return unique
 
 
@@ -426,44 +439,55 @@ def _build_report(
 
 
 def _print_report(report: list[dict]) -> tuple[int, int]:
-    """Print a human-readable sync report.  Returns (update_count, create_count)."""
-    sep = "=" * 100
-    print(f"\n{sep}")
-    print(f"{'#':<4} {'Action':<10} {'Price':<14} {'Name':<55} {'Info'}")
-    print(sep)
+    """Print a rich sync report table.  Returns (update_count, create_count)."""
+    from rich.table import Table
+
+    table = Table(box=box.SIMPLE_HEAD, show_header=True, header_style="bold", highlight=False)
+    table.add_column("#", style="dim", width=4, justify="right")
+    table.add_column("Action", width=9)
+    table.add_column("Price", width=14)
+    table.add_column("Name")
+    table.add_column("Info", style="dim")
 
     update_count = 0
     create_count = 0
 
     for i, item in enumerate(report, 1):
         r = item["reverb"]
-        name = r.get("name", "")[:54]
-        price = r.get("price_display", "")
+        name = escape(r.get("name", "")[:54])
+        price = escape(r.get("price_display", "") or "")
         warnings = item["warnings"]
-        warn_str = "; ".join(warnings) if warnings else ""
+        warn_str = escape("; ".join(warnings)) if warnings else ""
 
         if item["action"] == "create":
             create_count += 1
-            print(f"{i:<4} {'+ NEW':<10} {price:<14} {name:<55} {warn_str}")
+            table.add_row(str(i), "[bold green]+ NEW[/bold green]", price, name, warn_str)
         elif item["action"] == "update":
             update_count += 1
             eid = item["entry"]["id"]
-            print(f"{i:<4} {'~ UPD':<10} {price:<14} {name:<55} id={eid}  {warn_str}")
+            info = escape(f"id={eid}  {warn_str}".strip())
+            table.add_row(str(i), "[bold yellow]~ UPD[/bold yellow]", price, name, info)
             for field, new_val in item["changes"].items():
                 old_val = item["entry"].get(field, "—")
-                print(f"{'':>4} {'':>10} {'':>14}   {field}: {old_val} → {new_val}")
+                diff = (
+                    f"  [dim]{escape(field)}:[/dim]"
+                    f" {escape(str(old_val))} [dim]→[/dim] [bold]{escape(str(new_val))}[/bold]"
+                )
+                table.add_row("", "", "", diff, "")
         elif item["action"] == "ok":
-            eid = item["entry"]["id"]
-            print(f"{i:<4} {'✓ OK':<10} {price:<14} {name:<55} id={eid}  {warn_str}")
+            pass  # counted in summary; not shown to reduce noise
         else:
-            print(f"{i:<4} {'⚠ SKIP':<10} {price:<14} {name:<55} {warn_str}")
+            table.add_row(str(i), "[dim]⚠ SKIP[/dim]", price, name, warn_str)
 
-    print(sep)
-    skip_count = sum(1 for i in report if i["action"] == "skip")
+    _console.print()
+    _console.print(table)
+    skip_count = sum(1 for item in report if item["action"] == "skip")
     ok_count = len(report) - update_count - create_count - skip_count
-    print(
-        f"\n  Total: {len(report)}  |  Up to date: {ok_count}"
-        f"  |  Update: {update_count}  |  New: {create_count}"
+    _console.print(
+        f"  Total: [bold]{len(report)}[/bold]"
+        f"  Up to date: [green]{ok_count}[/green]"
+        f"  Update: [yellow]{update_count}[/yellow]"
+        f"  New: [bold green]{create_count}[/bold green]"
     )
     return update_count, create_count
 
@@ -562,7 +586,7 @@ def _collect_sync_data(
     - ``update_count``, ``create_count`` – action tallies
     """
     query = search_query or model_name
-    logger.info("[{}] Searching Reverb for '{}'…", model_name, query)
+    logger.debug("[{}] Searching Reverb for '{}'…", model_name, query)
     reverb_results = _search_reverb(
         query,
         category=category_slug,
@@ -582,9 +606,9 @@ def _collect_sync_data(
             "create_count": 0,
         }
 
-    logger.info("[{}] Fetching existing Odoo entries…", model_name)
+    logger.debug("[{}] Fetching existing Odoo entries…", model_name)
     odoo_entries = _fetch_guitars(conn, model_id)
-    logger.info("[{}] Found {} existing entries", model_name, len(odoo_entries))
+    logger.debug("[{}] Found {} existing entries", model_name, len(odoo_entries))
 
     report = _build_report(
         reverb_results,
@@ -695,66 +719,84 @@ def cli(
 
         # Phase 1 — collect data in parallel (I/O-heavy) ----------------------
         collected: list[dict[str, Any]] = [{}] * len(all_model_info)
-        with ThreadPoolExecutor(max_workers=n_workers) as pool:
-            future_to_idx = {
-                pool.submit(
-                    _collect_sync_data,
-                    conn,
-                    model_id=mi["id"],
-                    model_name=mi["name"],
-                    category_slug=mi["category_slug"],
-                    default_shipping=mi["default_shipping"],
-                    search_query=search_query,
-                    include_brand_new=include_brand_new,
-                ): idx
-                for idx, mi in enumerate(all_model_info)
-            }
-            for future in as_completed(future_to_idx):
-                idx = future_to_idx[future]
-                try:
-                    collected[idx] = future.result()
-                # catch all to avoid crashing the whole batch
-                # It is hard to predict what might go wrong in the scraping phase,
-                # and we want to continue processing other models even if one fails.
-                except Exception:  # noqa
-                    mi = all_model_info[idx]
-                    logger.error(f"Error collecting data for '{mi['name']}' (id={mi['id']})")
-                    collected[idx] = {
-                        "model_id": mi["id"],
-                        "model_name": mi["name"],
-                        "default_shipping": mi["default_shipping"],
-                        "reverb_results": [],
-                        "odoo_entries": [],
-                        "report": [],
-                        "update_count": 0,
-                        "create_count": 0,
-                    }
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=_console,
+        ) as progress:
+            task = progress.add_task(
+                f"[cyan]Fetching Reverb data[/cyan] ({n_workers} workers)…",
+                total=len(all_model_info),
+            )
+            with ThreadPoolExecutor(max_workers=n_workers) as pool:
+                future_to_idx = {
+                    pool.submit(
+                        _collect_sync_data,
+                        conn,
+                        model_id=mi["id"],
+                        model_name=mi["name"],
+                        category_slug=mi["category_slug"],
+                        default_shipping=mi["default_shipping"],
+                        search_query=search_query,
+                        include_brand_new=include_brand_new,
+                    ): idx
+                    for idx, mi in enumerate(all_model_info)
+                }
+                for future in as_completed(future_to_idx):
+                    idx = future_to_idx[future]
+                    try:
+                        collected[idx] = future.result()
+                    # catch all to avoid crashing the whole batch
+                    # It is hard to predict what might go wrong in the scraping phase,
+                    # and we want to continue processing other models even if one fails.
+                    except Exception:  # noqa
+                        mi = all_model_info[idx]
+                        _console.print(
+                            f"  [bold red]✗[/bold red] [red]Error collecting data for"
+                            f" '{escape(mi['name'])}' (id={mi['id']})[/red]"
+                        )
+                        collected[idx] = {
+                            "model_id": mi["id"],
+                            "model_name": mi["name"],
+                            "default_shipping": mi["default_shipping"],
+                            "reverb_results": [],
+                            "odoo_entries": [],
+                            "report": [],
+                            "update_count": 0,
+                            "create_count": 0,
+                        }
+                    progress.advance(task)
 
         # Phase 2 — print reports & apply updates sequentially -----------------
         total_updated = 0
         total_created = 0
         for i, data in enumerate(collected, 1):
-            sep = "━" * 100
-            logger.info(
-                "\n{}\n  [{}/{}]  Model: '{}' (id={})\n{}",
-                sep,
-                i,
-                len(collected),
-                data["model_name"],
-                data["model_id"],
-                sep,
-            )
+            total_actions = data["update_count"] + data["create_count"]
 
-            if not data["report"]:
-                logger.warning("No Reverb results — nothing to do.")
+            # Compact one-liner for models with nothing to do
+            if not data["report"] or total_actions == 0:
+                if not data["report"]:
+                    note = "[dim]no Reverb results[/dim]"
+                else:
+                    ok_count = sum(1 for item in data["report"] if item["action"] == "ok")
+                    note = f"[dim]{ok_count} listing(s) up to date[/dim]"
+                _console.print(
+                    f"  [dim][{i}/{len(collected)}][/dim]  {escape(data['model_name'])}"
+                    f"  [green]✓[/green]  {note}"
+                )
                 continue
+
+            _console.print()
+            _console.rule(
+                f"[bold]\\[{i}/{len(collected)}][/bold]  {escape(data['model_name'])}"
+                f"  [dim](id={data['model_id']})[/dim]"
+            )
 
             update_count, create_count = _print_report(data["report"])
             total_actions = update_count + create_count
-
-            if total_actions == 0:
-                logger.success("Everything is up to date — nothing to do.")
-                continue
 
             if dry_run:
                 logger.info("Dry-run mode — no changes written to Odoo.")
