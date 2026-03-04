@@ -10,7 +10,12 @@
       "WebFetch(domain:community.openai.com)",
       "WebFetch(domain:deepwiki.com)",
       "WebFetch(domain:datawookie.dev)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(ls:*)",
+      "Bash(git push:*)",
+      "Bash(uv sync:*)",
+      "Bash(python3:*)",
+      "Bash(.venv/bin/python3:*)"
     ]
   }
 }
