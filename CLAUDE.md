@@ -1,5 +1,10 @@
 # Python Coding Standards
 
+Lines are never longer than 100 characters.
+Use 4 spaces for indentation.
+Always use type hints for function signatures.
+Use `snake_case` for variable and function names, and `PascalCase` for class names.
+
 ## Logging — Use `loguru` instead of `print`
 
 Never use `print()` for output or debugging. Always use `loguru`'s `logger`.

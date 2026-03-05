@@ -21,6 +21,7 @@ from loguru import logger
 
 from dedup_model import cli as dedup_cmd
 from gpt_model import cli as gpt_files_cmd
+from migrate_family_ids import cli as migrate_family_ids_cmd
 from odoo_connector import get_connection
 from sync_model import cli as sync_cmd
 from validate_model import cli as validate_cmd
@@ -78,6 +79,7 @@ main.add_command(sync_cmd)
 main.add_command(validate_cmd)
 main.add_command(gpt_files_cmd)
 main.add_command(dedup_cmd)
+main.add_command(migrate_family_ids_cmd)
 
 if __name__ == "__main__":
     main()
