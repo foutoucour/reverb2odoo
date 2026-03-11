@@ -313,6 +313,11 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
     offers = reverb.get("offers_enabled", False)
     published_at = reverb.get("published_at", "")
 
+    # Name
+    reverb_name = reverb.get("name", "")
+    if reverb_name and reverb_name != entry.get("x_name", ""):
+        changes["x_name"] = reverb_name
+
     # Price (x_studio_value) — compare rounded to absorb CAD/USD conversion noise
     if price > 0 and _round_price(price) != _round_price(entry.get("x_studio_value", 0)):
         changes["x_studio_value"] = _round_price(price)
