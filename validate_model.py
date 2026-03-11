@@ -224,14 +224,15 @@ def _print_validation_report(report: list[dict]) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _apply_validation_updates(conn, report: list[dict]) -> int:
+def _apply_validation_updates(conn, report: list[dict]) -> list[dict]:
     """Write validation changes back to Odoo.
 
     Only updates existing records (no creates).  When an entry being
     updated has no ``x_studio_image``, the first Reverb listing photo is
     downloaded and included in the update.
 
-    Returns the number of records updated.
+    Returns a list of dicts with ``id``, ``name``, and ``fields`` (list of
+    changed field names) for each updated record.
     """
     guitar = conn.get_model("x_guitar")
 
@@ -239,7 +240,7 @@ def _apply_validation_updates(conn, report: list[dict]) -> int:
     update_ids = [item["entry"]["id"] for item in report if item["action"] == "update"]
     ids_without_image = _find_entries_without_image(conn, update_ids)
 
-    updated = 0
+    updated_items: list[dict] = []
 
     for item in report:
         if item["action"] != "update":
@@ -263,9 +264,28 @@ def _apply_validation_updates(conn, report: list[dict]) -> int:
         log_changes = {k: v for k, v in changes.items() if k != "x_studio_image"}
         logger.info("Updating id={}: {}", eid, log_changes)
         guitar.write(eid, changes)
-        updated += 1
+        updated_items.append(
+            {
+                "id": eid,
+                "name": item["entry"].get("x_name", ""),
+                "fields": list(log_changes.keys()),
+            }
+        )
 
-    return updated
+    return updated_items
+
+
+def _print_updated_summary(updated_items: list[dict]) -> None:
+    """Print a compact list of all records that were updated."""
+    if not updated_items:
+        return
+    _console.print()
+    _console.print(f"  [bold]Updated {len(updated_items)} record(s):[/bold]")
+    for item in updated_items:
+        fields_str = ", ".join(item["fields"])
+        _console.print(
+            f"    [dim]{item['id']}[/dim]  {escape(item['name'])}  [dim]({fields_str})[/dim]"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -372,9 +392,10 @@ def _validate_single_model(
             abort=True,
         )
 
-    updated = _apply_validation_updates(conn, data["report"])
-    logger.success("Updated {} record(s) in Odoo.", updated)
-    return updated
+    updated_items = _apply_validation_updates(conn, data["report"])
+    _print_updated_summary(updated_items)
+    logger.success("Updated {} record(s) in Odoo.", len(updated_items))
+    return len(updated_items)
 
 
 @click.command("validate")
@@ -509,9 +530,10 @@ def cli(
                     abort=True,
                 )
 
-            updated = _apply_validation_updates(conn, data["report"])
-            logger.success("Updated {} record(s) in Odoo.", updated)
-            total_updated += updated
+            updated_items = _apply_validation_updates(conn, data["report"])
+            _print_updated_summary(updated_items)
+            logger.success("Updated {} record(s) in Odoo.", len(updated_items))
+            total_updated += len(updated_items)
 
         logger.success("All models validated — {} record(s) updated total.", total_updated)
         return
