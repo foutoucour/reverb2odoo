@@ -17,7 +17,8 @@
       "Bash(python3:*)",
       "Bash(.venv/bin/python3:*)",
       "Bash(env:*)",
-      "Bash(.venv/bin/python:*)"
+      "Bash(.venv/bin/python:*)",
+      "Bash(git add:*)"
     ]
   }
 }
