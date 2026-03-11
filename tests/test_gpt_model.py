@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
-from gpt_model import GIBSON_PARTNER_IDS, _is_gibson, _strip_html
+from pathlib import Path
+
+import pytest
+
+from gpt_model import (
+    GIBSON_PARTNER_IDS,
+    _is_gibson,
+    _is_pedal_amp,
+    _render_tag,
+    _strip_html,
+    _write_tags_file,
+)
 
 
 class TestStripHtml:
@@ -94,3 +105,106 @@ class TestIsGibson:
         assert 38 in GIBSON_PARTNER_IDS  # Gibson
         assert 42 in GIBSON_PARTNER_IDS  # Gibson Custom Shop
         assert 120 in GIBSON_PARTNER_IDS  # Epiphone Guitars
+
+
+class TestRenderTag:
+    @pytest.mark.parametrize(
+        "record, expected",
+        [
+            pytest.param(
+                {"x_name": "fretboard-Rosewood", "x_studio_score": 85},
+                "### fretboard-Rosewood\n\n- score: 85\n",
+                id="renders-name-and-score",
+            ),
+            pytest.param(
+                {"x_name": "scale-24.75", "x_studio_score": 0},
+                "### scale-24.75\n\n- score: 0\n",
+                id="zero-score",
+            ),
+            pytest.param(
+                {"x_name": "finish-Nitrocellulose Lacquer", "x_studio_score": False},
+                "### finish-Nitrocellulose Lacquer\n\n- score: 0\n",
+                id="false-score-becomes-zero",
+            ),
+            pytest.param(
+                {"x_name": "nech-slim"},
+                "### nech-slim\n\n- score: 0\n",
+                id="missing-score-becomes-zero",
+            ),
+        ],
+    )
+    def test_render_tag(self, record: dict, expected: str) -> None:
+        assert _render_tag(record) == expected
+
+
+class TestIsPedalAmp:
+    @pytest.mark.parametrize(
+        "name, expected",
+        [
+            pytest.param("pedal-overdrive", True, id="pedal-prefix"),
+            pytest.param("pedal-klon", True, id="pedal-klon"),
+            pytest.param("amp-speaker", True, id="amp-prefix"),
+            pytest.param("amp", False, id="amp-exact-no-dash-is-not-pedal-amp"),
+            pytest.param("fretboard-Ebony", False, id="guitar-tag"),
+            pytest.param("scale-24.75", False, id="scale-tag"),
+            pytest.param("body-semi-hollow", False, id="body-tag"),
+            pytest.param("", False, id="empty-name"),
+        ],
+    )
+    def test_is_pedal_amp(self, name: str, expected: bool) -> None:
+        assert _is_pedal_amp({"x_name": name}) == expected
+
+
+class TestWriteTagsFile:
+    def _weighted(self, names_scores: list[tuple[str, int]]) -> list[dict]:
+        return [{"x_name": n, "x_studio_score": s} for n, s in names_scores]
+
+    def test_three_sections_in_file(self, tmp_path: Path) -> None:
+        weighted = self._weighted(
+            [
+                ("fretboard-Ebony", 90),
+                ("pedal-overdrive", 40),
+                ("amp-speaker", 20),
+            ]
+        )
+        family = [{"x_name": "body-semi-hollow", "x_studio_score": 5}]
+        out = tmp_path / "tags.md"
+
+        n_guitar, n_family, n_pedal_amp = _write_tags_file(out, weighted, family)
+
+        assert n_guitar == 1
+        assert n_family == 1
+        assert n_pedal_amp == 2
+        content = out.read_text()
+        assert "# Tags Knowledge Base" in content
+        assert "Section 1" in content
+        assert "Section 2" in content
+        assert "Section 3" in content
+        assert "### fretboard-Ebony" in content
+        assert "### body-semi-hollow" in content
+        assert "### pedal-overdrive" in content
+        assert "### amp-speaker" in content
+
+    def test_guitar_tags_exclude_pedal_amp(self, tmp_path: Path) -> None:
+        weighted = self._weighted([("fretboard-Ebony", 90), ("pedal-klon", 30)])
+        out = tmp_path / "tags.md"
+        n_guitar, _, n_pedal_amp = _write_tags_file(out, weighted, [])
+        assert n_guitar == 1
+        assert n_pedal_amp == 1
+        content = out.read_text()
+        s1_end = content.index("Section 2")
+        assert "### fretboard-Ebony" in content[:s1_end]
+        assert "### pedal-klon" not in content[:s1_end]
+
+    def test_creates_parent_directories(self, tmp_path: Path) -> None:
+        out = tmp_path / "nested" / "dir" / "tags.md"
+        _write_tags_file(out, [], [])
+        assert out.exists()
+
+    def test_empty_records(self, tmp_path: Path) -> None:
+        out = tmp_path / "tags.md"
+        n_guitar, n_family, n_pedal_amp = _write_tags_file(out, [], [])
+        assert n_guitar == 0
+        assert n_family == 0
+        assert n_pedal_amp == 0
+        assert "# Tags Knowledge Base" in out.read_text()
