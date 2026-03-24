@@ -13,6 +13,7 @@ Use ``--all`` to validate every model in the database at once.
 from __future__ import annotations
 
 import asyncio
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
@@ -43,7 +44,9 @@ from sync_model import (
 
 _console = Console()
 
-REVERB_DOMAIN = "reverb.com/item/"
+#: Matches Reverb item URLs with an optional country-code path segment,
+#: e.g. ``reverb.com/item/…`` and ``reverb.com/ca/item/…``.
+_REVERB_ITEM_RE = re.compile(r"reverb\.com(?:/[a-z]{2})?/item/")
 
 #: Default number of worker threads for ``--all`` mode.
 DEFAULT_WORKERS = 4
@@ -56,7 +59,7 @@ DEFAULT_WORKERS = 4
 
 def _is_reverb_url(url: str) -> bool:
     """Return *True* if *url* points to a Reverb item listing."""
-    return REVERB_DOMAIN in url
+    return bool(_REVERB_ITEM_RE.search(url))
 
 
 # ---------------------------------------------------------------------------
@@ -375,6 +378,20 @@ def _validate_single_model(
         logger.warning("No entries to validate — nothing to do.")
         return 0
 
+    _console.print(f"\n  [bold]{escape(model_name)}[/bold] — {len(data['entries'])} guitar(s):")
+    for item in data["report"]:
+        entry = item["entry"]
+        name = escape(entry.get("x_name", "")[:70])
+        action = item["action"]
+        warnings = item.get("warnings", [])
+        if action == "update":
+            _console.print(f"    [yellow]~[/yellow] {name}")
+        elif action == "ok":
+            _console.print(f"    [green]✓[/green] {name}")
+        else:
+            warn_str = escape("; ".join(warnings)) if warnings else "skipped"
+            _console.print(f"    [dim]⚠[/dim] {name}  [dim]({warn_str})[/dim]")
+
     update_count = _print_validation_report(data["report"])
 
     if update_count == 0:
@@ -472,15 +489,26 @@ def cli(
                 }
                 for future in as_completed(future_to_idx):
                     idx = future_to_idx[future]
+                    mi = all_model_info[idx]
                     try:
-                        collected[idx] = future.result()
+                        result = future.result()
+                        collected[idx] = result
+                        n_guitars = len(result.get("entries", []))
+                        n_updates = result.get("update_count", 0)
+                        status = (
+                            f"[yellow]{n_updates} to update[/yellow]"
+                            if n_updates
+                            else "[green]ok[/green]"
+                        )
+                        progress.console.log(
+                            f"[cyan]{escape(mi['name'])}[/cyan]: {n_guitars} guitar(s) — {status}"
+                        )
                     # catch all to avoid crashing the whole batch
                     # It is hard to predict what might go wrong in the scraping phase,
                     # and we want to continue processing other models even if one fails.
                     except Exception:  # noqa
-                        mi = all_model_info[idx]
-                        _console.print(
-                            f"  [bold red]✗[/bold red] [red]Error collecting data for"
+                        progress.console.log(
+                            f"[bold red]✗[/bold red] [red]Error collecting data for"
                             f" '{escape(mi['name'])}' (id={mi['id']})[/red]"
                         )
                         collected[idx] = {
@@ -496,6 +524,7 @@ def cli(
 
         # Phase 2 — print reports & apply updates sequentially -----------------
         total_updated = 0
+        all_updated_items: list[dict] = []
         for i, data in enumerate(collected, 1):
             update_count = data["update_count"]
 
@@ -518,6 +547,14 @@ def cli(
                 f"  [dim](id={data['model_id']})[/dim]"
             )
 
+            # Show which guitars need updating
+            for item in data["report"]:
+                if item["action"] == "update":
+                    entry = item["entry"]
+                    name = escape(entry.get("x_name", "")[:70])
+                    fields = ", ".join(item["changes"].keys())
+                    _console.print(f"    [yellow]~[/yellow] {name}  [dim]({fields})[/dim]")
+
             update_count = _print_validation_report(data["report"])
 
             if dry_run:
@@ -531,10 +568,22 @@ def cli(
                 )
 
             updated_items = _apply_validation_updates(conn, data["report"])
-            _print_updated_summary(updated_items)
-            logger.success("Updated {} record(s) in Odoo.", len(updated_items))
+            all_updated_items.extend(updated_items)
             total_updated += len(updated_items)
 
+        # Final consolidated summary -------------------------------------------
+        _console.print()
+        _console.rule("[bold]Final Summary[/bold]")
+        if all_updated_items:
+            _console.print(f"  [bold]{total_updated}[/bold] record(s) updated:")
+            for item in all_updated_items:
+                fields_str = ", ".join(item["fields"])
+                _console.print(
+                    f"    [dim]{item['id']}[/dim]  {escape(item['name'])}"
+                    f"  [dim]({fields_str})[/dim]"
+                )
+        else:
+            _console.print("  [green]All records up to date — nothing to update.[/green]")
         logger.success("All models validated — {} record(s) updated total.", total_updated)
         return
 

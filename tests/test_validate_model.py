@@ -43,6 +43,16 @@ from validate_model import (
             False,
             id="reverb-non-item-url",
         ),
+        pytest.param(
+            "https://reverb.com/ca/item/12345-guitar",
+            True,
+            id="localized-reverb-url",
+        ),
+        pytest.param(
+            "https://reverb.com/ca/item/99999-listing?show_sold=true",
+            True,
+            id="localized-reverb-url-with-query",
+        ),
     ],
 )
 def test_is_reverb_url(url: str, expected: bool):
