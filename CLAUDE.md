@@ -82,6 +82,29 @@ dependencies = [
 ]
 ```
 
+## Odoo Custom Field Naming
+
+All custom fields on Odoo Studio models must follow these conventions:
+
+### Relation fields
+- **many2one** and **one2many**: `x_<related_model_name>_id`
+  - e.g. many2one to `x_gear` → `x_gear_id`
+  - e.g. many2one to `x_models` → `x_models_id`
+- **many2many**: `x_<related_model_name>_ids`
+  - e.g. many2many to `x_custom_build_part` → `x_custom_build_part_ids`
+- For standard Odoo models (`res.currency`, `res.partner`), use `x_<purpose>_id` (e.g. `x_currency_id`, `x_partner_id`)
+
+### Boolean fields
+Boolean fields must be prefixed with `is_`, `has_`, or `can_` to make their true/false nature explicit:
+- `x_is_keeper`, `x_is_taxed`, `x_is_custom_build`
+- `x_has_forwarding`
+- `x_can_accept_offers`
+
+### `conn.get_model()` — dotted vs underscored form
+- **Data operations** (search_read, create, write): always use the **underscored** form: `conn.get_model("x_gear")`, `conn.get_model("x_listing")`
+- **Schema queries** (`ir.model`, `ir.model.fields` domains): always use the **dotted** form as a string value: `[("model", "=", "x.gear")]`
+- Getting this wrong causes silent `False` results with no error message.
+
 ## Running Python — Always use `uv`
 
 Always use `uv` to run Python code and manage dependencies.
