@@ -49,7 +49,8 @@ x_expense         (move many2one link from x_guitar → x_gear)
 | `x_acquisition_date`     | Acquired On          | date      |                                                |
 | `x_acquisition_price`    | Acquisition Price    | float     |                                                |
 | `x_acquisition_source`   | Acquisition Source   | selection | reverb/marketplace/kijiji/facebook/local/trade/other |
-| `x_status`               | Status               | selection | in_collection/listed/sold/traded               |
+| `x_ref`                  | Ref                  | char      | user-assigned code e.g. "LP-001"; set when taking ownership |
+| `x_status`               | Status               | selection | market/in_collection/listed/sold/traded        |
 | `x_is_keeper`            | Keeper               | boolean   |                                                |
 | `x_sold_date`            | Sold On              | date      |                                                |
 | `x_sold_price`           | Sold Price           | float     |                                                |
@@ -79,6 +80,60 @@ x_expense         (move many2one link from x_guitar → x_gear)
 | `x_tax_id`          | Tax Rate             | many2one → x_tax | migrated from x_guitar.x_studio_final_tax_rate_id |
 | `x_notes`                | Notes                | text      |                                                |
 | `x_guitar_id`            | Source Guitar        | many2one → x_guitar | migration traceability, archive-only |
+
+---
+
+## x_gear Identity Strategy
+
+### Why URL doesn't work as UUID for x_gear
+
+`x_guitar` used the Reverb URL as its de-facto UUID because every record was a Reverb listing. `x_gear` is a physical object — the same guitar can be listed on Reverb AND Marketplace (two URLs), bought locally (no URL), or relisted months after a previous sale. There is no single field that works as a universal UUID.
+
+### Tiered identity
+
+`x_gear` uses multiple soft identifiers rather than one enforced UUID:
+
+| Field | Role | When populated |
+|---|---|---|
+| `x_serial_number` | Real-world manufacturer ID | When known — not all gear has one, vintage gear may have duplicates |
+| `x_ref` | User-assigned collection code (e.g. `"LP-001"`) | Set manually when you take ownership of the gear |
+| `x_status` | Ownership signal — separates market tracking from collection | Set by sync for market gear; updated manually when you buy |
+
+### x_status values (updated)
+
+```
+market        — tracked on Reverb/Marketplace, not owned
+in_collection — you own it (not currently listed)
+listed        — you own it and have active listing(s)
+sold          — you sold it
+traded        — you traded it
+```
+
+The `market` status is the key addition. Sync-created records start as `market`. When you buy a guitar, you flip it to `in_collection` and fill in `x_ref`, acquisition details, and serial number.
+
+### Sync flow with tiered identity
+
+1. Sync searches Reverb → finds listing URL
+2. Looks up `x_listing.x_url` (URL remains the UUID for **listings**)
+3. If listing exists → update it; gear is reached via `x_listing.x_gear_id`
+4. If listing is new → create `x_gear` (status=`market`) + `x_listing` pair
+5. When you buy the guitar → manually set `x_gear.x_status = in_collection`, fill `x_ref` and acquisition fields
+
+### Cross-platform deduplication (manual merge)
+
+When the same guitar appears on two platforms, two `x_gear` records are created by sync. To merge:
+1. Keep the gear record you want as the canonical one
+2. Point all listings' `x_gear_id` to that record
+3. Archive the orphaned gear record
+
+No automatic detection is planned — the `x_ref` and `x_serial_number` fields are what you use to spot duplicates in the Odoo UI.
+
+### Changes to the plan from this strategy
+
+- Add `"market"` to `x_gear.x_status` selection values (replaces the previous `in_collection` default for sync-created records)
+- Add `x_ref` (char, optional) field to `x_gear`
+- Sync script creates `x_gear` with `x_status = "market"` for new Reverb listings
+- Migration: existing `x_guitar` records get `x_status = "market"` (they were Reverb listings); user corrects to `in_collection` for gear they currently own
 
 ---
 
@@ -549,13 +604,17 @@ def run(conn) -> None:
                      ["local", "Local"], ["trade", "Trade"], ["other", "Other"],
                  ]))
 
-    # Collection status
+    # Identity / collection management
+    ensure_field(conn, "x.gear", mid, "x_ref", "Ref", "char")
     ensure_field(conn, "x.gear", mid, "x_status", "Status", "selection",
                  selection=json.dumps([
-                     ["in_collection", "In Collection"], ["listed", "Listed"],
-                     ["sold", "Sold"], ["traded", "Traded"],
+                     ["market", "Market"],               # tracked on Reverb/Marketplace, not owned
+                     ["in_collection", "In Collection"], # owned, not currently listed
+                     ["listed", "Listed"],               # owned + active listing(s)
+                     ["sold", "Sold"],
+                     ["traded", "Traded"],
                  ]),
-                 default="in_collection")
+                 default="market")
     ensure_field(conn, "x.gear", mid, "x_is_keeper", "Keeper", "boolean")
     ensure_field(conn, "x.gear", mid, "x_sold_date", "Sold On", "date")
     ensure_field(conn, "x.gear", mid, "x_sold_price", "Sold Price", "float")
@@ -945,7 +1004,7 @@ def run(conn) -> None:
                 "x_guitar_id": gid,
                 # Status: if the guitar is active (has a listing), it's "listed";
                 # otherwise assume "in_collection" — user can correct later.
-                "x_status": "listed" if g.get("x_active") else "in_collection",
+                "x_status": "market",  # all migrated records are Reverb market listings,
             }
             model_id_val = _resolve_id(g.get("x_studio_models"))
             if model_id_val:
@@ -1396,7 +1455,7 @@ def _create_instrument_and_listing(
     instrument_id = instrument_model.create({
         "x_name": name,
         "x_models_id": model_id,
-        "x_status": "listed",
+        "x_status": "market",  # sync-created gear is market-tracked, not owned
     })
 
     listing_vals = {
@@ -1566,6 +1625,6 @@ Once you are confident the new structure works in production (after ~2 weeks of 
 - **Guitars with no `x_studio_models` value** will produce `x_gear` records with a null `x_models_id`. This is a data quality issue in the source, not a migration bug. Run `x_gear.search_count([("x_models_id", "=", False)])` after migration to see the count; fix manually in Odoo. Do not treat `test_all_instruments_linked_to_model` as a hard blocker if the number is small and known.
 
 - All migrated listings have `x_platform = "reverb"` — Marketplace / Kijiji records will need manual correction in Odoo after migration (the old `x_models.x_studio_kijiji` / `x_studio_facebook_1` / `x_studio_ebay_1` URLs are the source).
-- `x_gear.x_status` defaults to `"listed"` for active records and `"in_collection"` for archived ones — the user will need to manually mark sold instruments as `"sold"` and set `x_is_keeper` on keepers.
+- `x_gear.x_status` is set to `"market"` for all migrated records (they were Reverb listings). The user must manually update records they own to `"in_collection"` or `"listed"`, and set `x_is_keeper` on keepers. `x_ref` will also be blank for all migrated records — fill in as you review your collection.
 - `x_gear.x_acquisition_date` and `x_gear.x_acquisition_price` are empty — no source data exists for these.
 - Scoring fields on `x_guitar` (`x_studio_score`, `x_studio_final_score`, etc.) are **not migrated** — they will need to be recreated as computed fields on `x_listing` in a follow-on task.
