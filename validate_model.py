@@ -111,6 +111,8 @@ async def _scrape_reverb_urls(
 def _build_validation_report(
     entries: list[dict],
     reverb_data: dict[str, dict],
+    *,
+    include_sold: bool = False,
 ) -> list[dict]:
     """Build a validation report comparing Odoo entries against Reverb data.
 
@@ -151,14 +153,16 @@ def _build_validation_report(
 
         item["reverb"] = reverb
 
-        # Skip ended / sold listings — nothing to update
-        if reverb.get("sale_ended"):
+        # Skip ended / sold listings unless the caller opted in
+        if reverb.get("sale_ended") and not include_sold:
             item["warnings"].append(f"status: {reverb.get('status', 'ended/sold')}")
             report.append(item)
             continue
 
         item["changes"] = _compute_changes(entry, reverb)
         item["action"] = "update" if item["changes"] else "ok"
+        if reverb.get("sale_ended"):
+            item["warnings"].append(f"status: {reverb.get('status', 'ended/sold')}")
 
         # Informational warnings
         if reverb.get("ships_to_canada") is False:
@@ -302,6 +306,7 @@ async def _collect_model_data(
     model_id: int,
     model_name: str,
     default_shipping: float,
+    include_sold: bool = False,
 ) -> dict[str, Any]:
     """Fetch Odoo entries and scrape Reverb for a single model.
 
@@ -335,7 +340,7 @@ async def _collect_model_data(
     reverb_data = await _scrape_reverb_urls(entries, default_shipping=default_shipping)
     logger.debug("[{}] Scraped {} Reverb listing(s)", model_name, len(reverb_data))
 
-    report = _build_validation_report(entries, reverb_data)
+    report = _build_validation_report(entries, reverb_data, include_sold=include_sold)
     update_count = sum(1 for item in report if item["action"] == "update")
 
     return {
@@ -357,6 +362,7 @@ def _validate_single_model(
     default_shipping: float,
     dry_run: bool,
     auto_yes: bool,
+    include_sold: bool = False,
 ) -> int:
     """Validate one model's guitar entries against Reverb.
 
@@ -371,6 +377,7 @@ def _validate_single_model(
             model_id=model_id,
             model_name=model_name,
             default_shipping=default_shipping,
+            include_sold=include_sold,
         )
     )
 
@@ -418,6 +425,12 @@ def _validate_single_model(
 @click.command("validate")
 @click.argument("model_name", required=False, default=None)
 @click.option("--all", "all_models", is_flag=True, help="Validate every model in the database.")
+@click.option(
+    "--include-sold",
+    "include_sold",
+    is_flag=True,
+    help="Also validate sold/ended listings (skipped by default).",
+)
 @click.option("--dry-run", is_flag=True, help="Preview changes without writing to Odoo.")
 @click.option("--yes", "-y", "auto_yes", is_flag=True, help="Skip confirmation prompts.")
 @click.option(
@@ -432,6 +445,7 @@ def cli(
     ctx: click.Context,
     model_name: str | None,
     all_models: bool,
+    include_sold: bool,
     dry_run: bool,
     auto_yes: bool,
     workers: int,
@@ -483,6 +497,7 @@ def cli(
                             model_id=mi["id"],
                             model_name=mi["name"],
                             default_shipping=mi["default_shipping"],
+                            include_sold=include_sold,
                         ),
                     ): idx
                     for idx, mi in enumerate(all_model_info)
@@ -598,6 +613,7 @@ def cli(
         default_shipping=model_info["default_shipping"],
         dry_run=dry_run,
         auto_yes=auto_yes,
+        include_sold=include_sold,
     )
 
 

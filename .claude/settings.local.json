@@ -20,7 +20,8 @@
       "Bash(.venv/bin/python:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(grep:*)"
     ]
   }
 }

@@ -19,7 +19,7 @@ interactions:
       X-Display-Currency:
       - CAD
     method: GET
-    uri: https://api.reverb.com/api/listings?query=Frank+Brothers+Arcade&per_page=50&page=1
+    uri: https://api.reverb.com/api/listings?query=Frank+Brothers+Arcade&per_page=50&state=live&page=1
   response:
     body:
       string: !!binary |
@@ -379,7 +379,7 @@ interactions:
       X-Display-Currency:
       - CAD
     method: GET
-    uri: https://api.reverb.com/api/listings?query=Frank+Brothers+Arcade&per_page=50&page=1
+    uri: https://api.reverb.com/api/listings?query=Frank+Brothers+Arcade&per_page=50&state=live&page=1
   response:
     body:
       string: !!binary |

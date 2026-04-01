@@ -46,10 +46,25 @@ uv run reverb2odoo --help
 Search Reverb for a guitar model, then create new entries and update existing ones in Odoo.
 Matching is done first by exact URL (query-string ignored), then by Reverb numeric item ID — so listings that were renamed on Reverb (slug changed) are updated in place rather than duplicated.
 
+By default only **live** listings are searched. Pass `--include-sold` to also include sold/ended listings.
+
+```bash
+uv run reverb2odoo sync "Frank Brothers Arcane"
+uv run reverb2odoo sync "Frank Brothers Arcane" --include-sold   # also include sold
+uv run reverb2odoo sync --all --include-sold                     # all models, sold included
+```
+
 ### `validate` — Refresh existing entries from Reverb
 
 Starting from existing Odoo records that have a Reverb URL, fetch the current listing data and update fields that have
 drifted (price, availability, shipping, etc.).
+
+By default **sold/ended** listings are skipped. Pass `--include-sold` to validate them as well (useful to mark stale entries as unavailable).
+
+```bash
+uv run reverb2odoo validate "Frank Brothers Arcane"
+uv run reverb2odoo validate --all --include-sold   # also validate sold listings
+```
 
 ### `dedup` — Find and remove duplicate listings
 

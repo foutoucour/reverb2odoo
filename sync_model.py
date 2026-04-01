@@ -259,6 +259,7 @@ def _search_reverb(
     *,
     category: str | None = None,
     default_shipping: float = DEFAULT_SHIPPING,
+    include_sold: bool = False,
 ) -> list[dict]:
     """Search Reverb for *query* and return deduplicated results.
 
@@ -268,10 +269,11 @@ def _search_reverb(
                   ``None`` searches across all categories.
         default_shipping: Fallback shipping cost (from the Reverb category)
                           used when no rate is found for the target region.
-
-    Searches ``state='all'`` to capture both live and sold listings.
+        include_sold: When *True*, searches ``state='all'`` to capture both
+                      live and sold listings.  Defaults to live-only.
     """
     shipping_str = f"{default_shipping:.2f}"
+    state = "all" if include_sold else "live"
 
     async def _fetch() -> list[dict]:
         async with ReverbScraper(
@@ -279,7 +281,7 @@ def _search_reverb(
             shipping_region="CA",
             default_shipping=shipping_str,
         ) as scraper:
-            return await scraper.search(query, category=category, state="all")
+            return await scraper.search(query, category=category, state=state)
 
     raw = asyncio.run(_fetch())
 
@@ -603,6 +605,7 @@ def _collect_sync_data(
     default_shipping: float,
     search_query: str | None = None,
     include_brand_new: bool = False,
+    include_sold: bool = False,
 ) -> dict[str, Any]:
     """Search Reverb and fetch Odoo entries for a single model.
 
@@ -622,6 +625,7 @@ def _collect_sync_data(
         query,
         category=category_slug,
         default_shipping=default_shipping,
+        include_sold=include_sold,
     )
 
     if not reverb_results:
@@ -684,6 +688,12 @@ def _collect_sync_data(
     is_flag=True,
     help="Also create brand-new listings (skipped by default).",
 )
+@click.option(
+    "--include-sold",
+    "include_sold",
+    is_flag=True,
+    help="Include sold/ended listings in the Reverb search (default: live only).",
+)
 @click.option("--dry-run", is_flag=True, help="Preview changes without writing to Odoo.")
 @click.option("--yes", "-y", "auto_yes", is_flag=True, help="Skip confirmation prompts.")
 @click.option(
@@ -707,6 +717,7 @@ def cli(
     category: str | None,
     no_category: bool,
     include_brand_new: bool,
+    include_sold: bool,
     dry_run: bool,
     auto_yes: bool,
     wanna: bool,
@@ -773,6 +784,7 @@ def cli(
                         default_shipping=mi["default_shipping"],
                         search_query=search_query,
                         include_brand_new=include_brand_new,
+                        include_sold=include_sold,
                     ): idx
                     for idx, mi in enumerate(all_model_info)
                 }
@@ -883,6 +895,7 @@ def cli(
         default_shipping=default_shipping,
         search_query=search_query,
         include_brand_new=include_brand_new,
+        include_sold=include_sold,
     )
 
     if not data["reverb_results"]:

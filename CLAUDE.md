@@ -40,6 +40,14 @@ if config_path.exists():
     ...
 ```
 
+## After Every Code Change — Run Tests and Update Docs
+
+After any code change:
+
+1. **Run the test suite** — `uv run pytest`. All tests must pass before the task is considered done.
+2. **Update tests** — every modified function must have its test updated or extended to cover the new behaviour.
+3. **Update README.md** — if the change affects a CLI command, flag, or user-facing behaviour, document it in README.md.
+
 ## Testing — Always write unit tests
 
 Every module and function must have corresponding unit tests. Use `pytest` as the test framework. Place tests in a `tests/` directory mirroring the source structure.

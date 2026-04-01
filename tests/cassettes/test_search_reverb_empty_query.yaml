@@ -19,7 +19,7 @@ interactions:
       X-Display-Currency:
       - CAD
     method: GET
-    uri: https://api.reverb.com/api/listings?query=xyznonexistent987654321qqq&per_page=50&page=1
+    uri: https://api.reverb.com/api/listings?query=xyznonexistent987654321qqq&per_page=50&state=live&page=1
   response:
     body:
       string: '{"total":0,"current_page":1,"per_page":50,"total_pages":1,"_links":{"follow":{"href":"https://api.reverb.com/api/my/follows/search?query=xyznonexistent987654321qqq"},"listing":{"href":"https://reverb.com/sell"}},"humanized_params":"\"xyznonexistent987654321qqq\"
@@ -102,7 +102,7 @@ interactions:
       X-Display-Currency:
       - CAD
     method: GET
-    uri: https://api.reverb.com/api/listings?query=xyznonexistent987654321qqq&per_page=50&page=1
+    uri: https://api.reverb.com/api/listings?query=xyznonexistent987654321qqq&per_page=50&state=live&page=1
   response:
     body:
       string: '{"total":0,"current_page":1,"per_page":50,"total_pages":1,"_links":{"follow":{"href":"https://api.reverb.com/api/my/follows/search?query=xyznonexistent987654321qqq"},"listing":{"href":"https://reverb.com/sell"}},"humanized_params":"\"xyznonexistent987654321qqq\"

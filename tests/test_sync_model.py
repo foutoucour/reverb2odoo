@@ -106,6 +106,7 @@ class TestSyncCli:
         assert "MODEL_NAME" in result.output
         assert "--all" in result.output
         assert "--dry-run" in result.output
+        assert "--include-sold" in result.output
 
     def test_flags_only_no_model_no_all(self):
         result = self.runner.invoke(cli, ["--dry-run"])
@@ -917,6 +918,35 @@ def test_search_reverb_empty_query():
     assert results == []
 
 
+@pytest.mark.parametrize(
+    "include_sold, expected_state",
+    [
+        pytest.param(False, "live", id="default-live-only"),
+        pytest.param(True, "all", id="include-sold-all"),
+    ],
+)
+def test_search_reverb_state_parameter(include_sold: bool, expected_state: str):
+    """_search_reverb passes state='live' by default, 'all' with include_sold=True."""
+    from unittest.mock import AsyncMock
+
+    captured_states: list[str] = []
+
+    async def fake_search(query, *, category=None, state="live", **kwargs):
+        captured_states.append(state)
+        return []
+
+    mock_scraper = MagicMock()
+    mock_scraper.search = fake_search
+    mock_instance = MagicMock()
+    mock_instance.__aenter__ = AsyncMock(return_value=mock_scraper)
+    mock_instance.__aexit__ = AsyncMock(return_value=None)
+
+    with patch("sync_model.ReverbScraper", return_value=mock_instance):
+        _search_reverb("Test Model", include_sold=include_sold)
+
+    assert captured_states == [expected_state]
+
+
 # ── _fetch_all_models (mocked Odoo) ──────────────────────────────────────
 
 
@@ -1164,6 +1194,7 @@ class TestCollectSyncData:
             "Custom Query",
             category="electric-guitars",
             default_shipping=250.0,
+            include_sold=False,
         )
 
     def test_falls_back_to_model_name_for_query(self):
@@ -1182,6 +1213,27 @@ class TestCollectSyncData:
             "Model A",
             category=None,
             default_shipping=250.0,
+            include_sold=False,
+        )
+
+    def test_passes_include_sold_to_search_reverb(self):
+        conn = self._mock_conn()
+
+        with patch("sync_model._search_reverb", return_value=[]) as mock_search:
+            _collect_sync_data(
+                conn,
+                model_id=1,
+                model_name="Model A",
+                category_slug=None,
+                default_shipping=250.0,
+                include_sold=True,
+            )
+
+        mock_search.assert_called_once_with(
+            "Model A",
+            category=None,
+            default_shipping=250.0,
+            include_sold=True,
         )
 
 

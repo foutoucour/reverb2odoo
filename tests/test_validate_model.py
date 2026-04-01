@@ -79,6 +79,7 @@ class TestValidateCli:
         assert "--all" in result.output
         assert "--dry-run" in result.output
         assert "--workers" in result.output
+        assert "--include-sold" in result.output
 
     def test_flags_only_no_model_no_all(self):
         result = self.runner.invoke(cli, ["--dry-run"])
@@ -195,6 +196,39 @@ class TestBuildValidationReport:
         assert report[0]["action"] == "skip"
         assert report[0]["changes"] == {}
         assert any("status: Sold" in w for w in report[0]["warnings"])
+
+    def test_sold_listing_processed_when_include_sold(self):
+        url = "https://reverb.com/item/1-g"
+        entries = [self._make_entry(url=url, x_studio_is_available=True)]
+        reverb_data = {
+            url: self._make_reverb(
+                sale_ended=True,
+                status="Sold",
+                shipping_price=None,
+            )
+        }
+
+        report = _build_validation_report(entries, reverb_data, include_sold=True)
+
+        assert report[0]["action"] == "update"
+        assert report[0]["changes"].get("x_studio_is_available") is False
+        assert any("status: Sold" in w for w in report[0]["warnings"])
+
+    def test_sold_listing_ok_when_include_sold_and_already_unavailable(self):
+        url = "https://reverb.com/item/1-g"
+        entries = [self._make_entry(url=url, x_studio_is_available=False)]
+        reverb_data = {
+            url: self._make_reverb(
+                sale_ended=True,
+                status="Sold",
+                shipping_price=None,
+            )
+        }
+
+        report = _build_validation_report(entries, reverb_data, include_sold=True)
+
+        assert report[0]["action"] == "ok"
+        assert report[0]["changes"] == {}
 
     def test_no_ship_to_canada_warns(self):
         url = "https://reverb.com/item/1-g"
@@ -316,7 +350,7 @@ class TestApplyValidationUpdates:
             {"action": "ok", "entry": {"id": 200}, "changes": {}},
         ]
         updated = _apply_validation_updates(conn, report)
-        assert updated == 1
+        assert len(updated) == 1
         model.write.assert_called_once_with(100, {"x_studio_value": 4000.0})
 
     def test_skips_ok_and_skip_entries(self):
@@ -326,7 +360,7 @@ class TestApplyValidationUpdates:
             {"action": "skip", "entry": {"id": 2}, "changes": {}},
         ]
         updated = _apply_validation_updates(conn, report)
-        assert updated == 0
+        assert len(updated) == 0
         model.write.assert_not_called()
 
     def test_multiple_updates(self):
@@ -345,7 +379,7 @@ class TestApplyValidationUpdates:
             {"action": "ok", "entry": {"id": 300}, "changes": {}},
         ]
         updated = _apply_validation_updates(conn, report)
-        assert updated == 2
+        assert len(updated) == 2
         assert model.write.call_count == 2
 
 
@@ -666,7 +700,7 @@ class TestApplyValidationUpdatesImages:
         with patch("validate_model._download_image_base64", return_value="IMGDATA"):
             updated = _apply_validation_updates(conn, report)
 
-        assert updated == 1
+        assert len(updated) == 1
         call_args = model.write.call_args[0]
         assert call_args[0] == 100
         assert call_args[1]["x_studio_value"] == 4000.0
@@ -686,7 +720,7 @@ class TestApplyValidationUpdatesImages:
         with patch("validate_model._download_image_base64") as mock_dl:
             updated = _apply_validation_updates(conn, report)
 
-        assert updated == 1
+        assert len(updated) == 1
         mock_dl.assert_not_called()
         call_args = model.write.call_args[0]
         assert "x_studio_image" not in call_args[1]
@@ -705,7 +739,7 @@ class TestApplyValidationUpdatesImages:
         with patch("validate_model._download_image_base64", return_value=None):
             updated = _apply_validation_updates(conn, report)
 
-        assert updated == 1
+        assert len(updated) == 1
         call_args = model.write.call_args[0]
         assert call_args[1]["x_studio_value"] == 4000.0
         assert "x_studio_image" not in call_args[1]
@@ -742,7 +776,7 @@ class TestApplyValidationUpdatesImages:
         with patch("validate_model._download_image_base64", return_value=None) as mock_dl:
             updated = _apply_validation_updates(conn, report)
 
-        assert updated == 1
+        assert len(updated) == 1
         mock_dl.assert_called_once_with("")
         call_args = model.write.call_args[0]
         assert "x_studio_image" not in call_args[1]
