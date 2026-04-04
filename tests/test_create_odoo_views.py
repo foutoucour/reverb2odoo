@@ -82,6 +82,13 @@ def _make_multi_conn(model_map: dict):
     return conn, mocks
 
 
+def _make_no_create_mock(created_list):
+    m = MagicMock()
+    m.search_read.return_value = []
+    m.create.side_effect = lambda vals: created_list.append(vals) or 1
+    return m
+
+
 class TestGetActionId:
     def test_returns_id_when_found(self):
         conn, mocks = _make_multi_conn({"ir.actions.act_window": [{"id": 5}]})
@@ -172,75 +179,60 @@ class TestEnsureMenu:
 
 
 class TestCreateGearViews:
-    def _make_conn(self):
-        """Mock conn: all lookups return empty (nothing pre-exists)."""
-        conn = MagicMock()
-        ir_view = MagicMock()
-        ir_view.search_read.return_value = []
-        conn.get_model.return_value = ir_view
-        return conn, ir_view
-
     def test_dry_run_creates_nothing(self):
-        conn, ir_view = self._make_conn()
+        conn, ir_view = _make_conn()
         create_gear_views(conn, dry_run=True)
         ir_view.create.assert_not_called()
 
     def test_creates_three_views(self):
-        conn, ir_view = self._make_conn()
+        conn, ir_view = _make_conn()
         create_gear_views(conn, dry_run=False)
         assert ir_view.create.call_count == 3
 
     def test_view_names(self):
-        conn, ir_view = self._make_conn()
+        conn, ir_view = _make_conn()
         create_gear_views(conn, dry_run=False)
         created_names = {c[0][0]["name"] for c in ir_view.create.call_args_list}
         assert created_names == {"x_gear.list", "x_gear.form", "x_gear.search"}
 
     def test_view_model_is_x_gear(self):
-        conn, ir_view = self._make_conn()
+        conn, ir_view = _make_conn()
         create_gear_views(conn, dry_run=False)
         for call in ir_view.create.call_args_list:
             assert call[0][0]["model"] == "x_gear"
 
     def test_skips_existing_views(self):
-        conn, ir_view = self._make_conn()
+        conn, ir_view = _make_conn()
         ir_view.search_read.return_value = [{"id": 1}]  # all views exist
         create_gear_views(conn, dry_run=False)
         ir_view.create.assert_not_called()
 
 
 class TestCreateListingViews:
-    def _make_conn(self):
-        conn = MagicMock()
-        ir_view = MagicMock()
-        ir_view.search_read.return_value = []
-        conn.get_model.return_value = ir_view
-        return conn, ir_view
-
     def test_dry_run_creates_nothing(self):
-        conn, ir_view = self._make_conn()
+        conn, ir_view = _make_conn()
         create_listing_views(conn, dry_run=True)
         ir_view.create.assert_not_called()
 
     def test_creates_three_views(self):
-        conn, ir_view = self._make_conn()
+        conn, ir_view = _make_conn()
         create_listing_views(conn, dry_run=False)
         assert ir_view.create.call_count == 3
 
     def test_view_names(self):
-        conn, ir_view = self._make_conn()
+        conn, ir_view = _make_conn()
         create_listing_views(conn, dry_run=False)
         created_names = {c[0][0]["name"] for c in ir_view.create.call_args_list}
         assert created_names == {"x_listing.list", "x_listing.form", "x_listing.search"}
 
     def test_view_model_is_x_listing(self):
-        conn, ir_view = self._make_conn()
+        conn, ir_view = _make_conn()
         create_listing_views(conn, dry_run=False)
         for call in ir_view.create.call_args_list:
             assert call[0][0]["model"] == "x_listing"
 
     def test_skips_existing_views(self):
-        conn, ir_view = self._make_conn()
+        conn, ir_view = _make_conn()
         ir_view.search_read.return_value = [{"id": 1}]  # all views exist
         create_listing_views(conn, dry_run=False)
         ir_view.create.assert_not_called()
@@ -248,11 +240,12 @@ class TestCreateListingViews:
 
 class TestCreateViews:
     def test_dry_run_creates_nothing(self):
-        created = []
         conn = MagicMock()
-        conn.get_model.side_effect = lambda name: _make_no_create_mock(created)
+        ir_view = MagicMock()
+        ir_view.search_read.return_value = []
+        conn.get_model.return_value = ir_view
         create_views(conn, dry_run=True)
-        assert created == []
+        ir_view.create.assert_not_called()
 
     def test_creates_six_views_two_actions_three_menus(self):
         """
@@ -290,10 +283,3 @@ class TestCreateViews:
         assert len(view_creates) == 6
         assert len(action_creates) == 2
         assert len(menu_creates) == 3
-
-
-def _make_no_create_mock(created_list):
-    m = MagicMock()
-    m.search_read.return_value = []
-    m.create.side_effect = lambda vals: created_list.append(vals) or 1
-    return m
