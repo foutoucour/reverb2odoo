@@ -1,4 +1,4 @@
-"""Create views, window actions, and menu items for x_gear and x_listing.
+"""Create list, form, and search views for x_gear and x_listing.
 
 Usage (dry-run, default)::
 
@@ -7,6 +7,9 @@ Usage (dry-run, default)::
 Usage (apply changes)::
 
     reverb2odoo create-odoo-views --apply
+
+Note: window actions and menu items cannot be created via RPC on Odoo SaaS.
+Create them manually via Settings → Technical → User Interface → Menu Items.
 """
 
 from __future__ import annotations
@@ -55,109 +58,6 @@ def ensure_view(
     ir_view = conn.get_model("ir.ui.view")
     new_id = ir_view.create({"name": name, "model": model, "type": view_type, "arch": arch})
     logger.success("  Created {} view: {} (id={})", view_type, name, new_id)
-    return new_id
-
-
-# ---------------------------------------------------------------------------
-# Action helpers
-# ---------------------------------------------------------------------------
-
-
-def get_action_id(conn, name: str) -> int | None:
-    """Return the ir.actions.act_window id with the given name, or None."""
-    act = conn.get_model("ir.actions.act_window")
-    results = act.search_read(
-        [("name", "=", name), ("type", "=", "ir.actions.act_window")],
-        ["id"],
-        limit=1,
-    )
-    return results[0]["id"] if results else None
-
-
-def ensure_action(
-    conn,
-    name: str,
-    res_model: str,
-    view_mode: str,
-    *,
-    dry_run: bool,
-) -> int | None:
-    """Create an ir.actions.act_window if one with *name* does not exist.
-
-    Returns the id (existing or new), or None in dry-run when missing.
-    """
-    existing_id = get_action_id(conn, name)
-    if existing_id:
-        logger.info("  Action '{}' already exists (id={})", name, existing_id)
-        return existing_id
-
-    if dry_run:
-        logger.info("  [DRY-RUN] Would create action: {}", name)
-        return None
-
-    act = conn.get_model("ir.actions.act_window")
-    new_id = act.create(
-        {
-            "name": name,
-            "res_model": res_model,
-            "view_mode": view_mode,
-            "type": "ir.actions.act_window",
-        }
-    )
-    logger.success("  Created action: {} (id={})", name, new_id)
-    return new_id
-
-
-# ---------------------------------------------------------------------------
-# Menu helpers
-# ---------------------------------------------------------------------------
-
-
-def get_menu_id(conn, name: str, parent_id: int | None = None) -> int | None:
-    """Return the ir.ui.menu id matching (name, parent_id), or None.
-
-    Uses stored fields only — ``complete_name`` is computed and cannot be
-    filtered in Odoo 19.
-    """
-    menu = conn.get_model("ir.ui.menu")
-    results = menu.search_read(
-        [("name", "=", name), ("parent_id", "=", parent_id or False)],
-        ["id"],
-        limit=1,
-    )
-    return results[0]["id"] if results else None
-
-
-def ensure_menu(
-    conn,
-    name: str,
-    *,
-    parent_id: int | None,
-    action_id: int | None,
-    dry_run: bool,
-) -> int | None:
-    """Create an ir.ui.menu entry if one with (name, parent_id) does not exist.
-
-    Returns the id (existing or new), or None in dry-run when missing.
-    """
-    existing_id = get_menu_id(conn, name, parent_id)
-    if existing_id:
-        logger.info("  Menu '{}' already exists (id={})", name, existing_id)
-        return existing_id
-
-    if dry_run:
-        logger.info("  [DRY-RUN] Would create menu: {}", name)
-        return None
-
-    vals: dict = {"name": name}
-    if parent_id is not None:
-        vals["parent_id"] = parent_id
-    if action_id is not None:
-        vals["action"] = f"ir.actions.act_window,{action_id}"
-
-    menu = conn.get_model("ir.ui.menu")
-    new_id = menu.create(vals)
-    logger.success("  Created menu: {} (id={})", name, new_id)
     return new_id
 
 
@@ -308,20 +208,9 @@ def create_listing_views(conn, *, dry_run: bool) -> None:
 # Orchestrator
 # ---------------------------------------------------------------------------
 
-#: Display name for the top-level "Gear" menu entry.
-_MENU_ROOT_NAME = "Gear"
-
 
 def create_views(conn, *, dry_run: bool) -> None:
-    """Create all views, actions, and menus for x_gear and x_listing.
-
-    Execution order:
-    1. x_gear views (list, form, search)
-    2. x_listing views (list, form, search)
-    3. Window actions for both models
-    4. Top-level "Gear" menu + two sub-menus
-    """
-    # ── Views ──────────────────────────────────────────────────────────────
+    """Create list, form, and search views for x_gear and x_listing."""
     logger.info("")
     logger.info("=== x_gear views ===")
     create_gear_views(conn, dry_run=dry_run)
@@ -329,37 +218,6 @@ def create_views(conn, *, dry_run: bool) -> None:
     logger.info("")
     logger.info("=== x_listing views ===")
     create_listing_views(conn, dry_run=dry_run)
-
-    # ── Actions ────────────────────────────────────────────────────────────
-    logger.info("")
-    logger.info("=== window actions ===")
-    gear_action_id = ensure_action(conn, "Gear Items", "x_gear", "list,form", dry_run=dry_run)
-    listing_action_id = ensure_action(conn, "Listings", "x_listing", "list,form", dry_run=dry_run)
-
-    # ── Menus ──────────────────────────────────────────────────────────────
-    logger.info("")
-    logger.info("=== menus ===")
-    root_id = ensure_menu(
-        conn,
-        _MENU_ROOT_NAME,
-        parent_id=None,
-        action_id=None,
-        dry_run=dry_run,
-    )
-    ensure_menu(
-        conn,
-        "Gear Items",
-        parent_id=root_id,
-        action_id=gear_action_id,
-        dry_run=dry_run,
-    )
-    ensure_menu(
-        conn,
-        "Listings",
-        parent_id=root_id,
-        action_id=listing_action_id,
-        dry_run=dry_run,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -376,13 +234,13 @@ def create_views(conn, *, dry_run: bool) -> None:
 )
 @click.pass_context
 def cli(ctx: click.Context, apply: bool) -> None:
-    """Create views, actions, and menus for x_gear and x_listing.
-
-    Creates list/form/search views, window actions, and a top-level
-    'Gear' menu with 'Gear Items' and 'Listings' sub-entries.
+    """Create list/form/search views for x_gear and x_listing.
 
     Runs in dry-run mode by default; pass --apply to write to Odoo.
-    Idempotent: existing views, actions, and menus are skipped.
+    Idempotent: existing views are skipped.
+
+    Note: window actions and menu items must be created manually via
+    Settings → Technical → User Interface → Menu Items (Odoo SaaS restriction).
     """
     conn = ctx.obj["conn"]
     dry_run = not apply

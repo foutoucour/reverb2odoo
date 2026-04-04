@@ -143,18 +143,29 @@ uv run reverb2odoo create-odoo-schema           # dry-run (default)
 uv run reverb2odoo create-odoo-schema --apply   # write to Odoo
 ```
 
-### `create-odoo-views` — Create views and menus for x_gear and x_listing
+### `create-odoo-views` — Create views for x_gear and x_listing
 
-Creates list, form, and search views for both models, two window actions,
-and a top-level **Gear** menu with **Gear Items** and **Listings** sub-entries.
+Creates list, form, and search views for both models.
 
 Run after `create-odoo-schema` (schema must exist before views can reference fields).
-Idempotent: already-existing views, actions, and menus are skipped.
+Idempotent: already-existing views are skipped.
 
 ```bash
 uv run reverb2odoo create-odoo-views           # dry-run (default)
 uv run reverb2odoo create-odoo-views --apply   # write to Odoo
 ```
+
+**Note — menus must be created manually (Odoo SaaS restriction):**
+
+Window actions and menu items cannot be created via RPC on Odoo SaaS/Online.
+After running `create-odoo-views --apply`, go to
+**Settings → Technical → User Interface → Menu Items** and create:
+
+| Name | Parent | Action |
+|---|---|---|
+| Gear | *(none)* | *(none — container)* |
+| Gear Items | Gear | Window action → x_gear, list,form |
+| Listings | Gear | Window action → x_listing, list,form |
 
 ## Testing
 
