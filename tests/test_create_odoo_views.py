@@ -3,6 +3,8 @@
 from unittest.mock import MagicMock
 
 from create_odoo_views import (
+    create_gear_views,
+    create_listing_views,
     ensure_action,
     ensure_menu,
     ensure_view,
@@ -168,9 +170,6 @@ class TestEnsureMenu:
         mocks["ir.ui.menu"].create.assert_not_called()
 
 
-from create_odoo_views import create_gear_views  # noqa: E402
-
-
 class TestCreateGearViews:
     def _make_conn(self):
         """Mock conn: all lookups return empty (nothing pre-exists)."""
@@ -209,9 +208,6 @@ class TestCreateGearViews:
         ir_view.create.assert_not_called()
 
 
-from create_odoo_views import create_listing_views  # noqa: E402
-
-
 class TestCreateListingViews:
     def _make_conn(self):
         conn = MagicMock()
@@ -241,3 +237,9 @@ class TestCreateListingViews:
         create_listing_views(conn, dry_run=False)
         for call in ir_view.create.call_args_list:
             assert call[0][0]["model"] == "x_listing"
+
+    def test_skips_existing_views(self):
+        conn, ir_view = self._make_conn()
+        ir_view.search_read.return_value = [{"id": 1}]  # all views exist
+        create_listing_views(conn, dry_run=False)
+        ir_view.create.assert_not_called()
