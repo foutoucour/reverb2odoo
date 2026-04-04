@@ -249,10 +249,7 @@ def fix_migrated_status(conn, *, dry_run: bool) -> int:
     )
     if gear_records:
         guitar_ids = [_m2o_id(g["x_guitar_id"]) for g in gear_records]
-        guitars = guitar_model.search_read(
-            [("id", "in", guitar_ids), ("active", "in", [True, False])],
-            ["id", _STATUS_FIELD],
-        )
+        guitars = guitar_model.search_read([("id", "in", guitar_ids)], ["id", _STATUS_FIELD])
         guitar_by_id = {g["id"]: g for g in guitars}
 
         for gear in gear_records:
@@ -297,10 +294,7 @@ def fix_migrated_status(conn, *, dry_run: bool) -> int:
     )
     if listing_records:
         guitar_ids = [_m2o_id(rec["x_guitar_id"]) for rec in listing_records]
-        guitars = guitar_model.search_read(
-            [("id", "in", guitar_ids), ("active", "in", [True, False])],
-            ["id", _STATUS_FIELD],
-        )
+        guitars = guitar_model.search_read([("id", "in", guitar_ids)], ["id", _STATUS_FIELD])
         guitar_by_id = {g["id"]: g for g in guitars}
 
         for listing in listing_records:
