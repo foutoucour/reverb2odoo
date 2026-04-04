@@ -207,3 +207,37 @@ class TestCreateGearViews:
         ir_view.search_read.return_value = [{"id": 1}]  # all views exist
         create_gear_views(conn, dry_run=False)
         ir_view.create.assert_not_called()
+
+
+from create_odoo_views import create_listing_views  # noqa: E402
+
+
+class TestCreateListingViews:
+    def _make_conn(self):
+        conn = MagicMock()
+        ir_view = MagicMock()
+        ir_view.search_read.return_value = []
+        conn.get_model.return_value = ir_view
+        return conn, ir_view
+
+    def test_dry_run_creates_nothing(self):
+        conn, ir_view = self._make_conn()
+        create_listing_views(conn, dry_run=True)
+        ir_view.create.assert_not_called()
+
+    def test_creates_three_views(self):
+        conn, ir_view = self._make_conn()
+        create_listing_views(conn, dry_run=False)
+        assert ir_view.create.call_count == 3
+
+    def test_view_names(self):
+        conn, ir_view = self._make_conn()
+        create_listing_views(conn, dry_run=False)
+        created_names = {c[0][0]["name"] for c in ir_view.create.call_args_list}
+        assert created_names == {"x_listing.list", "x_listing.form", "x_listing.search"}
+
+    def test_view_model_is_x_listing(self):
+        conn, ir_view = self._make_conn()
+        create_listing_views(conn, dry_run=False)
+        for call in ir_view.create.call_args_list:
+            assert call[0][0]["model"] == "x_listing"

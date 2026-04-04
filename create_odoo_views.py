@@ -235,3 +235,80 @@ def create_gear_views(conn, *, dry_run: bool) -> None:
     """Create list, form, and search views for x_gear."""
     for view_type, name, arch in _GEAR_VIEWS:
         ensure_view(conn, "x_gear", view_type, name, arch, dry_run=dry_run)
+
+
+# ---------------------------------------------------------------------------
+# x_listing view definitions
+# ---------------------------------------------------------------------------
+
+_LISTING_LIST_ARCH = """\
+<list string="Listings">
+  <field name="x_name"/>
+  <field name="x_gear_id"/>
+  <field name="x_platform"/>
+  <field name="x_price"/>
+  <field name="x_currency_id"/>
+  <field name="x_status"/>
+  <field name="x_is_available"/>
+  <field name="x_published_at"/>
+</list>"""
+
+_LISTING_FORM_ARCH = """\
+<form string="Listing">
+  <sheet>
+    <field name="x_image" widget="image" class="oe_avatar" options="{'preview_image': 'x_image'}"/>
+    <group>
+      <group>
+        <field name="x_name"/>
+        <field name="x_gear_id"/>
+        <field name="x_url" widget="url"/>
+        <field name="x_platform"/>
+        <field name="x_status"/>
+        <field name="x_published_at"/>
+        <field name="x_guitar_id"/>
+      </group>
+      <group>
+        <field name="x_price"/>
+        <field name="x_currency_id"/>
+        <field name="x_shipping"/>
+        <field name="x_is_available"/>
+        <field name="x_can_accept_offers"/>
+        <field name="x_is_taxed"/>
+        <field name="x_is_too_expensive"/>
+      </group>
+    </group>
+  </sheet>
+</form>"""
+
+_LISTING_SEARCH_ARCH = (
+    '<search string="Listings">\n'
+    '  <field name="x_name"/>\n'
+    '  <field name="x_gear_id"/>\n'
+    "  <filter string=\"Active\" name=\"active\" domain=\"[('x_status', '=', 'active')]\"/>\n"
+    "  <filter string=\"Acquired\" name=\"acquired\" domain=\"[('x_status', '=', 'acquired')]\"/>\n"
+    "  <filter string=\"Passed\" name=\"passed\" domain=\"[('x_status', '=', 'passed')]\"/>\n"
+    "  <separator/>\n"
+    '  <filter string="Available" name="available"'
+    " domain=\"[('x_is_available', '=', True)]\"/>\n"
+    '  <filter string="Reverb" name="platform_reverb"'
+    " domain=\"[('x_platform', '=', 'reverb')]\"/>\n"
+    '  <group expand="0" string="Group By">\n'
+    '    <filter string="Status" name="group_status" context="{\'group_by\': \'x_status\'}"/>\n'
+    '    <filter string="Platform" name="group_platform"'
+    " context=\"{'group_by': 'x_platform'}\"/>\n"
+    '    <filter string="Gear" name="group_gear" context="{\'group_by\': \'x_gear_id\'}"/>\n'
+    "  </group>\n"
+    "</search>"
+)
+
+_LISTING_VIEWS: list[tuple[str, str, str]] = [
+    ("list", "x_listing.list", _LISTING_LIST_ARCH),
+    ("form", "x_listing.form", _LISTING_FORM_ARCH),
+    ("search", "x_listing.search", _LISTING_SEARCH_ARCH),
+]
+
+
+def create_listing_views(conn, *, dry_run: bool) -> None:
+    """Create list, form, and search views for x_listing."""
+    for view_type, name, arch in _LISTING_VIEWS:
+        ensure_view(conn, "x_listing", view_type, name, arch, dry_run=dry_run)
