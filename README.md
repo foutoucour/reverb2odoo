@@ -129,6 +129,33 @@ Each model is rendered as a `###` section sorted alphabetically by name:
 | `web page`     | `x_studio_web_page_1`          | plain text URL                    |
 | `notes`        | `x_studio_notes`               | HTML stripped to plain text       |
 
+### `create-odoo-schema` — Create x_gear and x_listing models in Odoo
+
+Step 1 of the `x_guitar` → `x_gear + x_listing` migration. Creates both custom models
+and all their fields via `ir.model` / `ir.model.fields`, then adds five price bracket
+fields (`x_price_p25`, `x_price_p50`, `x_price_p75`, `x_price_sample_size`,
+`x_price_updated_at`) to the existing `x_models` model.
+
+Idempotent: already-existing models and fields are silently skipped.
+
+```bash
+uv run reverb2odoo create-odoo-schema           # dry-run (default)
+uv run reverb2odoo create-odoo-schema --apply   # write to Odoo
+```
+
+### `create-odoo-views` — Create views and menus for x_gear and x_listing
+
+Creates list, form, and search views for both models, two window actions,
+and a top-level **Gear** menu with **Gear Items** and **Listings** sub-entries.
+
+Run after `create-odoo-schema` (schema must exist before views can reference fields).
+Idempotent: already-existing views, actions, and menus are skipped.
+
+```bash
+uv run reverb2odoo create-odoo-views           # dry-run (default)
+uv run reverb2odoo create-odoo-views --apply   # write to Odoo
+```
+
 ## Testing
 
 ```bash
