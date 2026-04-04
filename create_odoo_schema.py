@@ -65,11 +65,7 @@ _GEAR_FIELDS: list[dict] = [
         "field_description": "Not Interested",
         "ttype": "boolean",
     },
-    {
-        "name": "x_image",
-        "field_description": "Image",
-        "ttype": "binary",
-    },
+    # x_image skipped — use existing x_studio_image field instead
     {
         "name": "x_guitar_id",
         "field_description": "Source Guitar",
@@ -167,11 +163,7 @@ _LISTING_FIELDS: list[dict] = [
         "field_description": "Published At",
         "ttype": "datetime",
     },
-    {
-        "name": "x_image",
-        "field_description": "Image",
-        "ttype": "binary",
-    },
+    # x_image skipped — use existing x_studio_image field instead
     {
         "name": "x_guitar_id",
         "field_description": "Source Guitar",
