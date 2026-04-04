@@ -334,7 +334,7 @@ def create_views(conn, *, dry_run: bool) -> None:
     3. Window actions for both models
     4. Top-level "Gear" menu + two sub-menus
     """
-    # ── Views ────────────────────────────────────────────────────────────────
+    # ── Views ──────────────────────────────────────────────────────────────
     logger.info("")
     logger.info("=== x_gear views ===")
     create_gear_views(conn, dry_run=dry_run)
@@ -343,13 +343,13 @@ def create_views(conn, *, dry_run: bool) -> None:
     logger.info("=== x_listing views ===")
     create_listing_views(conn, dry_run=dry_run)
 
-    # ── Actions ──────────────────────────────────────────────────────────────
+    # ── Actions ────────────────────────────────────────────────────────────
     logger.info("")
     logger.info("=== window actions ===")
     gear_action_id = ensure_action(conn, "Gear Items", "x_gear", "list,form", dry_run=dry_run)
     listing_action_id = ensure_action(conn, "Listings", "x_listing", "list,form", dry_run=dry_run)
 
-    # ── Menus ────────────────────────────────────────────────────────────────
+    # ── Menus ──────────────────────────────────────────────────────────────
     logger.info("")
     logger.info("=== menus ===")
     root_id = ensure_menu(

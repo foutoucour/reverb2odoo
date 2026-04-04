@@ -82,13 +82,6 @@ def _make_multi_conn(model_map: dict):
     return conn, mocks
 
 
-def _make_no_create_mock(created_list):
-    m = MagicMock()
-    m.search_read.return_value = []
-    m.create.side_effect = lambda vals: created_list.append(vals) or 1
-    return m
-
-
 class TestGetActionId:
     def test_returns_id_when_found(self):
         conn, mocks = _make_multi_conn({"ir.actions.act_window": [{"id": 5}]})
