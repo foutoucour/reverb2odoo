@@ -20,8 +20,7 @@ import click
 from loguru import logger
 
 from compute_price_brackets import cli as compute_price_brackets_cmd
-from create_odoo_schema import cli as create_odoo_schema_cmd
-from create_odoo_views import cli as create_odoo_views_cmd
+from create_odoo_schema import cli as add_model_fields_cmd
 from dedup_model import cli as dedup_cmd
 from gpt_model import cli as gpt_files_cmd
 from migrate_family_ids import cli as migrate_family_ids_cmd
@@ -93,8 +92,7 @@ main.add_command(migrate_weighted_tags_cmd)
 main.add_command(remove_studio_sequence_cmd)
 main.add_command(trigger_weighted_score_cmd)
 main.add_command(compute_price_brackets_cmd)
-main.add_command(create_odoo_schema_cmd)
-main.add_command(create_odoo_views_cmd)
+main.add_command(add_model_fields_cmd)
 main.add_command(validate_migration_cmd)
 
 if __name__ == "__main__":
