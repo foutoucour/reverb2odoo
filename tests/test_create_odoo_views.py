@@ -131,7 +131,15 @@ class TestGetMenuId:
         result = get_menu_id(conn, "Gear")
         assert result == 8
         mocks["ir.ui.menu"].search_read.assert_called_once_with(
-            [("complete_name", "=", "Gear")], ["id"], limit=1
+            [("name", "=", "Gear"), ("parent_id", "=", False)], ["id"], limit=1
+        )
+
+    def test_returns_id_with_parent(self):
+        conn, mocks = _make_multi_conn({"ir.ui.menu": [{"id": 9}]})
+        result = get_menu_id(conn, "Gear Items", parent_id=5)
+        assert result == 9
+        mocks["ir.ui.menu"].search_read.assert_called_once_with(
+            [("name", "=", "Gear Items"), ("parent_id", "=", 5)], ["id"], limit=1
         )
 
     def test_returns_none_when_not_found(self):

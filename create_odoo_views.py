@@ -113,14 +113,18 @@ def ensure_action(
 # ---------------------------------------------------------------------------
 
 
-def get_menu_id(conn, complete_name: str) -> int | None:
-    """Return the ir.ui.menu id whose complete_name matches, or None.
+def get_menu_id(conn, name: str, parent_id: int | None = None) -> int | None:
+    """Return the ir.ui.menu id matching (name, parent_id), or None.
 
-    *complete_name* is the full slash-joined path displayed in Odoo's
-    menu list (e.g. ``"Gear"`` or ``"Gear / Gear Items"``).
+    Uses stored fields only — ``complete_name`` is computed and cannot be
+    filtered in Odoo 19.
     """
     menu = conn.get_model("ir.ui.menu")
-    results = menu.search_read([("complete_name", "=", complete_name)], ["id"], limit=1)
+    results = menu.search_read(
+        [("name", "=", name), ("parent_id", "=", parent_id or False)],
+        ["id"],
+        limit=1,
+    )
     return results[0]["id"] if results else None
 
 
@@ -131,21 +135,18 @@ def ensure_menu(
     parent_id: int | None,
     action_id: int | None,
     dry_run: bool,
-    complete_name: str | None = None,
 ) -> int | None:
-    """Create an ir.ui.menu entry if one matching *complete_name* does not exist.
+    """Create an ir.ui.menu entry if one with (name, parent_id) does not exist.
 
-    *complete_name* defaults to *name* when omitted (top-level menu).
     Returns the id (existing or new), or None in dry-run when missing.
     """
-    lookup = complete_name or name
-    existing_id = get_menu_id(conn, lookup)
+    existing_id = get_menu_id(conn, name, parent_id)
     if existing_id:
-        logger.info("  Menu '{}' already exists (id={})", lookup, existing_id)
+        logger.info("  Menu '{}' already exists (id={})", name, existing_id)
         return existing_id
 
     if dry_run:
-        logger.info("  [DRY-RUN] Would create menu: {}", lookup)
+        logger.info("  [DRY-RUN] Would create menu: {}", name)
         return None
 
     vals: dict = {"name": name}
@@ -156,7 +157,7 @@ def ensure_menu(
 
     menu = conn.get_model("ir.ui.menu")
     new_id = menu.create(vals)
-    logger.success("  Created menu: {} (id={})", lookup, new_id)
+    logger.success("  Created menu: {} (id={})", name, new_id)
     return new_id
 
 
@@ -321,8 +322,6 @@ def create_listing_views(conn, *, dry_run: bool) -> None:
 
 #: Display name for the top-level "Gear" menu entry.
 _MENU_ROOT_NAME = "Gear"
-#: complete_name used to look up the root menu (top-level → same as name).
-_MENU_ROOT_COMPLETE = "Gear"
 
 
 def create_views(conn, *, dry_run: bool) -> None:
@@ -358,7 +357,6 @@ def create_views(conn, *, dry_run: bool) -> None:
         parent_id=None,
         action_id=None,
         dry_run=dry_run,
-        complete_name=_MENU_ROOT_COMPLETE,
     )
     ensure_menu(
         conn,
@@ -366,7 +364,6 @@ def create_views(conn, *, dry_run: bool) -> None:
         parent_id=root_id,
         action_id=gear_action_id,
         dry_run=dry_run,
-        complete_name=f"{_MENU_ROOT_COMPLETE} / Gear Items",
     )
     ensure_menu(
         conn,
@@ -374,7 +371,6 @@ def create_views(conn, *, dry_run: bool) -> None:
         parent_id=root_id,
         action_id=listing_action_id,
         dry_run=dry_run,
-        complete_name=f"{_MENU_ROOT_COMPLETE} / Listings",
     )
 
 
