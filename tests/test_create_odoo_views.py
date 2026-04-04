@@ -39,7 +39,8 @@ class TestEnsureView:
     def test_creates_view_when_missing(self):
         conn, ir_view = _make_conn([])
         ir_view.create.return_value = 99
-        ensure_view(conn, "x_gear", "list", "x_gear.list", "<list/>", dry_run=False)
+        result = ensure_view(conn, "x_gear", "list", "x_gear.list", "<list/>", dry_run=False)
+        assert result == 99
         ir_view.create.assert_called_once_with(
             {
                 "name": "x_gear.list",
