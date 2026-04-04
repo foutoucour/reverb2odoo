@@ -11,6 +11,7 @@ Usage (apply changes)::
 
 from __future__ import annotations
 
+import click
 from loguru import logger
 
 # ---------------------------------------------------------------------------
@@ -312,3 +313,103 @@ def create_listing_views(conn, *, dry_run: bool) -> None:
     """Create list, form, and search views for x_listing."""
     for view_type, name, arch in _LISTING_VIEWS:
         ensure_view(conn, "x_listing", view_type, name, arch, dry_run=dry_run)
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator
+# ---------------------------------------------------------------------------
+
+#: Display name for the top-level "Gear" menu entry.
+_MENU_ROOT_NAME = "Gear"
+#: complete_name used to look up the root menu (top-level → same as name).
+_MENU_ROOT_COMPLETE = "Gear"
+
+
+def create_views(conn, *, dry_run: bool) -> None:
+    """Create all views, actions, and menus for x_gear and x_listing.
+
+    Execution order:
+    1. x_gear views (list, form, search)
+    2. x_listing views (list, form, search)
+    3. Window actions for both models
+    4. Top-level "Gear" menu + two sub-menus
+    """
+    # ── Views ────────────────────────────────────────────────────────────────
+    logger.info("")
+    logger.info("=== x_gear views ===")
+    create_gear_views(conn, dry_run=dry_run)
+
+    logger.info("")
+    logger.info("=== x_listing views ===")
+    create_listing_views(conn, dry_run=dry_run)
+
+    # ── Actions ──────────────────────────────────────────────────────────────
+    logger.info("")
+    logger.info("=== window actions ===")
+    gear_action_id = ensure_action(conn, "Gear Items", "x_gear", "list,form", dry_run=dry_run)
+    listing_action_id = ensure_action(conn, "Listings", "x_listing", "list,form", dry_run=dry_run)
+
+    # ── Menus ────────────────────────────────────────────────────────────────
+    logger.info("")
+    logger.info("=== menus ===")
+    root_id = ensure_menu(
+        conn,
+        _MENU_ROOT_NAME,
+        parent_id=None,
+        action_id=None,
+        dry_run=dry_run,
+        complete_name=_MENU_ROOT_COMPLETE,
+    )
+    ensure_menu(
+        conn,
+        "Gear Items",
+        parent_id=root_id,
+        action_id=gear_action_id,
+        dry_run=dry_run,
+        complete_name=f"{_MENU_ROOT_COMPLETE} / Gear Items",
+    )
+    ensure_menu(
+        conn,
+        "Listings",
+        parent_id=root_id,
+        action_id=listing_action_id,
+        dry_run=dry_run,
+        complete_name=f"{_MENU_ROOT_COMPLETE} / Listings",
+    )
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+@click.command("create-odoo-views")
+@click.option(
+    "--apply",
+    is_flag=True,
+    default=False,
+    help="Apply changes to Odoo (default: dry-run only).",
+)
+@click.pass_context
+def cli(ctx: click.Context, apply: bool) -> None:
+    """Create views, actions, and menus for x_gear and x_listing.
+
+    Creates list/form/search views, window actions, and a top-level
+    'Gear' menu with 'Gear Items' and 'Listings' sub-entries.
+
+    Runs in dry-run mode by default; pass --apply to write to Odoo.
+    Idempotent: existing views, actions, and menus are skipped.
+    """
+    conn = ctx.obj["conn"]
+    dry_run = not apply
+
+    if dry_run:
+        logger.info("[DRY-RUN] No changes will be written.  Pass --apply to apply.")
+
+    create_views(conn, dry_run=dry_run)
+
+    logger.info("")
+    if dry_run:
+        logger.info("[DRY-RUN] Done.  Run with --apply to create the views.")
+    else:
+        logger.success("View creation complete.")

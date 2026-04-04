@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 from create_odoo_views import (
     create_gear_views,
     create_listing_views,
+    create_views,
     ensure_action,
     ensure_menu,
     ensure_view,
@@ -243,3 +244,56 @@ class TestCreateListingViews:
         ir_view.search_read.return_value = [{"id": 1}]  # all views exist
         create_listing_views(conn, dry_run=False)
         ir_view.create.assert_not_called()
+
+
+class TestCreateViews:
+    def test_dry_run_creates_nothing(self):
+        created = []
+        conn = MagicMock()
+        conn.get_model.side_effect = lambda name: _make_no_create_mock(created)
+        create_views(conn, dry_run=True)
+        assert created == []
+
+    def test_creates_six_views_two_actions_three_menus(self):
+        """
+        6 views (3 gear + 3 listing), 2 actions (gear + listing),
+        3 menus (Gear top-level, Gear Items submenu, Listings submenu).
+        """
+        view_creates = []
+        action_creates = []
+        menu_creates = []
+
+        conn = MagicMock()
+        counter = [0]
+
+        def make_mock(model_name):
+            m = MagicMock()
+            m.search_read.return_value = []
+
+            def side(vals):
+                counter[0] += 1
+                if model_name == "ir.ui.view":
+                    view_creates.append(vals)
+                elif model_name == "ir.actions.act_window":
+                    action_creates.append(vals)
+                elif model_name == "ir.ui.menu":
+                    menu_creates.append(vals)
+                return counter[0]
+
+            m.create.side_effect = side
+            return m
+
+        conn.get_model.side_effect = make_mock
+
+        create_views(conn, dry_run=False)
+
+        assert len(view_creates) == 6
+        assert len(action_creates) == 2
+        assert len(menu_creates) == 3
+
+
+def _make_no_create_mock(created_list):
+    m = MagicMock()
+    m.search_read.return_value = []
+    m.create.side_effect = lambda vals: created_list.append(vals) or 1
+    return m
