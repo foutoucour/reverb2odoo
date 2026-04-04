@@ -2,7 +2,14 @@
 
 from unittest.mock import MagicMock
 
-from create_odoo_views import ensure_view, get_view_id
+from create_odoo_views import (
+    ensure_action,
+    ensure_menu,
+    ensure_view,
+    get_action_id,
+    get_menu_id,
+    get_view_id,
+)
 
 
 def _make_conn(ir_view_results=None):
@@ -60,3 +67,102 @@ class TestEnsureView:
         result = ensure_view(conn, "x_gear", "list", "x_gear.list", "<list/>", dry_run=True)
         assert result == 7
         ir_view.create.assert_not_called()
+
+
+def _make_multi_conn(model_map: dict):
+    """Build a mock conn where get_model returns different mocks per model name."""
+    conn = MagicMock()
+    mocks = {name: MagicMock() for name in model_map}
+    for name, results in model_map.items():
+        mocks[name].search_read.return_value = results
+    conn.get_model.side_effect = lambda name: mocks.get(name, MagicMock())
+    return conn, mocks
+
+
+class TestGetActionId:
+    def test_returns_id_when_found(self):
+        conn, mocks = _make_multi_conn({"ir.actions.act_window": [{"id": 5}]})
+        result = get_action_id(conn, "Gear")
+        assert result == 5
+        mocks["ir.actions.act_window"].search_read.assert_called_once_with(
+            [("name", "=", "Gear"), ("type", "=", "ir.actions.act_window")],
+            ["id"],
+            limit=1,
+        )
+
+    def test_returns_none_when_not_found(self):
+        conn, mocks = _make_multi_conn({"ir.actions.act_window": []})
+        result = get_action_id(conn, "Gear")
+        assert result is None
+
+
+class TestEnsureAction:
+    def test_skips_when_exists(self):
+        conn, mocks = _make_multi_conn({"ir.actions.act_window": [{"id": 3}]})
+        ensure_action(conn, "Gear", "x_gear", "list,form", dry_run=False)
+        mocks["ir.actions.act_window"].create.assert_not_called()
+
+    def test_creates_when_missing(self):
+        conn, mocks = _make_multi_conn({"ir.actions.act_window": []})
+        mocks["ir.actions.act_window"].create.return_value = 77
+        result = ensure_action(conn, "Gear", "x_gear", "list,form", dry_run=False)
+        assert result == 77
+        mocks["ir.actions.act_window"].create.assert_called_once_with(
+            {
+                "name": "Gear",
+                "res_model": "x_gear",
+                "view_mode": "list,form",
+                "type": "ir.actions.act_window",
+            }
+        )
+
+    def test_dry_run_skips_create(self):
+        conn, mocks = _make_multi_conn({"ir.actions.act_window": []})
+        ensure_action(conn, "Gear", "x_gear", "list,form", dry_run=True)
+        mocks["ir.actions.act_window"].create.assert_not_called()
+
+
+class TestGetMenuId:
+    def test_returns_id_when_found(self):
+        conn, mocks = _make_multi_conn({"ir.ui.menu": [{"id": 8}]})
+        result = get_menu_id(conn, "Gear")
+        assert result == 8
+        mocks["ir.ui.menu"].search_read.assert_called_once_with(
+            [("complete_name", "=", "Gear")], ["id"], limit=1
+        )
+
+    def test_returns_none_when_not_found(self):
+        conn, mocks = _make_multi_conn({"ir.ui.menu": []})
+        result = get_menu_id(conn, "Gear")
+        assert result is None
+
+
+class TestEnsureMenu:
+    def test_skips_when_exists(self):
+        conn, mocks = _make_multi_conn({"ir.ui.menu": [{"id": 2}]})
+        ensure_menu(conn, "Gear", parent_id=None, action_id=None, dry_run=False)
+        mocks["ir.ui.menu"].create.assert_not_called()
+
+    def test_creates_top_level_menu(self):
+        conn, mocks = _make_multi_conn({"ir.ui.menu": []})
+        mocks["ir.ui.menu"].create.return_value = 11
+        result = ensure_menu(conn, "Gear", parent_id=None, action_id=None, dry_run=False)
+        assert result == 11
+        mocks["ir.ui.menu"].create.assert_called_once_with({"name": "Gear"})
+
+    def test_creates_submenu_with_parent_and_action(self):
+        conn, mocks = _make_multi_conn({"ir.ui.menu": []})
+        mocks["ir.ui.menu"].create.return_value = 12
+        ensure_menu(conn, "Gear Items", parent_id=5, action_id=77, dry_run=False)
+        mocks["ir.ui.menu"].create.assert_called_once_with(
+            {
+                "name": "Gear Items",
+                "parent_id": 5,
+                "action": "ir.actions.act_window,77",
+            }
+        )
+
+    def test_dry_run_skips_create(self):
+        conn, mocks = _make_multi_conn({"ir.ui.menu": []})
+        ensure_menu(conn, "Gear", parent_id=None, action_id=None, dry_run=True)
+        mocks["ir.ui.menu"].create.assert_not_called()
