@@ -227,10 +227,14 @@ def apply_plan(conn, to_migrate: list[dict], *, dry_run: bool) -> tuple[int, int
 
 
 def fix_migrated_status(conn, *, dry_run: bool) -> int:
-    """Back-fill x_status on gear/listing records where the field is unset.
+    """Correct x_status on all already-migrated gear/listing records.
 
-    Targets records created before x_status existed as a field (x_status=False
-    but x_guitar_id is set).  Returns the total number of records updated.
+    Fetches the current x_status for every gear/listing that has x_guitar_id
+    set and only writes when the value does not match what the source guitar's
+    status says it should be.  This handles records where Odoo defaulted
+    x_status (e.g. to 'watching') when the field was added to an existing model.
+
+    Returns the total number of records updated.
     """
     gear_model = conn.get_model("x_gear")
     listing_model = conn.get_model("x_listing")
@@ -240,8 +244,8 @@ def fix_migrated_status(conn, *, dry_run: bool) -> int:
 
     # ── x_gear ──────────────────────────────────────────────────────────────
     gear_records = gear_model.search_read(
-        [("x_guitar_id", "!=", False), ("x_status", "=", False)],
-        ["id", "x_guitar_id"],
+        [("x_guitar_id", "!=", False)],
+        ["id", "x_guitar_id", "x_status", "x_is_not_interested"],
     )
     if gear_records:
         guitar_ids = [_m2o_id(g["x_guitar_id"]) for g in gear_records]
@@ -254,31 +258,39 @@ def fix_migrated_status(conn, *, dry_run: bool) -> int:
             if guitar is None:
                 continue
             raw_status = guitar.get(_STATUS_FIELD) or "Watched"
-            gear_status = _GEAR_STATUS_MAP.get(raw_status, "watching")
-            is_not_interested = raw_status == "Not Interested"
+            expected_status = _GEAR_STATUS_MAP.get(raw_status, "watching")
+            expected_not_interested = raw_status == "Not Interested"
+            if (
+                gear.get("x_status") == expected_status
+                and gear.get("x_is_not_interested") == expected_not_interested
+            ):
+                continue
             if dry_run:
                 logger.info(
-                    "  [DRY-RUN] Would fix x_gear id={} x_status → {} (guitar: {})",
+                    "  [DRY-RUN] Would fix x_gear id={} x_status {} → {} (guitar: {})",
                     gear["id"],
-                    gear_status,
+                    gear.get("x_status"),
+                    expected_status,
                     raw_status,
                 )
                 updated += 1
                 continue
             gear_model.write(
                 [gear["id"]],
-                {
-                    "x_status": gear_status,
-                    "x_is_not_interested": is_not_interested,
-                },
+                {"x_status": expected_status, "x_is_not_interested": expected_not_interested},
             )
-            logger.info("  Fixed x_gear id={} x_status → {}", gear["id"], gear_status)
+            logger.info(
+                "  Fixed x_gear id={} x_status {} → {}",
+                gear["id"],
+                gear.get("x_status"),
+                expected_status,
+            )
             updated += 1
 
     # ── x_listing ────────────────────────────────────────────────────────────
     listing_records = listing_model.search_read(
-        [("x_guitar_id", "!=", False), ("x_status", "=", False)],
-        ["id", "x_guitar_id"],
+        [("x_guitar_id", "!=", False)],
+        ["id", "x_guitar_id", "x_status"],
     )
     if listing_records:
         guitar_ids = [_m2o_id(rec["x_guitar_id"]) for rec in listing_records]
@@ -291,18 +303,26 @@ def fix_migrated_status(conn, *, dry_run: bool) -> int:
             if guitar is None:
                 continue
             raw_status = guitar.get(_STATUS_FIELD) or "Watched"
-            listing_status = "acquired" if raw_status in _ACQUIRED_STATUSES else "active"
+            expected_status = "acquired" if raw_status in _ACQUIRED_STATUSES else "active"
+            if listing.get("x_status") == expected_status:
+                continue
             if dry_run:
                 logger.info(
-                    "  [DRY-RUN] Would fix x_listing id={} x_status → {} (guitar: {})",
+                    "  [DRY-RUN] Would fix x_listing id={} x_status {} → {} (guitar: {})",
                     listing["id"],
-                    listing_status,
+                    listing.get("x_status"),
+                    expected_status,
                     raw_status,
                 )
                 updated += 1
                 continue
-            listing_model.write([listing["id"]], {"x_status": listing_status})
-            logger.info("  Fixed x_listing id={} x_status → {}", listing["id"], listing_status)
+            listing_model.write([listing["id"]], {"x_status": expected_status})
+            logger.info(
+                "  Fixed x_listing id={} x_status {} → {}",
+                listing["id"],
+                listing.get("x_status"),
+                expected_status,
+            )
             updated += 1
 
     return updated
