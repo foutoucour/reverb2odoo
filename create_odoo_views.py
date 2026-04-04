@@ -209,22 +209,20 @@ _GEAR_FORM_ARCH = """\
   </sheet>
 </form>"""
 
-_GEAR_SEARCH_ARCH = (
-    '<search string="Gear">\n'
-    '  <field name="x_name"/>\n'
-    '  <field name="x_model_id"/>\n'
-    "  <filter string=\"Watching\" name=\"watching\" domain=\"[('x_status', '=', 'watching')]\"/>\n"
-    "  <filter string=\"Owned\" name=\"owned\" domain=\"[('x_status', '=', 'owned')]\"/>\n"
-    "  <filter string=\"Closed\" name=\"closed\" domain=\"[('x_status', '=', 'closed')]\"/>\n"
-    "  <separator/>\n"
-    '  <filter string="Not Interested" name="not_interested"'
-    " domain=\"[('x_is_not_interested', '=', True)]\"/>\n"
-    '  <group expand="0" string="Group By">\n'
-    '    <filter string="Status" name="group_status" context="{\'group_by\': \'x_status\'}"/>\n'
-    '    <filter string="Model" name="group_model" context="{\'group_by\': \'x_model_id\'}"/>\n'
-    "  </group>\n"
-    "</search>"
-)
+_GEAR_SEARCH_ARCH = """\
+<search string="Gear">
+  <field name="x_name"/>
+  <field name="x_model_id"/>
+  <filter string="Watching" name="watching" domain="[('x_status', '=', 'watching')]"/>
+  <filter string="Owned" name="owned" domain="[('x_status', '=', 'owned')]"/>
+  <filter string="Closed" name="closed" domain="[('x_status', '=', 'closed')]"/>
+  <filter string="Not Interested" name="not_interested"
+    domain="[('x_is_not_interested', '=', True)]"/>
+  <group string="Group By">
+    <filter string="Status" name="group_status" context="{'group_by': 'x_status'}"/>
+    <filter string="Model" name="group_model" context="{'group_by': 'x_model_id'}"/>
+  </group>
+</search>"""
 
 _GEAR_VIEWS: list[tuple[str, str, str]] = [
     ("list", "x_gear.list", _GEAR_LIST_ARCH),
@@ -282,26 +280,21 @@ _LISTING_FORM_ARCH = """\
   </sheet>
 </form>"""
 
-_LISTING_SEARCH_ARCH = (
-    '<search string="Listings">\n'
-    '  <field name="x_name"/>\n'
-    '  <field name="x_gear_id"/>\n'
-    "  <filter string=\"Active\" name=\"active\" domain=\"[('x_status', '=', 'active')]\"/>\n"
-    "  <filter string=\"Acquired\" name=\"acquired\" domain=\"[('x_status', '=', 'acquired')]\"/>\n"
-    "  <filter string=\"Passed\" name=\"passed\" domain=\"[('x_status', '=', 'passed')]\"/>\n"
-    "  <separator/>\n"
-    '  <filter string="Available" name="available"'
-    " domain=\"[('x_is_available', '=', True)]\"/>\n"
-    '  <filter string="Reverb" name="platform_reverb"'
-    " domain=\"[('x_platform', '=', 'reverb')]\"/>\n"
-    '  <group expand="0" string="Group By">\n'
-    '    <filter string="Status" name="group_status" context="{\'group_by\': \'x_status\'}"/>\n'
-    '    <filter string="Platform" name="group_platform"'
-    " context=\"{'group_by': 'x_platform'}\"/>\n"
-    '    <filter string="Gear" name="group_gear" context="{\'group_by\': \'x_gear_id\'}"/>\n'
-    "  </group>\n"
-    "</search>"
-)
+_LISTING_SEARCH_ARCH = """\
+<search string="Listings">
+  <field name="x_name"/>
+  <field name="x_gear_id"/>
+  <filter string="Active" name="active" domain="[('x_status', '=', 'active')]"/>
+  <filter string="Acquired" name="acquired" domain="[('x_status', '=', 'acquired')]"/>
+  <filter string="Passed" name="passed" domain="[('x_status', '=', 'passed')]"/>
+  <filter string="Available" name="available" domain="[('x_is_available', '=', True)]"/>
+  <filter string="Reverb" name="platform_reverb" domain="[('x_platform', '=', 'reverb')]"/>
+  <group string="Group By">
+    <filter string="Status" name="group_status" context="{'group_by': 'x_status'}"/>
+    <filter string="Platform" name="group_platform" context="{'group_by': 'x_platform'}"/>
+    <filter string="Gear" name="group_gear" context="{'group_by': 'x_gear_id'}"/>
+  </group>
+</search>"""
 
 _LISTING_VIEWS: list[tuple[str, str, str]] = [
     ("list", "x_listing.list", _LISTING_LIST_ARCH),
