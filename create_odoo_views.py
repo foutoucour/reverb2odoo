@@ -157,3 +157,81 @@ def ensure_menu(
     new_id = menu.create(vals)
     logger.success("  Created menu: {} (id={})", lookup, new_id)
     return new_id
+
+
+# ---------------------------------------------------------------------------
+# x_gear view definitions
+# ---------------------------------------------------------------------------
+
+_GEAR_LIST_ARCH = """\
+<list string="Gear">
+  <field name="x_name"/>
+  <field name="x_model_id"/>
+  <field name="x_status"/>
+  <field name="x_condition"/>
+  <field name="x_intent"/>
+  <field name="x_is_not_interested"/>
+</list>"""
+
+_GEAR_FORM_ARCH = """\
+<form string="Gear">
+  <sheet>
+    <field name="x_image" widget="image" class="oe_avatar" options="{'preview_image': 'x_image'}"/>
+    <group>
+      <group>
+        <field name="x_name"/>
+        <field name="x_model_id"/>
+        <field name="x_status"/>
+      </group>
+      <group>
+        <field name="x_condition"/>
+        <field name="x_intent"/>
+        <field name="x_is_not_interested"/>
+        <field name="x_guitar_id"/>
+      </group>
+    </group>
+    <notebook>
+      <page string="Listings">
+        <field name="x_listing_ids">
+          <list>
+            <field name="x_name"/>
+            <field name="x_platform"/>
+            <field name="x_price"/>
+            <field name="x_currency_id"/>
+            <field name="x_status"/>
+            <field name="x_is_available"/>
+          </list>
+        </field>
+      </page>
+    </notebook>
+  </sheet>
+</form>"""
+
+_GEAR_SEARCH_ARCH = (
+    '<search string="Gear">\n'
+    '  <field name="x_name"/>\n'
+    '  <field name="x_model_id"/>\n'
+    "  <filter string=\"Watching\" name=\"watching\" domain=\"[('x_status', '=', 'watching')]\"/>\n"
+    "  <filter string=\"Owned\" name=\"owned\" domain=\"[('x_status', '=', 'owned')]\"/>\n"
+    "  <filter string=\"Closed\" name=\"closed\" domain=\"[('x_status', '=', 'closed')]\"/>\n"
+    "  <separator/>\n"
+    '  <filter string="Not Interested" name="not_interested"'
+    " domain=\"[('x_is_not_interested', '=', True)]\"/>\n"
+    '  <group expand="0" string="Group By">\n'
+    '    <filter string="Status" name="group_status" context="{\'group_by\': \'x_status\'}"/>\n'
+    '    <filter string="Model" name="group_model" context="{\'group_by\': \'x_model_id\'}"/>\n'
+    "  </group>\n"
+    "</search>"
+)
+
+_GEAR_VIEWS: list[tuple[str, str, str]] = [
+    ("list", "x_gear.list", _GEAR_LIST_ARCH),
+    ("form", "x_gear.form", _GEAR_FORM_ARCH),
+    ("search", "x_gear.search", _GEAR_SEARCH_ARCH),
+]
+
+
+def create_gear_views(conn, *, dry_run: bool) -> None:
+    """Create list, form, and search views for x_gear."""
+    for view_type, name, arch in _GEAR_VIEWS:
+        ensure_view(conn, "x_gear", view_type, name, arch, dry_run=dry_run)
