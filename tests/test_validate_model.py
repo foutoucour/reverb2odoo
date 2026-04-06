@@ -100,12 +100,12 @@ class TestBuildValidationReport:
         base = {
             "id": 100,
             "x_name": "Guitar",
-            "x_studio_url": url,
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": True,
-            "x_studio_shipping": 250.0,
-            "x_studio_published_at": "2025-06-20 00:00:00",
+            "x_url": url,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+            "x_published_at": "2025-06-20 00:00:00",
         }
         base.update(kwargs)
         return base
@@ -146,7 +146,7 @@ class TestBuildValidationReport:
 
         assert len(report) == 1
         assert report[0]["action"] == "update"
-        assert report[0]["changes"]["x_studio_value"] == 4000.0
+        assert report[0]["changes"]["x_price"] == 4000.0
 
     def test_non_reverb_url_skipped(self):
         entries = [self._make_entry(url="https://other-site.com/guitar")]
@@ -211,12 +211,12 @@ class TestBuildValidationReport:
         report = _build_validation_report(entries, reverb_data, include_sold=True)
 
         assert report[0]["action"] == "update"
-        assert report[0]["changes"].get("x_studio_is_available") is False
+        assert report[0]["changes"].get("x_is_available") is False
         assert any("status: Sold" in w for w in report[0]["warnings"])
 
     def test_sold_listing_ok_when_include_sold_and_already_unavailable(self):
         url = "https://reverb.com/item/1-g"
-        entries = [self._make_entry(url=url, x_studio_is_available=False)]
+        entries = [self._make_entry(url=url, x_is_available=False)]
         reverb_data = {
             url: self._make_reverb(
                 sale_ended=True,
@@ -296,7 +296,7 @@ class TestPrintValidationReport:
                 "action": "update",
                 "entry": {"id": 2, "x_name": "B"},
                 "reverb": {"price_display": "$2"},
-                "changes": {"x_studio_value": 99},
+                "changes": {"x_price": 99},
                 "warnings": [],
             },
             {
@@ -345,13 +345,13 @@ class TestApplyValidationUpdates:
             {
                 "action": "update",
                 "entry": {"id": 100},
-                "changes": {"x_studio_value": 4000.0},
+                "changes": {"x_price": 4000.0},
             },
             {"action": "ok", "entry": {"id": 200}, "changes": {}},
         ]
         updated = _apply_validation_updates(conn, report)
         assert len(updated) == 1
-        model.write.assert_called_once_with(100, {"x_studio_value": 4000.0})
+        model.write.assert_called_once_with(100, {"x_price": 4000.0})
 
     def test_skips_ok_and_skip_entries(self):
         conn, model = self._mock_conn()
@@ -369,12 +369,12 @@ class TestApplyValidationUpdates:
             {
                 "action": "update",
                 "entry": {"id": 100},
-                "changes": {"x_studio_value": 4000.0},
+                "changes": {"x_price": 4000.0},
             },
             {
                 "action": "update",
                 "entry": {"id": 200},
-                "changes": {"x_studio_is_available": False},
+                "changes": {"x_is_available": False},
             },
             {"action": "ok", "entry": {"id": 300}, "changes": {}},
         ]
@@ -391,9 +391,9 @@ class TestScrapeReverbUrls:
 
     async def test_scrapes_reverb_urls_only(self):
         entries = [
-            {"x_studio_url": "https://reverb.com/item/1-guitar"},
-            {"x_studio_url": "https://other.com/guitar"},
-            {"x_studio_url": "https://reverb.com/item/2-bass"},
+            {"x_url": "https://reverb.com/item/1-guitar"},
+            {"x_url": "https://other.com/guitar"},
+            {"x_url": "https://reverb.com/item/2-bass"},
         ]
 
         mock_results = [
@@ -421,8 +421,8 @@ class TestScrapeReverbUrls:
 
     async def test_no_reverb_urls_returns_empty(self):
         entries = [
-            {"x_studio_url": "https://other.com/guitar"},
-            {"x_studio_url": ""},
+            {"x_url": "https://other.com/guitar"},
+            {"x_url": ""},
         ]
         result = await _scrape_reverb_urls(entries)
         assert result == {}
@@ -616,12 +616,12 @@ class TestCollectModelData:
             {
                 "id": 100,
                 "x_name": "Guitar",
-                "x_studio_url": url,
-                "x_studio_value": 5000.0,
-                "x_studio_accept_offers": True,
-                "x_studio_is_available": True,
-                "x_studio_shipping": 250.0,
-                "x_studio_published_at": "2025-06-20 00:00:00",
+                "x_url": url,
+                "x_price": 5000.0,
+                "x_can_accept_offers": True,
+                "x_is_available": True,
+                "x_shipping": 250.0,
+                "x_published_at": "2025-06-20 00:00:00",
             }
         ]
         reverb_result = {
@@ -693,7 +693,7 @@ class TestApplyValidationUpdatesImages:
                 "action": "update",
                 "entry": {"id": 100},
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
-                "changes": {"x_studio_value": 4000.0},
+                "changes": {"x_price": 4000.0},
             },
         ]
 
@@ -703,7 +703,7 @@ class TestApplyValidationUpdatesImages:
         assert len(updated) == 1
         call_args = model.write.call_args[0]
         assert call_args[0] == 100
-        assert call_args[1]["x_studio_value"] == 4000.0
+        assert call_args[1]["x_price"] == 4000.0
         assert call_args[1]["x_studio_image"] == "IMGDATA"
 
     def test_skips_image_when_already_present(self):
@@ -713,7 +713,7 @@ class TestApplyValidationUpdatesImages:
                 "action": "update",
                 "entry": {"id": 100},
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
-                "changes": {"x_studio_value": 4000.0},
+                "changes": {"x_price": 4000.0},
             },
         ]
 
@@ -732,7 +732,7 @@ class TestApplyValidationUpdatesImages:
                 "action": "update",
                 "entry": {"id": 100},
                 "reverb": {"photo_url": "https://img.reverb.com/broken.jpg"},
-                "changes": {"x_studio_value": 4000.0},
+                "changes": {"x_price": 4000.0},
             },
         ]
 
@@ -741,12 +741,12 @@ class TestApplyValidationUpdatesImages:
 
         assert len(updated) == 1
         call_args = model.write.call_args[0]
-        assert call_args[1]["x_studio_value"] == 4000.0
+        assert call_args[1]["x_price"] == 4000.0
         assert "x_studio_image" not in call_args[1]
 
     def test_does_not_mutate_original_changes(self):
         conn, model = self._mock_conn(no_image_ids=[100])
-        original_changes = {"x_studio_value": 4000.0}
+        original_changes = {"x_price": 4000.0}
         report = [
             {
                 "action": "update",
@@ -769,7 +769,7 @@ class TestApplyValidationUpdatesImages:
                 "action": "update",
                 "entry": {"id": 100},
                 "reverb": None,
-                "changes": {"x_studio_value": 4000.0},
+                "changes": {"x_price": 4000.0},
             },
         ]
 

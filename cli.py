@@ -24,6 +24,7 @@ from create_odoo_schema import cli as add_model_fields_cmd
 from dedup_model import cli as dedup_cmd
 from gpt_model import cli as gpt_files_cmd
 from migrate_family_ids import cli as migrate_family_ids_cmd
+from migrate_guitar_to_gear_listing import backfill_guitar_id_cli as backfill_guitar_id_cmd
 from migrate_guitar_to_gear_listing import cli as migrate_guitar_to_gear_listing_cmd
 from migrate_weighted_tags import cli as migrate_weighted_tags_cmd
 from odoo_connector import get_connection
@@ -88,6 +89,7 @@ main.add_command(gpt_files_cmd)
 main.add_command(dedup_cmd)
 main.add_command(migrate_family_ids_cmd)
 main.add_command(migrate_guitar_to_gear_listing_cmd)
+main.add_command(backfill_guitar_id_cmd)
 main.add_command(migrate_weighted_tags_cmd)
 main.add_command(remove_studio_sequence_cmd)
 main.add_command(trigger_weighted_score_cmd)

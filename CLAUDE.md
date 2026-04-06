@@ -108,10 +108,19 @@ Boolean fields must be prefixed with `is_`, `has_`, or `can_` to make their true
 - `x_has_forwarding`
 - `x_can_accept_offers`
 
-### `conn.get_model()` — dotted vs underscored form
-- **Data operations** (search_read, create, write): always use the **underscored** form: `conn.get_model("x_gear")`, `conn.get_model("x_listing")`
-- **Schema queries** (`ir.model`, `ir.model.fields` domains): always use the **dotted** form as a string value: `[("model", "=", "x.gear")]`
-- Getting this wrong causes silent `False` results with no error message.
+### `conn.get_model()` and model name forms
+Two rules depending on model origin:
+
+**Custom `x_` models** — always use **underscored** form everywhere:
+- `conn.get_model("x_gear")`
+- `ir.model` domain: `[("model", "=", "x_gear")]`
+- `ir.model.fields` relation value: `"relation": "x_gear"`, `"relation": "x_models"`
+
+**Standard Odoo models** (`res.currency`, `res.partner`, etc.) — always use **dotted** form in `relation`:
+- `"relation": "res.currency"`, `"relation": "res.partner"`
+- `conn.get_model("res.currency")` (unchanged — dotted is correct here too)
+
+Getting this wrong causes silent `False` results or a `ValidationError: Unknown model name` with no other context.
 
 ## Running Python — Always use `uv`
 

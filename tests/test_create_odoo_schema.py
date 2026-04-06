@@ -6,7 +6,6 @@ import pytest
 
 from create_odoo_schema import (
     _GEAR_FIELDS,
-    _GEAR_O2M_FIELD,
     _LISTING_FIELDS,
     _MODELS_PRICE_FIELDS,
     create_schema,
@@ -65,10 +64,10 @@ class TestGetModelId:
     def test_passes_model_name_as_given(self):
         conn, ir_model, _ = _make_conn(ir_model_results=[{"id": 7}])
 
-        get_model_id(conn, "x_listing")
+        get_model_id(conn, "x_models")
 
         domain = ir_model.search_read.call_args[0][0]
-        assert domain == [("model", "=", "x_listing")]
+        assert domain == [("model", "=", "x_models")]
 
 
 # ---------------------------------------------------------------------------
@@ -164,21 +163,17 @@ class TestEnsureField:
         created = ir_fields.create.call_args[0][0]
         assert created["relation"] == "x_models"
 
-    def test_required_m2o_has_restrict_ondelete(self):
-        """Odoo 19 rejects required m2o with default set null ondelete policy."""
-        x_gear_id_field = next(f for f in _LISTING_FIELDS if f["name"] == "x_gear_id")
-        assert x_gear_id_field.get("required") is True
-        assert x_gear_id_field.get("on_delete") == "restrict"
-
-    def test_creates_one2many_field(self):
+    def test_creates_listing_status_field(self):
         conn, _, ir_fields = _make_conn(ir_fields_results=[])
+        status_field = next(f for f in _LISTING_FIELDS if f["name"] == "x_status")
 
-        ensure_field(conn, 10, "x_gear", _GEAR_O2M_FIELD, dry_run=False)
+        ensure_field(conn, 10, "x_listing", status_field, dry_run=False)
 
         created = ir_fields.create.call_args[0][0]
-        assert created["ttype"] == "one2many"
-        assert created["relation"] == "x_listing"
-        assert created["relation_field"] == "x_gear_id"
+        assert created["ttype"] == "selection"
+        assert "watching" in created["selection"]
+        assert "acquired" in created["selection"]
+        assert "for_sale" in created["selection"]
 
 
 # ---------------------------------------------------------------------------
@@ -232,40 +227,14 @@ class TestCreateSchema:
 
         ir_fields.create.assert_not_called()
 
-    def test_aborts_when_listing_missing(self):
-        conn, _, ir_fields = self._make_full_conn(listing_id=None)
-
-        create_schema(conn, dry_run=False)
-
-        # No x_listing or x_gear.x_listing_ids fields created
-        created_names = [c[0][0]["name"] for c in ir_fields.create.call_args_list]
-        assert "x_gear_id" not in created_names
-        assert "x_listing_ids" not in created_names
-
     def test_total_fields_created(self):
         """All fields from all three models are created when everything exists."""
         conn, _, ir_fields = self._make_full_conn()
 
         create_schema(conn, dry_run=False)
 
-        expected = len(_GEAR_FIELDS) + 1 + len(_LISTING_FIELDS) + len(_MODELS_PRICE_FIELDS)
+        expected = len(_GEAR_FIELDS) + len(_LISTING_FIELDS) + len(_MODELS_PRICE_FIELDS)
         assert ir_fields.create.call_count == expected
-
-    def test_o2m_field_created_after_listing(self):
-        """x_listing_ids must be created after x_listing.x_gear_id exists."""
-        conn, _, ir_fields = self._make_full_conn()
-        creation_order = []
-
-        def track_create(vals):
-            creation_order.append(vals["name"])
-
-        ir_fields.create.side_effect = track_create
-
-        create_schema(conn, dry_run=False)
-
-        gear_id_pos = creation_order.index("x_gear_id")
-        listing_ids_pos = creation_order.index("x_listing_ids")
-        assert gear_id_pos < listing_ids_pos
 
     def test_price_bracket_fields_added_to_x_models(self):
         conn, _, ir_fields = self._make_full_conn(models_id=100)
@@ -281,6 +250,15 @@ class TestCreateSchema:
         expected_bracket_fields = {f["name"] for f in _MODELS_PRICE_FIELDS}
         assert expected_bracket_fields.issubset(set(created_fields))
 
+    def test_aborts_when_listing_missing(self):
+        conn, _, ir_fields = self._make_full_conn(listing_id=None)
+
+        create_schema(conn, dry_run=False)
+
+        # Only x_gear fields (model_id=10) should be created; nothing for listing (id=20)
+        created_model_ids = [c[0][0]["model_id"] for c in ir_fields.create.call_args_list]
+        assert 20 not in created_model_ids
+
     def test_missing_x_models_skips_price_brackets(self):
         conn, _, ir_fields = self._make_full_conn(models_id=None)
 
@@ -290,6 +268,34 @@ class TestCreateSchema:
         bracket_names = {f["name"] for f in _MODELS_PRICE_FIELDS}
         assert not bracket_names.intersection(set(created_field_names))
 
+    def test_listing_fields_added_to_x_listing(self):
+        conn, _, ir_fields = self._make_full_conn()
+        created_by_model: dict[int, list[str]] = {}
+
+        def track_create(vals):
+            model_id = vals["model_id"]
+            created_by_model.setdefault(model_id, []).append(vals["name"])
+
+        ir_fields.create.side_effect = track_create
+
+        create_schema(conn, dry_run=False)
+
+        # listing_id=20 → x_listing fields
+        listing_fields = set(created_by_model.get(20, []))
+        expected = {
+            "x_url",
+            "x_platform",
+            "x_price",
+            "x_shipping",
+            "x_status",
+            "x_is_available",
+            "x_can_accept_offers",
+            "x_is_taxed",
+            "x_published_at",
+            "x_gear_id",
+        }
+        assert expected.issubset(listing_fields)
+
 
 # ---------------------------------------------------------------------------
 # Schema constant sanity checks
@@ -298,37 +304,38 @@ class TestCreateSchema:
 
 class TestSchemaConstants:
     def test_all_fields_have_required_keys(self):
-        for field in _GEAR_FIELDS + _LISTING_FIELDS + _MODELS_PRICE_FIELDS + [_GEAR_O2M_FIELD]:
+        for field in _GEAR_FIELDS + _LISTING_FIELDS + _MODELS_PRICE_FIELDS:
             assert "name" in field
             assert "ttype" in field
             assert "field_description" in field
 
     @pytest.mark.parametrize(
         "field",
-        [pytest.param(f, id=f["name"]) for f in _GEAR_FIELDS if f["ttype"] == "many2one"],
-    )
-    def test_gear_m2o_fields_have_underscored_relation(self, field):
-        assert "." not in field["relation"], (
-            f"x_gear.{field['name']}: relation must use underscored form, got {field['relation']!r}"
-        )
-
-    @pytest.mark.parametrize(
-        "field",
-        [
-            pytest.param(f, id=f["name"])
+        [pytest.param(f, id=f"gear_{f['name']}") for f in _GEAR_FIELDS if f["ttype"] == "many2one"]
+        + [
+            pytest.param(f, id=f"listing_{f['name']}")
             for f in _LISTING_FIELDS
-            if f["ttype"] == "many2one" and not f["relation"].startswith("res.")
+            if f["ttype"] == "many2one"
         ],
     )
-    def test_listing_custom_m2o_fields_have_underscored_relation(self, field):
-        assert "." not in field["relation"], (
-            f"x_listing.{field['name']}: custom relation must use underscored form, "
-            f"got {field['relation']!r}"
-        )
+    def test_m2o_fields_have_correct_relation_form(self, field):
+        relation = field["relation"]
+        # Standard Odoo models (res.*) use dotted form; custom x_ models use underscored
+        if relation.startswith("res."):
+            assert "." in relation, f"{field['name']}: res.* relation must use dotted form"
+        else:
+            assert "." not in relation, (
+                f"{field['name']}: custom relation must use underscored form, got {relation!r}"
+            )
 
     def test_listing_currency_id_uses_dotted_relation(self):
         currency_field = next(f for f in _LISTING_FIELDS if f["name"] == "x_currency_id")
         assert currency_field["relation"] == "res.currency"
+
+    def test_listing_price_fields_are_monetary(self):
+        names_to_field = {f["name"]: f for f in _LISTING_FIELDS}
+        assert names_to_field["x_price"]["ttype"] == "monetary"
+        assert names_to_field["x_shipping"]["ttype"] == "monetary"
 
     def test_price_bracket_field_names(self):
         names = {f["name"] for f in _MODELS_PRICE_FIELDS}
@@ -339,3 +346,25 @@ class TestSchemaConstants:
             "x_price_sample_size",
             "x_price_updated_at",
         }
+
+    def test_listing_status_selections(self):
+        status_field = next(f for f in _LISTING_FIELDS if f["name"] == "x_status")
+        sel = status_field["selection"]
+        for value in ("watching", "acquired", "passed", "closed", "for_sale", "sold"):
+            assert value in sel
+
+    def test_gear_status_selections(self):
+        status_field = next(f for f in _GEAR_FIELDS if f["name"] == "x_status")
+        sel = status_field["selection"]
+        for value in ("owned", "sold"):
+            assert value in sel
+
+    def test_no_marketplace_fields_in_gear(self):
+        gear_names = {f["name"] for f in _GEAR_FIELDS}
+        assert "x_url" not in gear_names
+        assert "x_platform" not in gear_names
+        assert "x_market_status" not in gear_names
+
+    def test_no_listing_ids_in_gear_fields(self):
+        names = {f["name"] for f in _GEAR_FIELDS}
+        assert "x_listing_ids" not in names

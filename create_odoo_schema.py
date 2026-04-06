@@ -24,66 +24,8 @@ from loguru import logger
 # Field definitions
 # ---------------------------------------------------------------------------
 
-#: Fields to add to x_gear (x_listing_ids deferred — needs x_listing to exist first).
-_GEAR_FIELDS: list[dict] = [
-    {
-        "name": "x_name",
-        "field_description": "Gear Title",
-        "ttype": "char",
-        "required": True,
-    },
-    {
-        "name": "x_model_id",
-        "field_description": "Model",
-        "ttype": "many2one",
-        "relation": "x_models",
-    },
-    {
-        "name": "x_condition",
-        "field_description": "Condition",
-        "ttype": "selection",
-        "selection": (
-            "[('mint', 'Mint'), ('excellent', 'Excellent'), ('very_good', 'Very Good'),"
-            " ('good', 'Good'), ('fair', 'Fair'), ('poor', 'Poor')]"
-        ),
-    },
-    {
-        "name": "x_intent",
-        "field_description": "Intent",
-        "ttype": "selection",
-        "selection": "[('flip', 'Flip'), ('keeper', 'Keeper'), ('unknown', 'Unknown')]",
-    },
-    {
-        "name": "x_status",
-        "field_description": "Status",
-        "ttype": "selection",
-        "required": True,
-        "selection": "[('watching', 'Watching'), ('owned', 'Owned'), ('closed', 'Closed')]",
-    },
-    {
-        "name": "x_is_not_interested",
-        "field_description": "Not Interested",
-        "ttype": "boolean",
-    },
-    # x_image skipped — use existing x_studio_image field instead
-    {
-        "name": "x_guitar_id",
-        "field_description": "Source Guitar",
-        "ttype": "many2one",
-        "relation": "x_guitar",
-    },
-]
-
-#: x_listing_ids one2many — must be added after x_listing.x_gear_id exists.
-_GEAR_O2M_FIELD: dict = {
-    "name": "x_listing_ids",
-    "field_description": "Listings",
-    "ttype": "one2many",
-    "relation": "x_listing",
-    "relation_field": "x_gear_id",
-}
-
-#: Fields to add to x_listing.
+#: Fields to add to x_listing (marketplace entry — primary sync record).
+#: x_currency_id must be created before x_price / x_shipping (monetary dependency).
 _LISTING_FIELDS: list[dict] = [
     {
         "name": "x_name",
@@ -92,12 +34,10 @@ _LISTING_FIELDS: list[dict] = [
         "required": True,
     },
     {
-        "name": "x_gear_id",
-        "field_description": "Gear",
+        "name": "x_model_id",
+        "field_description": "Model",
         "ttype": "many2one",
-        "relation": "x_gear",
-        "required": True,
-        "on_delete": "restrict",
+        "relation": "x_models",
     },
     {
         "name": "x_url",
@@ -110,13 +50,8 @@ _LISTING_FIELDS: list[dict] = [
         "ttype": "selection",
         "selection": (
             "[('reverb', 'Reverb'), ('marketplace', 'Marketplace'),"
-            " ('craigslist', 'Craigslist'), ('other', 'Other')]"
+            " ('kijiji', 'Kijiji'), ('other', 'Other')]"
         ),
-    },
-    {
-        "name": "x_price",
-        "field_description": "Price",
-        "ttype": "float",
     },
     {
         "name": "x_currency_id",
@@ -125,23 +60,35 @@ _LISTING_FIELDS: list[dict] = [
         "relation": "res.currency",
     },
     {
+        "name": "x_price",
+        "field_description": "Price",
+        "ttype": "monetary",
+        "currency_field": "x_currency_id",
+    },
+    {
         "name": "x_shipping",
         "field_description": "Shipping",
-        "ttype": "float",
+        "ttype": "monetary",
+        "currency_field": "x_currency_id",
+    },
+    {
+        "name": "x_condition",
+        "field_description": "Condition",
+        "ttype": "selection",
+        "selection": (
+            "[('mint', 'Mint'), ('excellent', 'Excellent'), ('very_good', 'Very Good'),"
+            " ('good', 'Good'), ('fair', 'Fair'), ('poor', 'Poor')]"
+        ),
     },
     {
         "name": "x_status",
         "field_description": "Status",
         "ttype": "selection",
+        "required": True,
         "selection": (
-            "[('active', 'Active'), ('acquired', 'Acquired'),"
-            " ('passed', 'Passed'), ('closed', 'Closed')]"
+            "[('watching', 'Watching'), ('acquired', 'Acquired'), ('passed', 'Passed'),"
+            " ('closed', 'Closed'), ('for_sale', 'For Sale'), ('sold', 'Sold')]"
         ),
-    },
-    {
-        "name": "x_is_too_expensive",
-        "field_description": "Too Expensive",
-        "ttype": "boolean",
     },
     {
         "name": "x_is_available",
@@ -163,12 +110,61 @@ _LISTING_FIELDS: list[dict] = [
         "field_description": "Published At",
         "ttype": "datetime",
     },
-    # x_image skipped — use existing x_studio_image field instead
+    {
+        "name": "x_gear_id",
+        "field_description": "Gear",
+        "ttype": "many2one",
+        "relation": "x_gear",
+    },
     {
         "name": "x_guitar_id",
         "field_description": "Source Guitar",
         "ttype": "many2one",
         "relation": "x_guitar",
+    },
+]
+
+#: Fields to add to x_gear (physical item — created only on acquisition).
+_GEAR_FIELDS: list[dict] = [
+    {
+        "name": "x_name",
+        "field_description": "Gear Name",
+        "ttype": "char",
+        "required": True,
+    },
+    {
+        "name": "x_model_id",
+        "field_description": "Model",
+        "ttype": "many2one",
+        "relation": "x_models",
+    },
+    {
+        "name": "x_intent",
+        "field_description": "Intent",
+        "ttype": "selection",
+        "selection": "[('flip', 'Flip'), ('keeper', 'Keeper'), ('unknown', 'Unknown')]",
+    },
+    {
+        "name": "x_condition",
+        "field_description": "Condition",
+        "ttype": "char",
+    },
+    {
+        "name": "x_status",
+        "field_description": "Status",
+        "ttype": "selection",
+        "required": True,
+        "selection": "[('owned', 'Owned'), ('sold', 'Sold')]",
+    },
+    {
+        "name": "x_serial_number",
+        "field_description": "Serial Number",
+        "ttype": "char",
+    },
+    {
+        "name": "x_neck_profile",
+        "field_description": "Neck Profile",
+        "ttype": "char",
     },
 ]
 
@@ -264,10 +260,9 @@ def create_schema(conn, *, dry_run: bool) -> None:
     Models must already exist — create them via Odoo Studio first.
 
     Execution order:
-    1. x_gear scalar/m2o fields (x_listing_ids deferred).
-    2. x_listing fields (including x_gear_id m2o → x_gear).
-    3. x_gear.x_listing_ids one2many (requires x_listing.x_gear_id to exist).
-    4. x_models price bracket fields.
+    1. x_gear fields (physical item — no x_listing dependency).
+    2. x_listing fields (marketplace entry — x_gear_id references x_gear).
+    3. x_models price bracket fields.
     """
     # ── x_gear ──────────────────────────────────────────────────────────────
     logger.info("")
@@ -288,11 +283,6 @@ def create_schema(conn, *, dry_run: bool) -> None:
         return
     for field_def in _LISTING_FIELDS:
         ensure_field(conn, listing_model_id, "x_listing", field_def, dry_run=dry_run)
-
-    # ── x_gear.x_listing_ids (one2many, deferred) ────────────────────────────
-    logger.info("")
-    logger.info("=== x_gear.x_listing_ids (one2many) ===")
-    ensure_field(conn, gear_model_id, "x_gear", _GEAR_O2M_FIELD, dry_run=dry_run)
 
     # ── x_models price bracket fields ────────────────────────────────────────
     logger.info("")
@@ -321,8 +311,8 @@ def create_schema(conn, *, dry_run: bool) -> None:
 def cli(ctx: click.Context, apply: bool) -> None:
     """Add custom fields to x_gear, x_listing, and x_models.
 
-    Requires x_gear and x_listing to already exist (create them via
-    Odoo Studio first). Fields that already exist are skipped.
+    Requires x_gear and x_listing to already exist (create them via Odoo Studio first).
+    Fields that already exist are skipped.
 
     Runs in dry-run mode by default; pass --apply to write to Odoo.
     """

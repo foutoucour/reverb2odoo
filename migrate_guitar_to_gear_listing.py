@@ -1,21 +1,20 @@
-"""Migrate x_guitar records into x_gear + x_listing.
+"""Migrate x_guitar records into x_listing (and x_gear for owned items).
 
 Each x_guitar record produces:
-  - one ``x_gear`` record   (the physical item)
-  - one ``x_listing`` record (the marketplace entry, linked to the gear)
-
-Both records store the originating ``x_guitar`` id in their ``x_guitar_id``
-field so the migration is traceable and re-runnable: records already migrated
-(x_gear.x_guitar_id is not null) are skipped automatically.
+  - one ``x_listing`` record  (always — the marketplace entry)
+  - one ``x_gear`` record     (only when the item was bought — Bought / For Sale / Sold)
 
 Status mapping from ``x_studio_selection_field_7tf_1igs0n52h``:
 
-  Watched        → x_gear(status=watching)
-  Not Interested → x_gear(status=watching, x_is_not_interested=True)
-  Bought         → x_gear(status=owned)     + x_listing(status=acquired)
-  For Sale       → x_gear(status=owned)     + x_listing(status=acquired)
-  Sold           → x_gear(status=closed)    + x_listing(status=acquired)
-  (anything else) → x_gear(status=watching)
+  Watched        → x_listing(status=watching)
+  Not Interested → x_listing(status=passed)
+  Bought         → x_listing(status=acquired) + x_gear(status=owned)
+  For Sale       → x_listing(status=acquired) + x_gear(status=owned)
+  Sold           → x_listing(status=acquired) + x_gear(status=sold)
+  (anything else) → x_listing(status=watching)
+
+Skip logic: an x_guitar is skipped when an x_listing with the same URL already
+exists, making the command safe to re-run after a partial failure.
 
 Usage (dry-run, default)::
 
@@ -24,7 +23,6 @@ Usage (dry-run, default)::
 Usage (apply changes)::
 
     reverb2odoo migrate-guitar-to-gear-listing --apply
-
 """
 
 from __future__ import annotations
@@ -43,17 +41,24 @@ from odoo_connector import GUITAR_FIELDS
 #: Selection field on x_guitar that holds the lifecycle status.
 _STATUS_FIELD = "x_studio_selection_field_7tf_1igs0n52h"
 
-#: x_guitar status value → x_gear status
-_GEAR_STATUS_MAP: dict[str, str] = {
+#: x_guitar status values that require an x_gear record (item was acquired).
+_OWNED_STATUSES = {"Bought", "For Sale", "Sold"}
+
+#: x_guitar status → x_listing status
+_LISTING_STATUS_MAP: dict[str, str] = {
     "Watched": "watching",
-    "Not Interested": "watching",
-    "Bought": "owned",
-    "For Sale": "owned",
-    "Sold": "closed",
+    "Not Interested": "passed",
+    "Bought": "acquired",
+    "For Sale": "acquired",
+    "Sold": "acquired",
 }
 
-#: x_guitar status values that imply the listing was acquired (bought)
-_ACQUIRED_STATUSES = {"Bought", "For Sale", "Sold"}
+#: x_guitar status → x_gear status (only for _OWNED_STATUSES)
+_GEAR_STATUS_MAP: dict[str, str] = {
+    "Bought": "owned",
+    "For Sale": "owned",
+    "Sold": "sold",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -68,14 +73,11 @@ def _fetch_all_guitars(conn) -> list[dict]:
     return guitar.search_read([], fields, order="id asc")
 
 
-def _fetch_already_migrated_guitar_ids(conn) -> set[int]:
-    """Return x_guitar IDs that already have a corresponding x_gear record."""
-    gear = conn.get_model("x_gear")
-    records = gear.search_read([("x_guitar_id", "!=", False)], ["x_guitar_id"])
-    return {
-        (r["x_guitar_id"][0] if isinstance(r["x_guitar_id"], (list, tuple)) else r["x_guitar_id"])
-        for r in records
-    }
+def _fetch_existing_listing_urls(conn) -> set[str]:
+    """Return all URLs already present in x_listing."""
+    listing = conn.get_model("x_listing")
+    records = listing.search_read([("x_url", "!=", False)], ["x_url"])
+    return {r["x_url"] for r in records if r.get("x_url")}
 
 
 # ---------------------------------------------------------------------------
@@ -92,38 +94,19 @@ def _m2o_id(value: Any) -> int | None:
     return None
 
 
-def _guitar_to_gear_vals(guitar: dict) -> dict[str, Any]:
-    """Build x_gear creation values from an x_guitar record."""
+def _guitar_to_listing_vals(guitar: dict) -> dict[str, Any]:
+    """Build x_listing creation values from an x_guitar record."""
     raw_status = guitar.get(_STATUS_FIELD) or "Watched"
-    gear_status = _GEAR_STATUS_MAP.get(raw_status, "watching")
-    is_not_interested = raw_status == "Not Interested"
+    listing_status = _LISTING_STATUS_MAP.get(raw_status, "watching")
+
+    currency_ref = guitar.get("x_studio_currency_id")
+    currency_id = _m2o_id(currency_ref)
 
     model_ref = guitar.get("x_studio_models")
     model_id = _m2o_id(model_ref)
 
     vals: dict[str, Any] = {
         "x_name": guitar.get("x_name", ""),
-        "x_status": gear_status,
-        "x_is_not_interested": is_not_interested,
-        "x_guitar_id": guitar["id"],
-    }
-    if model_id:
-        vals["x_model_id"] = model_id
-
-    return vals
-
-
-def _guitar_to_listing_vals(guitar: dict, gear_id: int) -> dict[str, Any]:
-    """Build x_listing creation values from an x_guitar record."""
-    raw_status = guitar.get(_STATUS_FIELD) or "Watched"
-    listing_status = "acquired" if raw_status in _ACQUIRED_STATUSES else "active"
-
-    currency_ref = guitar.get("x_studio_currency_id")
-    currency_id = _m2o_id(currency_ref)
-
-    vals: dict[str, Any] = {
-        "x_name": guitar.get("x_name", ""),
-        "x_gear_id": gear_id,
         "x_url": guitar.get("x_studio_url", ""),
         "x_platform": "reverb",
         "x_price": guitar.get("x_studio_value") or 0.0,
@@ -134,6 +117,8 @@ def _guitar_to_listing_vals(guitar: dict, gear_id: int) -> dict[str, Any]:
         "x_status": listing_status,
         "x_guitar_id": guitar["id"],
     }
+    if model_id:
+        vals["x_model_id"] = model_id
     if currency_id:
         vals["x_currency_id"] = currency_id
     published = guitar.get("x_studio_published_at")
@@ -143,187 +128,170 @@ def _guitar_to_listing_vals(guitar: dict, gear_id: int) -> dict[str, Any]:
     return vals
 
 
+def _guitar_to_gear_vals(guitar: dict) -> dict[str, Any]:
+    """Build x_gear creation values from an x_guitar record (owned items only)."""
+    raw_status = guitar.get(_STATUS_FIELD) or "Watched"
+    gear_status = _GEAR_STATUS_MAP[raw_status]  # caller must check _OWNED_STATUSES
+
+    model_ref = guitar.get("x_studio_models")
+    model_id = _m2o_id(model_ref)
+
+    vals: dict[str, Any] = {
+        "x_name": guitar.get("x_name", ""),
+        "x_status": gear_status,
+        "x_intent": "unknown",
+    }
+    if model_id:
+        vals["x_model_id"] = model_id
+
+    return vals
+
+
 # ---------------------------------------------------------------------------
 # Core logic
 # ---------------------------------------------------------------------------
 
 
-def compute_plan(conn) -> tuple[list[dict], set[int]]:
+def compute_plan(conn) -> tuple[list[dict], int]:
     """Compute which x_guitar records still need migration.
 
     Returns
     -------
     to_migrate : list[dict]
-        x_guitar records not yet migrated (in id-ascending order).
-    already_migrated : set[int]
-        x_guitar ids that already have a corresponding x_gear.
+        x_guitar records whose URL is not yet in x_listing.
+    already_migrated : int
+        Count of x_guitar records already present in x_listing (by URL).
     """
     logger.info("Fetching all x_guitar records…")
     all_guitars = _fetch_all_guitars(conn)
     logger.info("  {} x_guitar record(s) fetched", len(all_guitars))
 
-    logger.info("Checking already-migrated records…")
-    already_migrated = _fetch_already_migrated_guitar_ids(conn)
-    logger.info("  {} x_guitar record(s) already migrated (will be skipped)", len(already_migrated))
+    logger.info("Fetching existing x_listing URLs…")
+    existing_urls = _fetch_existing_listing_urls(conn)
+    logger.info("  {} x_listing URL(s) already present", len(existing_urls))
 
-    to_migrate = [g for g in all_guitars if g["id"] not in already_migrated]
+    to_migrate = []
+    already_migrated = 0
+    for g in all_guitars:
+        url = g.get("x_studio_url", "")
+        if url and url in existing_urls:
+            already_migrated += 1
+        else:
+            to_migrate.append(g)
+
     logger.info("  {} x_guitar record(s) to migrate", len(to_migrate))
-
+    logger.info("  {} x_guitar record(s) already migrated (will be skipped)", already_migrated)
     return to_migrate, already_migrated
 
 
 def apply_plan(conn, to_migrate: list[dict], *, dry_run: bool) -> tuple[int, int]:
-    """Create x_gear + x_listing records for each unmigrated x_guitar.
+    """Create x_listing (and x_gear for owned items) for each unmigrated x_guitar.
 
     Returns
     -------
-    (gear_created, listing_created) : tuple[int, int]
+    (listing_created, gear_created) : tuple[int, int]
     """
-    gear_model = conn.get_model("x_gear")
     listing_model = conn.get_model("x_listing")
+    gear_model = conn.get_model("x_gear")
 
-    gear_created = 0
     listing_created = 0
+    gear_created = 0
 
     for guitar in to_migrate:
         guitar_id = guitar["id"]
         guitar_name = guitar.get("x_name", f"id={guitar_id}")
         raw_status = guitar.get(_STATUS_FIELD) or "Watched"
+        needs_gear = raw_status in _OWNED_STATUSES
 
-        gear_vals = _guitar_to_gear_vals(guitar)
+        listing_vals = _guitar_to_listing_vals(guitar)
 
         if dry_run:
+            gear_note = f" + x_gear(status={_GEAR_STATUS_MAP[raw_status]})" if needs_gear else ""
             logger.info(
-                "[DRY-RUN] Would create x_gear for x_guitar id={} '{}' (status: {} → {})",
+                "[DRY-RUN] x_guitar id={} '{}' → x_listing(status={}){}",
                 guitar_id,
                 guitar_name[:50],
-                raw_status,
-                gear_vals["x_status"],
+                listing_vals["x_status"],
+                gear_note,
             )
-            gear_created += 1
             listing_created += 1
+            if needs_gear:
+                gear_created += 1
             continue
 
-        gear_id = gear_model.create(gear_vals)
+        listing_id = listing_model.create(listing_vals)
         logger.info(
-            "Created x_gear id={} for x_guitar id={} '{}'",
-            gear_id,
+            "Created x_listing id={} (status={}) for x_guitar id={} '{}'",
+            listing_id,
+            listing_vals["x_status"],
             guitar_id,
             guitar_name[:50],
         )
-        gear_created += 1
-
-        listing_vals = _guitar_to_listing_vals(guitar, gear_id)
-        listing_id = listing_model.create(listing_vals)
-        logger.debug("  → x_listing id={} (status={})", listing_id, listing_vals["x_status"])
         listing_created += 1
 
-    return gear_created, listing_created
+        if needs_gear:
+            gear_vals = _guitar_to_gear_vals(guitar)
+            gear_vals["x_listing_ids"] = [(4, listing_id)]  # link listing to gear
+            gear_id = gear_model.create(gear_vals)
+            listing_model.write([listing_id], {"x_gear_id": gear_id})
+            logger.debug("  → x_gear id={} (status={})", gear_id, gear_vals["x_status"])
+            gear_created += 1
+
+    return listing_created, gear_created
 
 
 # ---------------------------------------------------------------------------
-# Status back-fill
+# Back-fill helpers
 # ---------------------------------------------------------------------------
 
 
-def fix_migrated_status(conn, *, dry_run: bool) -> int:
-    """Correct x_status on all already-migrated gear/listing records.
+def backfill_guitar_id(conn, *, dry_run: bool) -> int:
+    """Set x_guitar_id on x_listing records that were migrated before the field existed.
 
-    Fetches the current x_status for every gear/listing that has x_guitar_id
-    set and only writes when the value does not match what the source guitar's
-    status says it should be.  This handles records where Odoo defaulted
-    x_status (e.g. to 'watching') when the field was added to an existing model.
+    Matches listings to guitars by URL (x_listing.x_url == x_guitar.x_studio_url).
+    Records that already have x_guitar_id set are skipped.
 
-    Returns the total number of records updated.
+    Returns the number of listings updated (or that would be updated in dry-run).
     """
-    gear_model = conn.get_model("x_gear")
     listing_model = conn.get_model("x_listing")
     guitar_model = conn.get_model("x_guitar")
 
+    missing = listing_model.search_read(
+        [("x_guitar_id", "=", False), ("x_url", "!=", False)],
+        ["id", "x_url"],
+    )
+    if not missing:
+        logger.success("All x_listing records already have x_guitar_id set.")
+        return 0
+
+    logger.info("{} x_listing record(s) missing x_guitar_id", len(missing))
+
+    guitars = guitar_model.search_read([("x_studio_url", "!=", False)], ["id", "x_studio_url"])
+    url_to_guitar_id: dict[str, int] = {r["x_studio_url"]: r["id"] for r in guitars}
+
     updated = 0
-
-    # ── x_gear ──────────────────────────────────────────────────────────────
-    gear_records = gear_model.search_read(
-        [("x_guitar_id", "!=", False)],
-        ["id", "x_guitar_id", "x_status", "x_is_not_interested"],
-    )
-    if gear_records:
-        guitar_ids = [_m2o_id(g["x_guitar_id"]) for g in gear_records]
-        guitars = guitar_model.search_read([("id", "in", guitar_ids)], ["id", _STATUS_FIELD])
-        guitar_by_id = {g["id"]: g for g in guitars}
-
-        for gear in gear_records:
-            guitar_id = _m2o_id(gear["x_guitar_id"])
-            guitar = guitar_by_id.get(guitar_id)
-            if guitar is None:
-                continue
-            raw_status = guitar.get(_STATUS_FIELD) or "Watched"
-            expected_status = _GEAR_STATUS_MAP.get(raw_status, "watching")
-            expected_not_interested = raw_status == "Not Interested"
-            if (
-                gear.get("x_status") == expected_status
-                and gear.get("x_is_not_interested") == expected_not_interested
-            ):
-                continue
-            if dry_run:
-                logger.info(
-                    "  [DRY-RUN] Would fix x_gear id={} x_status {} → {} (guitar: {})",
-                    gear["id"],
-                    gear.get("x_status"),
-                    expected_status,
-                    raw_status,
-                )
-                updated += 1
-                continue
-            gear_model.write(
-                [gear["id"]],
-                {"x_status": expected_status, "x_is_not_interested": expected_not_interested},
+    unmatched = 0
+    for record in missing:
+        guitar_id = url_to_guitar_id.get(record["x_url"])
+        if guitar_id is None:
+            logger.warning(
+                "  No x_guitar match for x_listing id={} url={}", record["id"], record["x_url"]
             )
+            unmatched += 1
+            continue
+
+        if dry_run:
             logger.info(
-                "  Fixed x_gear id={} x_status {} → {}",
-                gear["id"],
-                gear.get("x_status"),
-                expected_status,
+                "  [DRY-RUN] Would set x_listing id={}.x_guitar_id = {}", record["id"], guitar_id
             )
-            updated += 1
+        else:
+            listing_model.write([record["id"]], {"x_guitar_id": guitar_id})
+            logger.debug("  x_listing id={} → x_guitar_id={}", record["id"], guitar_id)
 
-    # ── x_listing ────────────────────────────────────────────────────────────
-    listing_records = listing_model.search_read(
-        [("x_guitar_id", "!=", False)],
-        ["id", "x_guitar_id", "x_status"],
-    )
-    if listing_records:
-        guitar_ids = [_m2o_id(rec["x_guitar_id"]) for rec in listing_records]
-        guitars = guitar_model.search_read([("id", "in", guitar_ids)], ["id", _STATUS_FIELD])
-        guitar_by_id = {g["id"]: g for g in guitars}
+        updated += 1
 
-        for listing in listing_records:
-            guitar_id = _m2o_id(listing["x_guitar_id"])
-            guitar = guitar_by_id.get(guitar_id)
-            if guitar is None:
-                continue
-            raw_status = guitar.get(_STATUS_FIELD) or "Watched"
-            expected_status = "acquired" if raw_status in _ACQUIRED_STATUSES else "active"
-            if listing.get("x_status") == expected_status:
-                continue
-            if dry_run:
-                logger.info(
-                    "  [DRY-RUN] Would fix x_listing id={} x_status {} → {} (guitar: {})",
-                    listing["id"],
-                    listing.get("x_status"),
-                    expected_status,
-                    raw_status,
-                )
-                updated += 1
-                continue
-            listing_model.write([listing["id"]], {"x_status": expected_status})
-            logger.info(
-                "  Fixed x_listing id={} x_status {} → {}",
-                listing["id"],
-                listing.get("x_status"),
-                expected_status,
-            )
-            updated += 1
+    if unmatched:
+        logger.warning("{} listing(s) had no matching x_guitar (URL not found)", unmatched)
 
     return updated
 
@@ -342,78 +310,91 @@ def fix_migrated_status(conn, *, dry_run: bool) -> int:
 )
 @click.pass_context
 def cli(ctx: click.Context, apply: bool) -> None:
-    """Migrate x_guitar records into x_gear + x_listing.
+    """Migrate x_guitar records into x_listing (and x_gear for owned items).
 
     Runs in dry-run mode by default.  Pass --apply to write changes to Odoo.
-    Already-migrated records (x_gear.x_guitar_id is set) are skipped, making
-    this safe to re-run after a partial failure.
+    Records whose URL already exists in x_listing are skipped, making this
+    safe to re-run after a partial failure.
     """
     conn = ctx.obj["conn"]
 
     to_migrate, already_migrated = compute_plan(conn)
 
-    # ── Dry-run report ──────────────────────────────────────────────────────
     logger.info("")
     logger.info("=== MIGRATION PLAN ===")
-    logger.info("")
-    logger.info("Already migrated : {}", len(already_migrated))
+    logger.info("Already migrated : {}", already_migrated)
     logger.info("To migrate       : {}", len(to_migrate))
     logger.info("")
 
-    dry_run = not apply
-
-    # ── Status back-fill (always runs) ──────────────────────────────────────
-    logger.info("=== status back-fill ===")
-    fixed = fix_migrated_status(conn, dry_run=dry_run)
-    if fixed:
-        logger.info(
-            "  {} record(s) with missing x_status {}.",
-            fixed,
-            "would be fixed" if dry_run else "fixed",
-        )
-    else:
-        logger.info("  No records with missing x_status.")
-    logger.info("")
-
     if not to_migrate:
-        if not dry_run:
-            logger.success("Nothing to migrate.")
-        else:
-            logger.info("[DRY RUN] No changes written.  Pass --apply to apply.")
+        logger.success("Nothing to migrate.")
         return
 
-    # Status distribution
+    # Status breakdown
     from collections import Counter
 
     status_counts: Counter[str] = Counter(g.get(_STATUS_FIELD) or "Watched" for g in to_migrate)
     logger.info("Status breakdown:")
     for status, count in sorted(status_counts.items()):
-        gear_status = _GEAR_STATUS_MAP.get(status, "watching")
-        listing_status = "acquired" if status in _ACQUIRED_STATUSES else "active"
+        listing_status = _LISTING_STATUS_MAP.get(status, "watching")
+        gear_note = (
+            f" + x_gear(status={_GEAR_STATUS_MAP[status]})" if status in _OWNED_STATUSES else ""
+        )
         logger.info(
-            "  {:20s} {:4d}  → x_gear({}) + x_listing({})",
+            "  {:20s} {:4d}  → x_listing(status={}){}",
             status,
             count,
-            gear_status,
             listing_status,
+            gear_note,
         )
     logger.info("")
 
-    if dry_run:
-        logger.info("[DRY RUN] No changes written.  Pass --apply to apply.")
-        gear_created, listing_created = apply_plan(conn, to_migrate, dry_run=True)
-        logger.info(
-            "Would create: {} x_gear record(s), {} x_listing record(s)",
-            gear_created,
-            listing_created,
-        )
-        return
+    dry_run = not apply
 
-    # ── Apply ───────────────────────────────────────────────────────────────
-    logger.info("Applying migration…")
-    gear_created, listing_created = apply_plan(conn, to_migrate, dry_run=False)
-    logger.success(
-        "Done — created {} x_gear record(s) and {} x_listing record(s).",
-        gear_created,
-        listing_created,
-    )
+    if dry_run:
+        logger.info("[DRY-RUN] No changes written.  Pass --apply to apply.")
+
+    listing_created, gear_created = apply_plan(conn, to_migrate, dry_run=dry_run)
+
+    if dry_run:
+        logger.info(
+            "Would create: {} x_listing record(s), {} x_gear record(s)",
+            listing_created,
+            gear_created,
+        )
+    else:
+        logger.success(
+            "Done — created {} x_listing record(s) and {} x_gear record(s).",
+            listing_created,
+            gear_created,
+        )
+
+
+@click.command("backfill-guitar-id")
+@click.option(
+    "--apply",
+    is_flag=True,
+    default=False,
+    help="Apply changes to Odoo (default: dry-run only).",
+)
+@click.pass_context
+def backfill_guitar_id_cli(ctx: click.Context, apply: bool) -> None:
+    """Back-fill x_guitar_id on x_listing records migrated before the field existed.
+
+    Matches listings to their source x_guitar by URL.  Records that already
+    have x_guitar_id set are skipped.
+
+    Runs in dry-run mode by default; pass --apply to write to Odoo.
+    """
+    conn = ctx.obj["conn"]
+    dry_run = not apply
+
+    if dry_run:
+        logger.info("[DRY-RUN] No changes will be written.  Pass --apply to apply.")
+
+    updated = backfill_guitar_id(conn, dry_run=dry_run)
+
+    if dry_run:
+        logger.info("[DRY-RUN] Would update {} x_listing record(s).", updated)
+    else:
+        logger.success("Updated {} x_listing record(s).", updated)
