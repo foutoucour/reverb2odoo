@@ -29,6 +29,7 @@ from migrate_guitar_to_gear_listing import cli as migrate_guitar_to_gear_listing
 from migrate_weighted_tags import cli as migrate_weighted_tags_cmd
 from odoo_connector import get_connection
 from remove_studio_sequence import cli as remove_studio_sequence_cmd
+from set_default_currency import cli as set_default_currency_cmd
 from sync_model import cli as sync_cmd
 from trigger_weighted_score import cli as trigger_weighted_score_cmd
 from validate_migration import cli as validate_migration_cmd
@@ -96,6 +97,7 @@ main.add_command(trigger_weighted_score_cmd)
 main.add_command(compute_price_brackets_cmd)
 main.add_command(add_model_fields_cmd)
 main.add_command(validate_migration_cmd)
+main.add_command(set_default_currency_cmd)
 
 if __name__ == "__main__":
     main()

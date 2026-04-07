@@ -21,7 +21,9 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git config:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebFetch(domain:www.odoo.com)",
+      "WebFetch(domain:odoo-master.readthedocs.io)"
     ]
   }
 }
