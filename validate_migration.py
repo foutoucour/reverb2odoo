@@ -8,7 +8,8 @@ Checks performed:
   1. Coverage     — every x_guitar has an x_listing; owned-status guitars have an x_gear
   2. Listing link — every x_gear from migration has at least one x_listing
   3. Status map   — x_gear.x_status matches expected value for each source status
-  4. Not-interest — "Not Interested" x_guitar → x_gear.x_is_not_interested = True (where x_gear exists)
+  4. Not-interest — "Not Interested" x_guitar → x_gear.x_is_not_interested = True
+   (where x_gear exists)
   5. Listing vals — x_listing.x_url, x_price, x_platform populated for migrated records
   6. Orphans      — no x_listing records with x_gear_id = False
   7. Brackets     — x_models with ≥5 linked listings have price brackets set
@@ -88,9 +89,7 @@ def check_coverage(conn) -> CheckResult:
             f"{len(extra_listings)} x_listing record(s) reference non-existent x_guitar ids"
         )
     if extra_gear:
-        warnings.append(
-            f"{len(extra_gear)} x_gear record(s) reference non-existent x_guitar ids"
-        )
+        warnings.append(f"{len(extra_gear)} x_gear record(s) reference non-existent x_guitar ids")
 
     if missing_listings or missing_gear:
         parts: list[str] = [
@@ -116,8 +115,10 @@ def check_coverage(conn) -> CheckResult:
         name="coverage",
         passed=True,
         message=(
-            f"All {len(total_guitar_ids)} x_guitar records have an x_listing, and all "
-            f"{len(expected_gear_guitar_ids)} owned-status x_guitar records have a corresponding x_gear"
+            f"All {len(total_guitar_ids)} x_guitar records have an x_listing,"
+            f" and all "
+            f"{len(expected_gear_guitar_ids)} owned-status x_guitar records"
+            f" have a corresponding x_gear"
         ),
         warnings=warnings,
     )
@@ -256,8 +257,9 @@ def check_not_interested_flag(conn) -> CheckResult:
             name="not_interested",
             passed=False,
             message=(
-                f"{len(missing_guitar_ids)} 'Not Interested' x_guitar record(s) have no linked x_gear "
-                f"record, so x_is_not_interested could not be validated"
+                f"{len(missing_guitar_ids)} 'Not Interested' x_guitar record(s)"
+                f" have no linked x_gear record,"
+                f" so x_is_not_interested could not be validated"
             ),
         )
 

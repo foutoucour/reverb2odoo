@@ -268,11 +268,7 @@ def _apply_validation_updates(conn, report: list[dict]) -> list[dict]:
                 logger.info("  ↳ downloaded image for id={}", eid)
 
         # Log changes without the (potentially huge) image blob
-        log_changes = {
-            k: v
-            for k, v in changes.items()
-            if k not in {"x_image", "x_studio_image"}
-        }
+        log_changes = {k: v for k, v in changes.items() if k not in {"x_image", "x_studio_image"}}
         logger.info("Updating id={}: {}", eid, log_changes)
         listing.write(eid, changes)
         updated_items.append(

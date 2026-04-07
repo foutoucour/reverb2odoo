@@ -7,7 +7,6 @@ import pytest
 
 from compute_price_brackets import (
     _MIN_RECENT,
-    _WINDOW_DAYS,
     _compute_brackets,
     _fetch_listing_prices_for_model,
     _fetch_models,
@@ -120,7 +119,9 @@ class TestComputeBracketsPercentiles:
         "prices, expected_p50",
         [
             pytest.param([100.0, 200.0, 300.0, 400.0], 250.0, id="four-symmetric-prices"),
-            pytest.param([10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 80.0, 100.0], 45.0, id="eight-prices"),
+            pytest.param(
+                [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 80.0, 100.0], 45.0, id="eight-prices"
+            ),
         ],
     )
     def test_percentile_values(self, prices: list[float], expected_p50: float):
@@ -157,7 +158,7 @@ class TestFetchModels:
         x_models_mock.search_read.return_value = [{"id": 1, "x_name": "LP Standard"}]
         conn.get_model.return_value = x_models_mock
 
-        result = _fetch_models(conn)
+        _fetch_models(conn)
 
         call_args = x_models_mock.search_read.call_args
         fields = call_args[0][1]
@@ -241,8 +242,7 @@ class TestRunComputation:
         def _listing_search_read(domain, fields, **kwargs):
             model_id = next((v for field, _op, v in domain if field == "x_model_id"), None)
             return [
-                {"x_price": p, "x_published_at": d}
-                for p, d in prices_by_model_id.get(model_id, [])
+                {"x_price": p, "x_published_at": d} for p, d in prices_by_model_id.get(model_id, [])
             ]
 
         listing_mock.search_read.side_effect = _listing_search_read
