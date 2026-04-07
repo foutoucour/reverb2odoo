@@ -86,9 +86,9 @@ uv run reverb2odoo validate "Frank Brothers Arcane"
 uv run reverb2odoo validate --all --include-sold   # also validate sold listings
 ```
 
-### `dedup` — Find and remove duplicate listings (legacy)
+### `dedup` — Find and remove duplicate listings
 
-Scans all `x_guitar` records and reports duplicates in two categories:
+Scans all `x_listing` records and reports duplicates in two categories:
 
 | Category | Description |
 |---|---|
@@ -171,6 +171,15 @@ Idempotent: already-existing fields are silently skipped.
 ```bash
 uv run reverb2odoo add-model-fields           # dry-run (default)
 uv run reverb2odoo add-model-fields --apply   # write to Odoo
+```
+
+### `set-default-currency` — Set CAD as the default currency on a model
+
+Sets `CAD` as the default value for `x_studio_currency_id` on the given Odoo model.
+
+```bash
+uv run reverb2odoo set-default-currency x_gear
+uv run reverb2odoo set-default-currency x_listing
 ```
 
 ## Testing

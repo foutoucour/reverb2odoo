@@ -23,16 +23,11 @@ from compute_price_brackets import cli as compute_price_brackets_cmd
 from create_odoo_schema import cli as add_model_fields_cmd
 from dedup_model import cli as dedup_cmd
 from gpt_model import cli as gpt_files_cmd
-from migrate_family_ids import cli as migrate_family_ids_cmd
-from migrate_guitar_to_gear_listing import backfill_guitar_id_cli as backfill_guitar_id_cmd
-from migrate_guitar_to_gear_listing import cli as migrate_guitar_to_gear_listing_cmd
-from migrate_weighted_tags import cli as migrate_weighted_tags_cmd
 from odoo_connector import get_connection
 from remove_studio_sequence import cli as remove_studio_sequence_cmd
 from set_default_currency import cli as set_default_currency_cmd
 from sync_model import cli as sync_cmd
 from trigger_weighted_score import cli as trigger_weighted_score_cmd
-from validate_migration import cli as validate_migration_cmd
 from validate_model import cli as validate_cmd
 
 # Reconfigure loguru: clean single-line format, no timestamps or file references.
@@ -88,15 +83,10 @@ main.add_command(sync_cmd)
 main.add_command(validate_cmd)
 main.add_command(gpt_files_cmd)
 main.add_command(dedup_cmd)
-main.add_command(migrate_family_ids_cmd)
-main.add_command(migrate_guitar_to_gear_listing_cmd)
-main.add_command(backfill_guitar_id_cmd)
-main.add_command(migrate_weighted_tags_cmd)
 main.add_command(remove_studio_sequence_cmd)
 main.add_command(trigger_weighted_score_cmd)
 main.add_command(compute_price_brackets_cmd)
 main.add_command(add_model_fields_cmd)
-main.add_command(validate_migration_cmd)
 main.add_command(set_default_currency_cmd)
 
 if __name__ == "__main__":
