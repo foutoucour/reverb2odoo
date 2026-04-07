@@ -14,3 +14,7 @@ uv run reverb2odoo validate --include-sold --yes "$MODEL"
 echo ""
 echo "==> Syncing listings for: $MODEL (including brand new and sold)"
 uv run reverb2odoo sync --include-sold --include-brand-new --yes "$MODEL"
+
+echo ""
+echo "==> Computing price brackets for: $MODEL"
+uv run reverb2odoo compute-price-brackets --model "$MODEL"
