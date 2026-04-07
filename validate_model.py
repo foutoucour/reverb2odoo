@@ -37,7 +37,7 @@ from sync_model import (
     _compute_changes,
     _download_image_base64,
     _fetch_all_models,
-    _fetch_guitars,
+    _fetch_listings,
     _find_entries_without_image,
     _find_model,
 )
@@ -80,7 +80,7 @@ async def _scrape_reverb_urls(
     """
     urls: list[str] = []
     for entry in entries:
-        url = entry.get("x_studio_url", "")
+        url = entry.get("x_url", "")
         if _is_reverb_url(url):
             urls.append(url)
 
@@ -127,7 +127,7 @@ def _build_validation_report(
     report: list[dict] = []
 
     for entry in entries:
-        url = entry.get("x_studio_url", "")
+        url = entry.get("x_url", "")
         item: dict[str, Any] = {
             "entry": entry,
             "reverb": None,
@@ -141,7 +141,7 @@ def _build_validation_report(
             report.append(item)
             continue
 
-        reverb = reverb_data.get(url)
+        reverb = reverb_data.get(url)  # type: ignore[assignment]
         if not reverb:
             item["warnings"].append("URL not found in scraped data")
             report.append(item)
@@ -234,14 +234,14 @@ def _print_validation_report(report: list[dict]) -> int:
 def _apply_validation_updates(conn, report: list[dict]) -> list[dict]:
     """Write validation changes back to Odoo.
 
-    Only updates existing records (no creates).  When an entry being
-    updated has no ``x_studio_image``, the first Reverb listing photo is
-    downloaded and included in the update.
+    Only updates existing x_listing records (no creates).  When an entry
+    being updated has no ``x_studio_image``, the first Reverb listing photo
+    is downloaded and included in the update.
 
     Returns a list of dicts with ``id``, ``name``, and ``fields`` (list of
     changed field names) for each updated record.
     """
-    guitar = conn.get_model("x_guitar")
+    listing = conn.get_model("x_listing")
 
     # Pre-check: which entries being updated lack an image?
     update_ids = [item["entry"]["id"] for item in report if item["action"] == "update"]
@@ -259,7 +259,7 @@ def _apply_validation_updates(conn, report: list[dict]) -> list[dict]:
         eid = item["entry"]["id"]
         changes = dict(changes)
 
-        # Download image if the entry has no image yet
+        # Download image if the listing has no image yet
         if eid in ids_without_image:
             photo_url = (item.get("reverb") or {}).get("photo_url", "")
             image_b64 = _download_image_base64(photo_url)
@@ -268,9 +268,9 @@ def _apply_validation_updates(conn, report: list[dict]) -> list[dict]:
                 logger.info("  ↳ downloaded image for id={}", eid)
 
         # Log changes without the (potentially huge) image blob
-        log_changes = {k: v for k, v in changes.items() if k != "x_studio_image"}
+        log_changes = {k: v for k, v in changes.items() if k not in {"x_image", "x_studio_image"}}
         logger.info("Updating id={}: {}", eid, log_changes)
-        guitar.write(eid, changes)
+        listing.write(eid, changes)
         updated_items.append(
             {
                 "id": eid,
@@ -320,9 +320,9 @@ async def _collect_model_data(
     - ``report`` – validation report list
     - ``update_count`` – number of entries that need updating
     """
-    logger.debug("[{}] Fetching Odoo entries…", model_name)
-    entries = _fetch_guitars(conn, model_id)
-    logger.debug("[{}] Found {} guitar entries", model_name, len(entries))
+    logger.debug("[{}] Fetching Odoo listing entries…", model_name)
+    entries = _fetch_listings(conn, model_id)
+    logger.debug("[{}] Found {} listing entries", model_name, len(entries))
 
     if not entries:
         return {
@@ -335,7 +335,7 @@ async def _collect_model_data(
             "update_count": 0,
         }
 
-    reverb_count = sum(1 for e in entries if _is_reverb_url(e.get("x_studio_url", "")))
+    reverb_count = sum(1 for e in entries if _is_reverb_url(e.get("x_url", "")))
     logger.debug("[{}] Scraping {} Reverb URL(s)…", model_name, reverb_count)
     reverb_data = await _scrape_reverb_urls(entries, default_shipping=default_shipping)
     logger.debug("[{}] Scraped {} Reverb listing(s)", model_name, len(reverb_data))
@@ -385,7 +385,7 @@ def _validate_single_model(
         logger.warning("No entries to validate — nothing to do.")
         return 0
 
-    _console.print(f"\n  [bold]{escape(model_name)}[/bold] — {len(data['entries'])} guitar(s):")
+    _console.print(f"\n  [bold]{escape(model_name)}[/bold] — {len(data['entries'])} listing(s):")
     for item in data["report"]:
         entry = item["entry"]
         name = escape(entry.get("x_name", "")[:70])
@@ -508,7 +508,7 @@ def cli(
                     try:
                         result = future.result()
                         collected[idx] = result
-                        n_guitars = len(result.get("entries", []))
+                        n_listings = len(result.get("entries", []))
                         n_updates = result.get("update_count", 0)
                         status = (
                             f"[yellow]{n_updates} to update[/yellow]"
@@ -516,7 +516,7 @@ def cli(
                             else "[green]ok[/green]"
                         )
                         progress.console.log(
-                            f"[cyan]{escape(mi['name'])}[/cyan]: {n_guitars} guitar(s) — {status}"
+                            f"[cyan]{escape(mi['name'])}[/cyan]: {n_listings} listing(s) — {status}"
                         )
                     # catch all to avoid crashing the whole batch
                     # It is hard to predict what might go wrong in the scraping phase,

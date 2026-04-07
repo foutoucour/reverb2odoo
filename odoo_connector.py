@@ -68,7 +68,7 @@ def get_connection(
 
 
 # ---------------------------------------------------------------------------
-# x_guitar lookups
+# x_guitar lookups (legacy — kept during transition from x_guitar to x_gear)
 # ---------------------------------------------------------------------------
 
 #: Fields typically needed when looking up a guitar entry.
@@ -92,6 +92,47 @@ GUITAR_FIELDS: list[str] = [
     "x_studio_target_price_ht",
     "x_studio_target_price_ttc",
     "x_studio_published_at",
+]
+
+# ---------------------------------------------------------------------------
+# x_listing lookups
+# ---------------------------------------------------------------------------
+
+#: Fields typically needed when looking up a listing entry.
+LISTING_FIELDS: list[str] = [
+    "id",
+    "x_name",
+    "x_model_id",
+    "x_url",
+    "x_platform",
+    "x_price",
+    "x_currency_id",
+    "x_shipping",
+    "x_condition",
+    "x_status",
+    "x_is_available",
+    "x_can_accept_offers",
+    "x_is_taxed",
+    "x_published_at",
+    "x_gear_id",
+    "x_guitar_id",
+    "x_studio_image",
+]
+
+# ---------------------------------------------------------------------------
+# x_gear lookups
+# ---------------------------------------------------------------------------
+
+#: Fields typically needed when looking up an owned gear entry.
+GEAR_FIELDS: list[str] = [
+    "id",
+    "x_name",
+    "x_model_id",
+    "x_intent",
+    "x_condition",
+    "x_status",
+    "x_serial_number",
+    "x_neck_profile",
 ]
 
 
@@ -148,6 +189,58 @@ def find_guitar_by_url(
             return results[0]
 
     logger.warning("No x_guitar record found for URL: {}", url)
+    return None
+
+
+def find_listing_by_url(
+    conn: odoolib.main.Connection,
+    url: str,
+    fields: list[str] | None = None,
+) -> dict | None:
+    """Look up a single ``x_listing`` record by its marketplace URL.
+
+    The search tries, in order:
+
+    1. **Exact match** on ``x_url``.
+    2. **Partial match** using the Reverb item ID extracted from the URL.
+
+    Parameters
+    ----------
+    conn:
+        An authenticated ``odoolib`` connection.
+    url:
+        The full listing URL to search for.
+    fields:
+        Fields to return.  Defaults to :data:`LISTING_FIELDS`.
+
+    Returns
+    -------
+    dict | None
+        The matching record, or ``None`` if nothing was found.
+    """
+    if fields is None:
+        fields = LISTING_FIELDS
+
+    model = conn.get_model("x_listing")
+
+    results = model.search_read([("x_url", "=", url)], fields, limit=1)
+    if results:
+        logger.success("Exact URL match → id={}", results[0]["id"])
+        return results[0]
+
+    item_id = _extract_reverb_item_id(url)
+    if item_id:
+        logger.debug("Trying partial match with Reverb item ID '{}'…", item_id)
+        results = model.search_read(
+            [("x_url", "ilike", item_id)],
+            fields,
+            limit=1,
+        )
+        if results:
+            logger.success("Partial URL match (item {}) → id={}", item_id, results[0]["id"])
+            return results[0]
+
+    logger.warning("No x_listing record found for URL: {}", url)
     return None
 
 

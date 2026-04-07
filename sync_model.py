@@ -35,7 +35,7 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from odoo_connector import GUITAR_FIELDS
+from odoo_connector import LISTING_FIELDS
 from reverb_scraper import ReverbScraper
 
 _console = Console()
@@ -101,8 +101,8 @@ def _find_entries_without_image(conn, entry_ids: list[int]) -> set[int]:
     """
     if not entry_ids:
         return set()
-    guitar = conn.get_model("x_guitar")
-    no_img = guitar.search_read(
+    listing = conn.get_model("x_listing")
+    no_img = listing.search_read(
         [("id", "in", entry_ids), ("x_studio_image", "=", False)],
         ["id"],
     )
@@ -168,13 +168,10 @@ def _find_model(conn, model_name: str) -> dict[str, Any]:
     }
 
 
-def _fetch_guitars(conn, model_id: int) -> list[dict]:
-    """Return all ``x_guitar`` records linked to *model_id*."""
-    guitar = conn.get_model("x_guitar")
-    return guitar.search_read(
-        [("x_studio_models", "=", model_id)],
-        GUITAR_FIELDS,
-    )
+def _fetch_listings(conn, model_id: int) -> list[dict]:
+    """Return all ``x_listing`` records linked to *model_id*."""
+    listing = conn.get_model("x_listing")
+    return listing.search_read([("x_model_id", "=", model_id)], LISTING_FIELDS)
 
 
 def _fetch_all_models(conn, *, wanna_only: bool = False) -> list[dict[str, Any]]:
@@ -303,7 +300,7 @@ def _search_reverb(
 
 
 def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
-    """Compare a single Odoo entry against scraped Reverb data.
+    """Compare a single Odoo x_listing entry against scraped Reverb data.
 
     Returns a dict of ``{field_name: new_value}`` for every field that
     needs updating.  An empty dict means no changes.
@@ -320,42 +317,42 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
     if reverb_name and reverb_name != entry.get("x_name", ""):
         changes["x_name"] = reverb_name
 
-    # Price (x_studio_value) — compare rounded to absorb CAD/USD conversion noise
-    if price > 0 and _round_price(price) != _round_price(entry.get("x_studio_value", 0)):
-        changes["x_studio_value"] = _round_price(price)
+    # Price — compare rounded to absorb CAD/USD conversion noise
+    if price > 0 and _round_price(price) != _round_price(entry.get("x_price", 0)):
+        changes["x_price"] = _round_price(price)
 
     # Offers
-    if offers != entry.get("x_studio_accept_offers"):
-        changes["x_studio_accept_offers"] = offers
+    if offers != entry.get("x_can_accept_offers"):
+        changes["x_can_accept_offers"] = offers
 
     # Published at — only set if not already stored
-    if published_at and not entry.get("x_studio_published_at"):
-        changes["x_studio_published_at"] = published_at + " 00:00:00"
+    if published_at and not entry.get("x_published_at"):
+        changes["x_published_at"] = published_at + " 00:00:00"
 
     # Availability
-    if sale_ended and entry.get("x_studio_is_available") is True:
-        changes["x_studio_is_available"] = False
+    if sale_ended and entry.get("x_is_available") is True:
+        changes["x_is_available"] = False
 
     if not sale_ended:
-        if entry.get("x_studio_is_available") is False:
-            changes["x_studio_is_available"] = True
+        if entry.get("x_is_available") is False:
+            changes["x_is_available"] = True
 
         # Only update shipping for live listings (Reverb returns None for ended)
         ship = reverb.get("shipping_price")
         if ship is not None:
             ship_f = float(ship)
-            if _round_price(ship_f) != _round_price(entry.get("x_studio_shipping", 0)):
-                changes["x_studio_shipping"] = _round_price(ship_f)
+            if _round_price(ship_f) != _round_price(entry.get("x_shipping", 0)):
+                changes["x_shipping"] = _round_price(ship_f)
 
     return changes
 
 
-def _reverb_to_odoo_vals(
+def _reverb_to_listing_vals(
     reverb: dict,
     model_id: int,
     default_shipping: float = DEFAULT_SHIPPING,
 ) -> dict[str, Any]:
-    """Convert a scraped Reverb listing to Odoo field values for creation."""
+    """Build x_listing creation values from a scraped Reverb listing."""
     price = float(reverb.get("price", 0) or 0)
     ship = reverb.get("shipping_price")
     ship_f = float(ship) if ship is not None else default_shipping
@@ -363,18 +360,18 @@ def _reverb_to_odoo_vals(
 
     vals: dict[str, Any] = {
         "x_name": reverb.get("name", ""),
-        "x_studio_url": reverb.get("url", ""),
-        "x_studio_models": model_id,
-        "x_studio_model_type": "Guitar",
-        "x_studio_value": _round_price(price),
-        "x_studio_shipping": _round_price(ship_f),
-        "x_studio_is_available": not reverb.get("sale_ended", False),
-        "x_studio_active": True,
-        "x_studio_accept_offers": reverb.get("offers_enabled", False),
-        "x_studio_taxed": False,
+        "x_model_id": model_id,
+        "x_status": "watching",
+        "x_url": reverb.get("url", ""),
+        "x_platform": "reverb",
+        "x_price": _round_price(price),
+        "x_shipping": _round_price(ship_f),
+        "x_is_available": not reverb.get("sale_ended", False),
+        "x_can_accept_offers": reverb.get("offers_enabled", False),
+        "x_is_taxed": False,
     }
     if published:
-        vals["x_studio_published_at"] = published + " 00:00:00"
+        vals["x_published_at"] = published + " 00:00:00"
 
     return vals
 
@@ -414,7 +411,7 @@ def _build_report(
     odoo_by_url: dict[str, dict] = {}
     odoo_by_item_id: dict[str, dict] = {}
     for e in odoo_entries:
-        clean = _clean_url(e.get("x_studio_url", ""))
+        clean = _clean_url(e.get("x_url", ""))
         odoo_by_url[clean] = e
         item_id = _reverb_item_id(clean)
         if item_id:
@@ -452,7 +449,7 @@ def _build_report(
             item["action"] = "skip"
             item["warnings"].append("skipped: brand new")
         else:
-            item["create_vals"] = _reverb_to_odoo_vals(r, model_id, default_shipping)
+            item["create_vals"] = _reverb_to_listing_vals(r, model_id, default_shipping)
             item["action"] = "create"
 
         # Informational warnings
@@ -533,15 +530,18 @@ def _print_report(report: list[dict]) -> tuple[int, int]:
 def _apply_updates(conn, report: list[dict]) -> tuple[int, int]:
     """Write changes (updates + creates) to Odoo.
 
-    For **creates**, the first Reverb listing photo is downloaded and
-    stored in ``x_studio_image``.  For **updates**, the image is only
-    downloaded when the existing Odoo entry has no image yet.
+    For **creates**, an ``x_listing`` record is created with all marketplace
+    fields.  The first Reverb listing photo is downloaded and stored in
+    ``x_listing.x_studio_image``.
+
+    For **updates**, the ``x_listing`` record is updated directly.  The image
+    is only downloaded when the existing record has no image yet.
 
     Returns (updated, created).
     """
-    guitar = conn.get_model("x_guitar")
+    listing_model = conn.get_model("x_listing")
 
-    # Pre-check: which entries being updated lack an image?
+    # Pre-check: which listing entries being updated lack an image?
     update_ids = [item["entry"]["id"] for item in report if item["action"] == "update"]
     ids_without_image = _find_entries_without_image(conn, update_ids)
 
@@ -553,34 +553,35 @@ def _apply_updates(conn, report: list[dict]) -> tuple[int, int]:
             eid = item["entry"]["id"]
             changes = dict(item["changes"])
 
-            # Download image if the entry has no image yet
+            # Download image if the listing has no image yet
             if eid in ids_without_image:
                 photo_url = item.get("reverb", {}).get("photo_url", "")
                 image_b64 = _download_image_base64(photo_url)
                 if image_b64:
                     changes["x_studio_image"] = image_b64
-                    logger.info("  ↳ downloaded image for id={}", eid)
+                    logger.info("  ↳ downloaded image for listing id={}", eid)
 
             # Log changes without the (potentially huge) image blob
             log_changes = {k: v for k, v in changes.items() if k != "x_studio_image"}
-            logger.info("Updating id={}: {}", eid, log_changes)
-            guitar.write(eid, changes)
+            logger.info("Updating listing id={}: {}", eid, log_changes)
+            listing_model.write(eid, changes)
             updated += 1
 
         elif item["action"] == "create":
-            vals = dict(item["create_vals"])
+            listing_vals = dict(item["create_vals"])
 
-            # Download image for the new entry
+            # Download image
             photo_url = item.get("reverb", {}).get("photo_url", "")
             image_b64 = _download_image_base64(photo_url)
             if image_b64:
-                vals["x_studio_image"] = image_b64
+                listing_vals["x_studio_image"] = image_b64
 
-            logger.info("Creating: {}", vals.get("x_name", "")[:50])
-            new_id = guitar.create(vals)
+            listing_id = listing_model.create(listing_vals)
             if image_b64:
-                logger.info("  ↳ downloaded image for id={}", new_id)
-            logger.success("  → created id={}", new_id)
+                logger.info("  ↳ downloaded image for listing id={}", listing_id)
+            logger.success(
+                "Created listing id={}: {}", listing_id, listing_vals.get("x_name", "")[:50]
+            )
             created += 1
 
     return updated, created
@@ -641,9 +642,9 @@ def _collect_sync_data(
             "create_count": 0,
         }
 
-    logger.debug("[{}] Fetching existing Odoo entries…", model_name)
-    odoo_entries = _fetch_guitars(conn, model_id)
-    logger.debug("[{}] Found {} existing entries", model_name, len(odoo_entries))
+    logger.debug("[{}] Fetching existing Odoo listing records…", model_name)
+    odoo_entries = _fetch_listings(conn, model_id)
+    logger.debug("[{}] Found {} existing listing records", model_name, len(odoo_entries))
 
     report = _build_report(
         reverb_results,

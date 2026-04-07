@@ -19,7 +19,7 @@ from sync_model import (
     _is_brand_new,
     _print_report,
     _reverb_item_id,
-    _reverb_to_odoo_vals,
+    _reverb_to_listing_vals,
     _round_price,
     _search_reverb,
     cli,
@@ -172,11 +172,11 @@ class TestComputeChanges:
 
     def test_no_changes_when_identical(self):
         entry = {
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_published_at": "2025-06-20 00:00:00",
-            "x_studio_is_available": True,
-            "x_studio_shipping": 250.0,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_published_at": "2025-06-20 00:00:00",
+            "x_is_available": True,
+            "x_shipping": 250.0,
         }
         reverb = {
             "price": "5000.00",
@@ -189,10 +189,10 @@ class TestComputeChanges:
 
     def test_price_change(self):
         entry = {
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": True,
-            "x_studio_shipping": 250.0,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
         }
         reverb = {
             "price": "4500.00",
@@ -201,15 +201,15 @@ class TestComputeChanges:
             "shipping_price": "250.00",
         }
         changes = _compute_changes(entry, reverb)
-        assert changes["x_studio_value"] == 4500.0
+        assert changes["x_price"] == 4500.0
 
     def test_price_fx_noise_ignored(self):
         """Small price drift within $50 (CAD FX noise) should not trigger an update."""
         entry = {
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": True,
-            "x_studio_shipping": 250.0,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
         }
         reverb = {
             "price": "4999.00",  # rounds to same $5000 bucket
@@ -218,14 +218,14 @@ class TestComputeChanges:
             "shipping_price": "250.00",
         }
         changes = _compute_changes(entry, reverb)
-        assert "x_studio_value" not in changes
+        assert "x_price" not in changes
 
     def test_offers_toggled_off(self):
         entry = {
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": True,
-            "x_studio_shipping": 250.0,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
         }
         reverb = {
             "price": "5000.00",
@@ -234,14 +234,14 @@ class TestComputeChanges:
             "shipping_price": "250.00",
         }
         changes = _compute_changes(entry, reverb)
-        assert changes["x_studio_accept_offers"] is False
+        assert changes["x_can_accept_offers"] is False
 
     def test_sale_ended_marks_unavailable(self):
         entry = {
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": True,
-            "x_studio_shipping": 250.0,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
         }
         reverb = {
             "price": "5000.00",
@@ -250,14 +250,14 @@ class TestComputeChanges:
             "shipping_price": None,
         }
         changes = _compute_changes(entry, reverb)
-        assert changes["x_studio_is_available"] is False
+        assert changes["x_is_available"] is False
 
     def test_sale_ended_does_not_update_shipping(self):
         entry = {
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": True,
-            "x_studio_shipping": 250.0,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
         }
         reverb = {
             "price": "5000.00",
@@ -266,14 +266,14 @@ class TestComputeChanges:
             "shipping_price": None,
         }
         changes = _compute_changes(entry, reverb)
-        assert "x_studio_shipping" not in changes
+        assert "x_shipping" not in changes
 
     def test_live_listing_updates_shipping(self):
         entry = {
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": True,
-            "x_studio_shipping": 250.0,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
         }
         reverb = {
             "price": "5000.00",
@@ -282,16 +282,16 @@ class TestComputeChanges:
             "shipping_price": "300.00",
         }
         changes = _compute_changes(entry, reverb)
-        assert changes["x_studio_shipping"] == 300.0
+        assert changes["x_shipping"] == 300.0
 
     def test_published_at_not_updated_when_already_set(self):
         """published_at should not be overwritten once stored in Odoo."""
         entry = {
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": True,
-            "x_studio_shipping": 250.0,
-            "x_studio_published_at": "2025-01-01 00:00:00",
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+            "x_published_at": "2025-01-01 00:00:00",
         }
         reverb = {
             "price": "5000.00",
@@ -301,16 +301,16 @@ class TestComputeChanges:
             "published_at": "2025-06-20",
         }
         changes = _compute_changes(entry, reverb)
-        assert "x_studio_published_at" not in changes
+        assert "x_published_at" not in changes
 
     def test_published_at_set_when_empty(self):
         """published_at should be populated when the Odoo field is empty."""
         entry = {
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": True,
-            "x_studio_shipping": 250.0,
-            "x_studio_published_at": False,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+            "x_published_at": False,
         }
         reverb = {
             "price": "5000.00",
@@ -320,14 +320,14 @@ class TestComputeChanges:
             "published_at": "2025-06-20",
         }
         changes = _compute_changes(entry, reverb)
-        assert changes["x_studio_published_at"] == "2025-06-20 00:00:00"
+        assert changes["x_published_at"] == "2025-06-20 00:00:00"
 
     def test_relists_marks_available(self):
         entry = {
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": False,
-            "x_studio_shipping": 250.0,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": False,
+            "x_shipping": 250.0,
         }
         reverb = {
             "price": "5000.00",
@@ -336,14 +336,14 @@ class TestComputeChanges:
             "shipping_price": "250.00",
         }
         changes = _compute_changes(entry, reverb)
-        assert changes["x_studio_is_available"] is True
+        assert changes["x_is_available"] is True
 
     def test_already_unavailable_stays_unchanged(self):
         entry = {
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": False,
-            "x_studio_shipping": 250.0,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": False,
+            "x_shipping": 250.0,
         }
         reverb = {
             "price": "5000.00",
@@ -352,14 +352,14 @@ class TestComputeChanges:
             "shipping_price": None,
         }
         changes = _compute_changes(entry, reverb)
-        assert "x_studio_is_available" not in changes
+        assert "x_is_available" not in changes
 
 
-# ── _reverb_to_odoo_vals ──────────────────────────────────────────────────
+# ── _reverb_to_listing_vals ───────────────────────────────────────────────
 
 
-class TestReverbToOdooVals:
-    """Unit tests for _reverb_to_odoo_vals (pure logic, no I/O)."""
+class TestReverbToListingVals:
+    """Unit tests for _reverb_to_listing_vals (pure logic, no I/O)."""
 
     def test_basic_conversion(self):
         reverb = {
@@ -371,19 +371,21 @@ class TestReverbToOdooVals:
             "offers_enabled": True,
             "published_at": "2025-06-20",
         }
-        vals = _reverb_to_odoo_vals(reverb, model_id=42)
+        vals = _reverb_to_listing_vals(reverb, model_id=42)
 
         assert vals["x_name"] == "Cool Guitar"
-        assert vals["x_studio_url"] == "https://reverb.com/item/123-cool-guitar"
-        assert vals["x_studio_models"] == 42
-        assert vals["x_studio_model_type"] == "Guitar"
-        assert vals["x_studio_value"] == 5000.0
-        assert vals["x_studio_shipping"] == 200.0
-        assert vals["x_studio_is_available"] is True
-        assert vals["x_studio_active"] is True
-        assert vals["x_studio_accept_offers"] is True
-        assert vals["x_studio_taxed"] is False
-        assert vals["x_studio_published_at"] == "2025-06-20 00:00:00"
+        assert vals["x_model_id"] == 42
+        assert vals["x_status"] == "watching"
+        assert vals["x_url"] == "https://reverb.com/item/123-cool-guitar"
+        assert vals["x_platform"] == "reverb"
+        assert vals["x_price"] == 5000.0
+        assert vals["x_shipping"] == 200.0
+        assert vals["x_is_available"] is True
+        assert vals["x_can_accept_offers"] is True
+        assert vals["x_is_taxed"] is False
+        assert vals["x_published_at"] == "2025-06-20 00:00:00"
+        assert "x_intent" not in vals
+        assert "x_market_status" not in vals
 
     def test_sold_listing_uses_default_shipping(self):
         reverb = {
@@ -395,11 +397,11 @@ class TestReverbToOdooVals:
             "offers_enabled": False,
             "published_at": "2025-01-01",
         }
-        vals = _reverb_to_odoo_vals(reverb, model_id=10)
+        vals = _reverb_to_listing_vals(reverb, model_id=1)
 
-        assert vals["x_studio_is_available"] is False
-        assert vals["x_studio_shipping"] == DEFAULT_SHIPPING
-        assert vals["x_studio_accept_offers"] is False
+        assert vals["x_is_available"] is False
+        assert vals["x_shipping"] == DEFAULT_SHIPPING
+        assert vals["x_can_accept_offers"] is False
 
     def test_sold_listing_uses_category_shipping(self):
         reverb = {
@@ -411,9 +413,9 @@ class TestReverbToOdooVals:
             "offers_enabled": False,
             "published_at": "2025-03-10",
         }
-        vals = _reverb_to_odoo_vals(reverb, model_id=10, default_shipping=35.0)
+        vals = _reverb_to_listing_vals(reverb, model_id=1, default_shipping=35.0)
 
-        assert vals["x_studio_shipping"] == 40.0  # _round_price(35) = 40
+        assert vals["x_shipping"] == 40.0  # _round_price(35) = 40
 
     def test_missing_published_at(self):
         reverb = {
@@ -425,8 +427,8 @@ class TestReverbToOdooVals:
             "offers_enabled": False,
             "published_at": "",
         }
-        vals = _reverb_to_odoo_vals(reverb, model_id=1)
-        assert "x_studio_published_at" not in vals
+        vals = _reverb_to_listing_vals(reverb, model_id=1)
+        assert "x_published_at" not in vals
 
 
 # ── _build_report ─────────────────────────────────────────────────────────
@@ -451,15 +453,16 @@ class TestBuildReport:
         return base
 
     def _make_odoo(self, url="https://reverb.com/item/1-g", **kwargs):
+        """Build a mock x_listing record dict."""
         base = {
             "id": 100,
             "x_name": "Guitar",
-            "x_studio_url": url,
-            "x_studio_value": 5000.0,
-            "x_studio_accept_offers": True,
-            "x_studio_is_available": True,
-            "x_studio_shipping": 250.0,
-            "x_studio_published_at": "2025-06-20 00:00:00",
+            "x_url": url,
+            "x_price": 5000.0,
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+            "x_published_at": "2025-06-20 00:00:00",
         }
         base.update(kwargs)
         return base
@@ -474,7 +477,7 @@ class TestBuildReport:
 
         assert len(report) == 1
         assert report[0]["action"] == "create"
-        assert report[0]["create_vals"]["x_studio_models"] == 42
+        assert report[0]["create_vals"]["x_model_id"] == 42
 
     def test_brand_new_listing_skipped(self):
         reverb_results = [
@@ -499,7 +502,7 @@ class TestBuildReport:
 
         assert len(report) == 1
         assert report[0]["action"] == "update"
-        assert report[0]["changes"]["x_studio_value"] == 4000.0
+        assert report[0]["changes"]["x_price"] == 4000.0
 
     def test_existing_up_to_date(self):
         url = "https://reverb.com/item/1-g"
@@ -546,7 +549,7 @@ class TestBuildReport:
 
         assert len(report) == 1
         assert report[0]["action"] == "update"
-        assert report[0]["changes"]["x_studio_value"] == 4000.0
+        assert report[0]["changes"]["x_price"] == 4000.0
 
     def test_url_query_string_stripped_for_matching(self):
         reverb_results = [self._make_reverb(url="https://reverb.com/item/1-g")]
@@ -632,7 +635,7 @@ class TestBuildReport:
 
         assert len(report) == 1
         assert report[0]["action"] == "create"
-        assert report[0]["create_vals"]["x_studio_models"] == 42
+        assert report[0]["create_vals"]["x_model_id"] == 42
 
 
 # ── _print_report ─────────────────────────────────────────────────────────
@@ -654,7 +657,7 @@ class TestPrintReport:
                 "action": "update",
                 "reverb": {"name": "B", "price_display": "$2"},
                 "entry": {"id": 2},
-                "changes": {"x_studio_value": 99},
+                "changes": {"x_price": 99},
                 "warnings": [],
             },
             {
@@ -813,37 +816,49 @@ class TestFindModel:
 class TestApplyUpdates:
     """Unit tests for _apply_updates with mocked Odoo connection."""
 
-    def _mock_conn(self, create_return=9999):
+    def _mock_conn(self, gear_create_return=777):
         conn = MagicMock()
-        model = MagicMock()
-        model.create.return_value = create_return
-        conn.get_model.return_value = model
-        return conn, model
+        gear_mock = MagicMock()
+        gear_mock.create.return_value = gear_create_return
+        gear_mock.search_read.return_value = []  # no entries without image
+
+        conn.get_model.return_value = gear_mock
+        return conn, gear_mock
 
     def test_writes_updates(self):
-        conn, model = self._mock_conn()
+        conn, gear_mock = self._mock_conn()
         report = [
-            {"action": "update", "entry": {"id": 100}, "changes": {"x_studio_value": 4000.0}},
+            {"action": "update", "entry": {"id": 100}, "changes": {"x_price": 4000.0}},
             {"action": "ok", "entry": {"id": 200}, "changes": {}},
         ]
         upd, crt = _apply_updates(conn, report)
         assert upd == 1
         assert crt == 0
-        model.write.assert_called_once_with(100, {"x_studio_value": 4000.0})
+        gear_mock.write.assert_called_once_with(100, {"x_price": 4000.0})
 
     def test_creates_new_entries(self):
-        conn, model = self._mock_conn(create_return=1904)
-        vals = {"x_name": "New Guitar", "x_studio_models": 42}
+        conn, gear_mock = self._mock_conn(gear_create_return=777)
+        listing_vals = {
+            "x_name": "New Guitar",
+            "x_model_id": 42,
+            "x_status": "watching",
+            "x_url": "https://reverb.com/item/1-g",
+            "x_platform": "reverb",
+        }
         report = [
-            {"action": "create", "create_vals": vals},
+            {
+                "action": "create",
+                "create_vals": listing_vals,
+                "reverb": {"photo_url": ""},
+            },
         ]
         upd, crt = _apply_updates(conn, report)
         assert upd == 0
         assert crt == 1
-        model.create.assert_called_once_with(vals)
+        gear_mock.create.assert_called_once_with(listing_vals)
 
     def test_skips_ok_entries(self):
-        conn, model = self._mock_conn()
+        conn, gear_mock = self._mock_conn()
         report = [
             {"action": "ok", "entry": {"id": 1}, "changes": {}},
             {"action": "skip", "entry": None, "changes": {}},
@@ -851,22 +866,28 @@ class TestApplyUpdates:
         upd, crt = _apply_updates(conn, report)
         assert upd == 0
         assert crt == 0
-        model.write.assert_not_called()
-        model.create.assert_not_called()
+        gear_mock.create.assert_not_called()
 
     def test_mixed_updates_and_creates(self):
-        conn, model = self._mock_conn(create_return=2000)
+        conn, gear_mock = self._mock_conn(gear_create_return=100)
+        gear_vals = {
+            "x_name": "G",
+            "x_model_id": 1,
+            "x_status": "watching",
+            "x_url": "u",
+            "x_platform": "reverb",
+        }
         report = [
-            {"action": "update", "entry": {"id": 100}, "changes": {"x_studio_value": 1.0}},
-            {"action": "create", "create_vals": {"x_name": "G1"}},
+            {"action": "update", "entry": {"id": 50}, "changes": {"x_price": 1.0}},
+            {"action": "create", "create_vals": gear_vals, "reverb": {"photo_url": ""}},
             {"action": "ok", "entry": {"id": 200}, "changes": {}},
-            {"action": "create", "create_vals": {"x_name": "G2"}},
+            {"action": "create", "create_vals": gear_vals, "reverb": {"photo_url": ""}},
         ]
         upd, crt = _apply_updates(conn, report)
         assert upd == 1
         assert crt == 2
-        model.write.assert_called_once()
-        assert model.create.call_count == 2
+        gear_mock.write.assert_called_once()
+        assert gear_mock.create.call_count == 2
 
 
 # ── _search_reverb (VCR cassette) ────────────────────────────────────────
@@ -1307,14 +1328,15 @@ class TestFindEntriesWithoutImage:
 
     def test_returns_ids_without_image(self):
         conn = MagicMock()
-        guitar = MagicMock()
-        guitar.search_read.return_value = [{"id": 100}, {"id": 300}]
-        conn.get_model.return_value = guitar
+        listing = MagicMock()
+        listing.search_read.return_value = [{"id": 100}, {"id": 300}]
+        conn.get_model.return_value = listing
 
         result = _find_entries_without_image(conn, [100, 200, 300])
 
         assert result == {100, 300}
-        guitar.search_read.assert_called_once_with(
+        conn.get_model.assert_called_once_with("x_listing")
+        listing.search_read.assert_called_once_with(
             [("id", "in", [100, 200, 300]), ("x_studio_image", "=", False)],
             ["id"],
         )
@@ -1341,29 +1363,47 @@ class TestFindEntriesWithoutImage:
 class TestApplyUpdatesImages:
     """Tests for image download behaviour in _apply_updates."""
 
-    def _mock_conn(self, create_return=9999, no_image_ids=None):
-        """Build a mock connection that also handles x_studio_image queries."""
+    def _mock_conn(self, gear_create_return=777, listing_create_return=9999, no_image_ids=None):
+        """Build a mock connection that handles x_gear and x_listing separately."""
         conn = MagicMock()
-        model = MagicMock()
-        model.create.return_value = create_return
+        gear_mock = MagicMock()
+        gear_mock.create.return_value = gear_create_return
+        listing_mock = MagicMock()
+        listing_mock.create.return_value = listing_create_return
 
-        def _search_read(domain, fields, **kwargs):
-            # Handle the _find_entries_without_image query
+        def _listing_search_read(domain, fields, **kwargs):
             if fields == ["id"]:
                 return [{"id": eid} for eid in (no_image_ids or [])]
             return []
 
-        model.search_read.side_effect = _search_read
-        conn.get_model.return_value = model
-        return conn, model
+        listing_mock.search_read.side_effect = _listing_search_read
+
+        def _get_model(name):
+            if name == "x_gear":
+                return gear_mock
+            return listing_mock
+
+        conn.get_model.side_effect = _get_model
+        return conn, gear_mock, listing_mock
+
+    def _make_create_vals(self, name="Guitar", model_id=42):
+        return {
+            "x_name": name,
+            "x_model_id": model_id,
+            "x_status": "watching",
+            "x_url": "https://reverb.com/item/1-g",
+            "x_platform": "reverb",
+        }
 
     def test_create_downloads_image(self):
-        conn, model = self._mock_conn(create_return=500)
+        conn, gear_mock, listing_mock = self._mock_conn(
+            gear_create_return=777, listing_create_return=500
+        )
         report = [
             {
                 "action": "create",
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg", "name": "G"},
-                "create_vals": {"x_name": "Guitar", "x_studio_models": 42},
+                "create_vals": self._make_create_vals(),
             },
         ]
 
@@ -1372,18 +1412,17 @@ class TestApplyUpdatesImages:
 
         assert crt == 1
         mock_dl.assert_called_once_with("https://img.reverb.com/photo.jpg")
-        # The vals passed to create should include the image
-        call_vals = model.create.call_args[0][0]
+        # The listing create call should include the image
+        call_vals = listing_mock.create.call_args[0][0]
         assert call_vals["x_studio_image"] == "FAKEBASE64"
-        assert call_vals["x_name"] == "Guitar"
 
     def test_create_without_photo_url(self):
-        conn, model = self._mock_conn(create_return=500)
+        conn, gear_mock, listing_mock = self._mock_conn(listing_create_return=500)
         report = [
             {
                 "action": "create",
                 "reverb": {"photo_url": "", "name": "G"},
-                "create_vals": {"x_name": "Guitar", "x_studio_models": 42},
+                "create_vals": self._make_create_vals(),
             },
         ]
 
@@ -1391,16 +1430,16 @@ class TestApplyUpdatesImages:
             upd, crt = _apply_updates(conn, report)
 
         assert crt == 1
-        call_vals = model.create.call_args[0][0]
+        call_vals = listing_mock.create.call_args[0][0]
         assert "x_studio_image" not in call_vals
 
     def test_create_image_download_fails_gracefully(self):
-        conn, model = self._mock_conn(create_return=500)
+        conn, gear_mock, listing_mock = self._mock_conn(listing_create_return=500)
         report = [
             {
                 "action": "create",
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg", "name": "G"},
-                "create_vals": {"x_name": "Guitar", "x_studio_models": 42},
+                "create_vals": self._make_create_vals(),
             },
         ]
 
@@ -1409,17 +1448,17 @@ class TestApplyUpdatesImages:
 
         # Entry should still be created, just without image
         assert crt == 1
-        call_vals = model.create.call_args[0][0]
+        call_vals = listing_mock.create.call_args[0][0]
         assert "x_studio_image" not in call_vals
 
     def test_update_downloads_image_when_missing(self):
-        conn, model = self._mock_conn(no_image_ids=[100])
+        conn, gear_mock, listing_mock = self._mock_conn(no_image_ids=[100])
         report = [
             {
                 "action": "update",
                 "entry": {"id": 100},
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
-                "changes": {"x_studio_value": 4000.0},
+                "changes": {"x_price": 4000.0},
             },
         ]
 
@@ -1427,20 +1466,20 @@ class TestApplyUpdatesImages:
             upd, crt = _apply_updates(conn, report)
 
         assert upd == 1
-        call_args = model.write.call_args[0]
+        call_args = listing_mock.write.call_args[0]
         assert call_args[0] == 100
-        assert call_args[1]["x_studio_value"] == 4000.0
+        assert call_args[1]["x_price"] == 4000.0
         assert call_args[1]["x_studio_image"] == "IMGDATA"
 
     def test_update_skips_image_when_already_present(self):
         # no_image_ids is empty → entry 100 already has an image
-        conn, model = self._mock_conn(no_image_ids=[])
+        conn, gear_mock, listing_mock = self._mock_conn(no_image_ids=[])
         report = [
             {
                 "action": "update",
                 "entry": {"id": 100},
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
-                "changes": {"x_studio_value": 4000.0},
+                "changes": {"x_price": 4000.0},
             },
         ]
 
@@ -1449,12 +1488,12 @@ class TestApplyUpdatesImages:
 
         assert upd == 1
         mock_dl.assert_not_called()
-        call_args = model.write.call_args[0]
+        call_args = listing_mock.write.call_args[0]
         assert "x_studio_image" not in call_args[1]
 
     def test_does_not_mutate_original_create_vals(self):
-        conn, model = self._mock_conn(create_return=500)
-        original_vals = {"x_name": "Guitar", "x_studio_models": 42}
+        conn, gear_mock, listing_mock = self._mock_conn(listing_create_return=500)
+        original_vals = self._make_create_vals()
         report = [
             {
                 "action": "create",
@@ -1470,8 +1509,8 @@ class TestApplyUpdatesImages:
         assert "x_studio_image" not in original_vals
 
     def test_does_not_mutate_original_changes(self):
-        conn, model = self._mock_conn(no_image_ids=[100])
-        original_changes = {"x_studio_value": 4000.0}
+        conn, gear_mock, listing_mock = self._mock_conn(no_image_ids=[100])
+        original_changes = {"x_price": 4000.0}
         report = [
             {
                 "action": "update",

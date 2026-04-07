@@ -4,15 +4,33 @@
 [![Daily Validation](https://github.com/foutoucour/reverb2odoo/actions/workflows/validate.yml/badge.svg)](https://github.com/foutoucour/reverb2odoo/actions/workflows/validate.yml)
 [![Daily Sync (Wanna)](https://github.com/foutoucour/reverb2odoo/actions/workflows/sync-wanna.yml/badge.svg)](https://github.com/foutoucour/reverb2odoo/actions/workflows/sync-wanna.yml)
 
-CLI tool to sync guitar listings from [Reverb.com](https://reverb.com) into an [Odoo](https://www.odoo.com) database. It
+CLI tool to sync gear listings from [Reverb.com](https://reverb.com) into an [Odoo](https://www.odoo.com) database. It
 searches the Reverb public API, compares results against existing Odoo records, and creates or updates entries as
 needed.
+
+## Data model
+
+| Model | Purpose |
+|---|---|
+| `x_listing` | Marketplace entry — one record per Reverb listing. Primary sync target. |
+| `x_gear` | Physical item — created only when a listing is acquired (~20 records vs thousands). Holds serial number, neck profile, and other physical details. |
+| `x_models` | Gear model catalogue (brand, specs, Reverb category, price brackets). |
+| `x_reverb_category` | Reverb category slugs and default shipping costs. |
+
+`x_listing` drives the workflow: the `sync` command creates and updates listing records. `x_gear` records are created
+manually in Odoo when you mark a listing as acquired.
+
+### x_listing status lifecycle
+
+**Buy side** (from sync): `watching` → `acquired` | `passed` | `closed`
+
+**Sell side** (created manually per platform): `for_sale` → `sold` | `closed`
 
 ## Requirements
 
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) (recommended package manager)
-- An Odoo instance with custom models (`x_guitar`, `x_models`, `x_reverb_category`)
+- An Odoo instance with custom models `x_gear`, `x_listing`, `x_models`, `x_reverb_category` (create via Odoo Studio)
 
 ## Installation
 
@@ -43,8 +61,10 @@ uv run reverb2odoo --help
 
 ### `sync` — Search Reverb and sync into Odoo
 
-Search Reverb for a guitar model, then create new entries and update existing ones in Odoo.
+Search Reverb for a gear model, then create new `x_listing` entries and update existing ones in Odoo.
 Matching is done first by exact URL (query-string ignored), then by Reverb numeric item ID — so listings that were renamed on Reverb (slug changed) are updated in place rather than duplicated.
+
+Sync **never creates `x_gear` records** — those are created manually in Odoo when a listing is acquired.
 
 By default only **live** listings are searched. Pass `--include-sold` to also include sold/ended listings.
 
@@ -54,10 +74,10 @@ uv run reverb2odoo sync "Frank Brothers Arcane" --include-sold   # also include 
 uv run reverb2odoo sync --all --include-sold                     # all models, sold included
 ```
 
-### `validate` — Refresh existing entries from Reverb
+### `validate` — Refresh existing listings from Reverb
 
-Starting from existing Odoo records that have a Reverb URL, fetch the current listing data and update fields that have
-drifted (price, availability, shipping, etc.).
+Starting from existing `x_listing` records that have a Reverb URL, fetch the current listing data and update fields
+that have drifted (price, availability, shipping, etc.). Only updates existing records — never creates new ones.
 
 By default **sold/ended** listings are skipped. Pass `--include-sold` to validate them as well (useful to mark stale entries as unavailable).
 
@@ -66,7 +86,7 @@ uv run reverb2odoo validate "Frank Brothers Arcane"
 uv run reverb2odoo validate --all --include-sold   # also validate sold listings
 ```
 
-### `dedup` — Find and remove duplicate listings
+### `dedup` — Find and remove duplicate listings (legacy)
 
 Scans all `x_guitar` records and reports duplicates in two categories:
 
@@ -128,6 +148,30 @@ Each model is rendered as a `###` section sorted alphabetically by name:
 | `fretboard`    | `x_studio_fretboard_1`         | many2one display name             |
 | `web page`     | `x_studio_web_page_1`          | plain text URL                    |
 | `notes`        | `x_studio_notes`               | HTML stripped to plain text       |
+
+### `add-model-fields` — Add custom fields to x_gear, x_listing, and x_models
+
+Adds application-specific fields to models that must already exist in Odoo.
+Create `x_gear` and `x_listing` via **Odoo Studio** first (in that order — `x_listing.x_gear_id`
+references `x_gear`). Studio handles model initialisation, default views, and menu wiring. Then
+run this command to add the fields Studio would not create automatically.
+
+Fields added to `x_listing`: `x_name`, `x_model_id`, `x_url`, `x_platform`, `x_currency_id`,
+`x_price`, `x_shipping`, `x_condition`, `x_status`, `x_is_available`, `x_can_accept_offers`,
+`x_is_taxed`, `x_published_at`, `x_gear_id`.
+
+Fields added to `x_gear`: `x_name`, `x_model_id`, `x_intent`, `x_condition`, `x_status`,
+`x_serial_number`, `x_neck_profile`.
+
+Also adds five price bracket fields (`x_price_p25`, `x_price_p50`,
+`x_price_p75`, `x_price_sample_size`, `x_price_updated_at`) to `x_models`.
+
+Idempotent: already-existing fields are silently skipped.
+
+```bash
+uv run reverb2odoo add-model-fields           # dry-run (default)
+uv run reverb2odoo add-model-fields --apply   # write to Odoo
+```
 
 ## Testing
 

@@ -6,9 +6,11 @@ import pytest
 
 from odoo_connector import (
     GUITAR_FIELDS,
+    LISTING_FIELDS,
     _extract_reverb_item_id,
     _hostname_from_url,
     find_guitar_by_url,
+    find_listing_by_url,
 )
 
 # ── _hostname_from_url ────────────────────────────────────────────────────
@@ -171,3 +173,46 @@ class TestFindGuitarByUrl:
 
         call_args = model.search_read.call_args
         assert call_args[0][1] == GUITAR_FIELDS
+
+
+# ── find_listing_by_url ───────────────────────────────────────────────────
+
+
+class TestFindListingByUrl:
+    """Unit tests for find_listing_by_url (no real Odoo connection)."""
+
+    def test_exact_match(self):
+        record = {"id": 500, "x_name": "Godin Stadium HT"}
+        conn, model = _make_mock_conn(lambda *a, **kw: [record])
+
+        result = find_listing_by_url(conn, "https://reverb.com/item/94370297-godin")
+
+        assert result == record
+        conn.get_model.assert_called_once_with("x_listing")
+        assert model.search_read.call_count == 1
+
+    def test_fallback_to_partial_match(self):
+        record = {"id": 42, "x_name": "Some Guitar"}
+        conn, model = _make_mock_conn(lambda *a, **kw: [])
+        model.search_read.side_effect = [[], [record]]
+
+        result = find_listing_by_url(conn, "https://reverb.com/item/94370297-godin-stadium-ht")
+
+        assert result == record
+        assert model.search_read.call_count == 2
+
+    def test_no_match_returns_none(self):
+        conn, model = _make_mock_conn(lambda *a, **kw: [])
+
+        result = find_listing_by_url(conn, "https://reverb.com/item/99999999-nonexistent")
+
+        assert result is None
+
+    def test_default_fields(self):
+        record = {"id": 10, "x_name": "Test"}
+        conn, model = _make_mock_conn(lambda *a, **kw: [record])
+
+        find_listing_by_url(conn, "https://reverb.com/item/1-test")
+
+        call_args = model.search_read.call_args
+        assert call_args[0][1] == LISTING_FIELDS
