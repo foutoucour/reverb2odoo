@@ -47,17 +47,17 @@ def _fetch_models(conn, *, model_name: str | None = None) -> list[dict]:
     domain: list = []
     if model_name:
         domain = [("x_name", "ilike", model_name)]
-    return x_models.search_read(domain, ["x_name"], order="x_name asc")
+    return x_models.search_read(domain, ["id", "x_name"], order="x_name asc")
 
 
 def _fetch_listing_prices_for_model(conn, model_id: int) -> list[tuple[float, str | None]]:
     """Return (price, published_at) for all x_listing records linked to model_id."""
     listing = conn.get_model("x_listing")
     records = listing.search_read(
-        [("x_model_id", "=", model_id), ("x_studio_taxed_price", ">", 0)],
-        ["x_studio_taxed_price", "x_published_at"],
+        [("x_model_id", "=", model_id), ("x_price", ">", 0)],
+        ["x_price", "x_published_at"],
     )
-    return [(float(r["x_studio_taxed_price"]), r.get("x_published_at") or None) for r in records]
+    return [(float(r["x_price"]), r.get("x_published_at") or None) for r in records]
 
 
 # ---------------------------------------------------------------------------

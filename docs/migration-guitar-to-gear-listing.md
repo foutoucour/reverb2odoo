@@ -31,17 +31,15 @@ tracking, and blocked fair price bracket computation across all listing history 
 | `x_model_id`          | many2one → `x_models`  |                                                   |
 | `x_condition`         | selection              | mint / excellent / very_good / good / fair / poor |
 | `x_intent`            | selection              | flip / keeper / unknown                           |
-| `x_status`            | selection              | **watching** / **owned** / **closed**             |
+| `x_status`            | selection              | **owned** / **sold**                              |
 | `x_is_not_interested` | boolean                | this specific item is out (defect, wrong color…)  |
-| `x_image`             | image                  |                                                   |
 | `x_guitar_id`         | many2one → `x_guitar`  | migration traceability, null for new records      |
 | `x_listing_ids`       | one2many → `x_listing` | all marketplace entries for this item             |
 
 **Status semantics:**
 
-- `watching` — tracking it, don't own it yet
-- `owned` — physically have it (maps from Bought or For Sale)
-- `closed` — no longer in possession (maps from Sold)
+- `owned` — physically have it
+- `sold` — no longer in possession
 
 `x_is_not_interested` can be set on any status (e.g., you're still watching a model for price data but would never buy
 this specific item due to a defect).
@@ -49,39 +47,42 @@ this specific item due to a defect).
 **Model-level cascade:** if `x_models.x_studio_wanna = False`, all linked `x_gear` records are implicitly uninteresting
 regardless of their own flag.
 
+Images are stored on `x_listing` via `x_studio_image`, not on `x_gear`.
+
 ---
 
 ### `x_listing` — marketplace entry
 
-| Field                 | Type                      | Notes                                               |
-|-----------------------|---------------------------|-----------------------------------------------------|
-| `x_name`              | char                      | listing title                                       |
-| `x_gear_id`           | many2one → `x_gear`       | required                                            |
-| `x_url`               | char                      | marketplace URL                                     |
-| `x_platform`          | selection                 | reverb / marketplace / craigslist / other           |
-| `x_price`             | float                     | listing price                                       |
-| `x_currency_id`       | many2one → `res.currency` |                                                     |
-| `x_shipping`          | float                     | shipping cost                                       |
-| `x_status`            | selection                 | **active** / **acquired** / **passed** / **closed** |
-| `x_is_too_expensive`  | boolean                   | explicit "passed because of price" flag             |
-| `x_is_available`      | boolean                   | live on marketplace                                 |
-| `x_can_accept_offers` | boolean                   |                                                     |
-| `x_is_taxed`          | boolean                   |                                                     |
-| `x_published_at`      | datetime                  |                                                     |
-| `x_image`             | image                     | listing photo                                       |
-| `x_guitar_id`         | many2one → `x_guitar`     | migration traceability, null for new records        |
+| Field                 | Type                      | Notes                                                                                   |
+|-----------------------|---------------------------|-----------------------------------------------------------------------------------------|
+| `x_name`              | char                      | listing title                                                                           |
+| `x_gear_id`           | many2one → `x_gear`       | required                                                                                |
+| `x_url`               | char                      | marketplace URL                                                                         |
+| `x_platform`          | selection                 | reverb / marketplace / craigslist / other                                               |
+| `x_price`             | float                     | listing price                                                                           |
+| `x_currency_id`       | many2one → `res.currency` |                                                                                         |
+| `x_shipping`          | float                     | shipping cost                                                                           |
+| `x_status`            | selection                 | **watching** / **acquired** / **passed** / **closed** / **for_sale** / **sold**         |
+| `x_is_available`      | boolean                   | live on marketplace                                                                     |
+| `x_can_accept_offers` | boolean                   |                                                                                         |
+| `x_is_taxed`          | boolean                   |                                                                                         |
+| `x_published_at`      | datetime                  |                                                                                         |
+| `x_studio_image`      | image                     | listing photo                                                                           |
+| `x_guitar_id`         | many2one → `x_guitar`     | migration traceability, null for new records                                            |
 
-**Direction inference:** buy-side vs sell-side is inferred from `x_gear.x_status` — no explicit field needed:
+**Direction inference:** buy-side vs sell-side is inferred from the listing lifecycle — no separate direction field is needed:
 
-- gear is `watching` → listings are buy-side (you're considering buying)
-- gear is `owned` or `closed` → listings include the acquisition event (`status=acquired`) and any sell-side postings
+- buy-side listings typically move through `watching` → `acquired`, `passed`, or `closed`
+- sell-side listings use `for_sale` and, when completed, `sold`
 
 **Listing status semantics:**
 
-- `active` — currently live on a marketplace
+- `watching` — tracking it on a marketplace, considering buying
 - `acquired` — you bought it (the buy-side listing that led to ownership)
-- `passed` — you consciously decided not to pursue (set `x_is_too_expensive` if price was the reason)
+- `passed` — you consciously decided not to pursue
 - `closed` — listing disappeared externally (expired, removed by seller)
+- `for_sale` — you have listed it for sale on a marketplace
+- `sold` — you sold it
 
 ---
 
@@ -106,13 +107,13 @@ regardless of their own flag.
 
 ## Status mapping (x_guitar → x_gear + x_listing)
 
-| `x_guitar` status | `x_gear.x_status` | `x_listing.x_status`              | Notes                                       |
-|-------------------|-------------------|-----------------------------------|---------------------------------------------|
-| Watched           | watching          | active (or closed if unavailable) |                                             |
-| Not Interested    | watching          | active/closed                     | `x_is_not_interested = True` on x_gear      |
-| Bought            | owned             | acquired                          |                                             |
-| For Sale          | owned             | acquired                          | sell-side listings must be created manually |
-| Sold              | closed            | acquired                          |                                             |
+| `x_guitar` status | `x_gear.x_status`   | `x_listing.x_status`              | Notes                                            |
+|-------------------|---------------------|-----------------------------------|--------------------------------------------------|
+| Watched           | *(no x_gear)*       | watching                          |                                                  |
+| Not Interested    | *(no x_gear)*       | passed                            | no x_gear is created for this status             |
+| Bought            | owned               | acquired                          |                                                  |
+| For Sale          | owned               | acquired                          | sell-side listings must be created manually      |
+| Sold              | sold                | acquired                          |                                                  |
 
 The source status field on `x_guitar` is `x_studio_selection_field_7tf_1igs0n52h`.
 
@@ -147,15 +148,15 @@ reverb2odoo validate-migration
 
 Checks performed:
 
-| # | Check                | What it verifies                                                |
-|---|----------------------|-----------------------------------------------------------------|
-| 1 | Coverage             | Every `x_guitar` has a corresponding `x_gear`                   |
-| 2 | Listing link         | Every migrated `x_gear` has at least one `x_listing`            |
-| 3 | Status mapping       | `x_gear.x_status` matches expected value for source status      |
-| 4 | Not-interested flag  | "Not Interested" x_guitar → `x_gear.x_is_not_interested = True` |
-| 5 | Listing field values | `x_url` and `x_platform` populated on all migrated listings     |
-| 6 | Orphan listings      | No `x_listing` with `x_gear_id = False`                         |
-| 7 | Price brackets       | Models with ≥5 listings have brackets computed                  |
+| # | Check                | What it verifies                                                                          |
+|---|----------------------|-------------------------------------------------------------------------------------------|
+| 1 | Coverage             | Every `x_guitar` has an `x_listing`; owned-status guitars have an `x_gear`               |
+| 2 | Listing link         | Every migrated `x_gear` has at least one `x_listing`                                     |
+| 3 | Status mapping       | `x_gear.x_status` matches expected value for source status                               |
+| 4 | Not-interested flag  | "Not Interested" x_guitar → `x_gear.x_is_not_interested = True` (where x_gear exists)   |
+| 5 | Listing field values | `x_url` and `x_platform` populated on all migrated listings                              |
+| 6 | Orphan listings      | No `x_listing` with `x_gear_id = False`                                                  |
+| 7 | Price brackets       | Models with ≥5 listings have brackets computed                                            |
 
 Exits with code 1 if any check fails.
 

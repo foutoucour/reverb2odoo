@@ -5,10 +5,10 @@ for each one.  Does not write anything — read-only.
 
 Checks performed:
 
-  1. Coverage     — every x_guitar has a corresponding x_gear (via x_guitar_id)
+  1. Coverage     — every x_guitar has an x_listing; owned-status guitars have an x_gear
   2. Listing link — every x_gear from migration has at least one x_listing
   3. Status map   — x_gear.x_status matches expected value for each source status
-  4. Not-interest — "Not Interested" x_guitar → x_gear.x_is_not_interested = True
+  4. Not-interest — "Not Interested" x_guitar → x_gear.x_is_not_interested = True (where x_gear exists)
   5. Listing vals — x_listing.x_url, x_price, x_platform populated for migrated records
   6. Orphans      — no x_listing records with x_gear_id = False
   7. Brackets     — x_models with ≥5 linked listings have price brackets set
@@ -51,42 +51,74 @@ class CheckResult:
 
 
 def check_coverage(conn) -> CheckResult:
-    """Every x_guitar should have exactly one x_gear linked via x_guitar_id."""
+    """Validate migration coverage for listings and owned-status gear records."""
     guitar = conn.get_model("x_guitar")
     gear = conn.get_model("x_gear")
+    listing = conn.get_model("x_listing")
 
-    total_guitars = guitar.search_read([], ["id"])
+    total_guitars = guitar.search_read([], ["id", _STATUS_FIELD])
     total_guitar_ids = {r["id"] for r in total_guitars}
+    gear_expected_statuses = set(_GEAR_STATUS_MAP.keys())
+    expected_gear_guitar_ids = {
+        r["id"] for r in total_guitars if r.get(_STATUS_FIELD) in gear_expected_statuses
+    }
 
-    migrated = gear.search_read([("x_guitar_id", "!=", False)], ["x_guitar_id"])
-    migrated_guitar_ids: set[int] = set()
-    for r in migrated:
+    migrated_listings = listing.search_read([("x_guitar_id", "!=", False)], ["x_guitar_id"])
+    listed_guitar_ids: set[int] = set()
+    for r in migrated_listings:
         ref = r["x_guitar_id"]
         gid = ref[0] if isinstance(ref, (list, tuple)) else ref
-        migrated_guitar_ids.add(int(gid))
+        listed_guitar_ids.add(int(gid))
 
-    missing = total_guitar_ids - migrated_guitar_ids
-    extra = migrated_guitar_ids - total_guitar_ids
+    migrated_gear = gear.search_read([("x_guitar_id", "!=", False)], ["x_guitar_id"])
+    geared_guitar_ids: set[int] = set()
+    for r in migrated_gear:
+        ref = r["x_guitar_id"]
+        gid = ref[0] if isinstance(ref, (list, tuple)) else ref
+        geared_guitar_ids.add(int(gid))
+
+    missing_listings = total_guitar_ids - listed_guitar_ids
+    extra_listings = listed_guitar_ids - total_guitar_ids
+    missing_gear = expected_gear_guitar_ids - geared_guitar_ids
+    extra_gear = geared_guitar_ids - total_guitar_ids
 
     warnings: list[str] = []
-    if extra:
-        warnings.append(f"{len(extra)} x_gear record(s) reference non-existent x_guitar ids")
+    if extra_listings:
+        warnings.append(
+            f"{len(extra_listings)} x_listing record(s) reference non-existent x_guitar ids"
+        )
+    if extra_gear:
+        warnings.append(
+            f"{len(extra_gear)} x_gear record(s) reference non-existent x_guitar ids"
+        )
 
-    if missing:
+    if missing_listings or missing_gear:
+        parts: list[str] = [
+            f"{len(listed_guitar_ids)}/{len(total_guitar_ids)} x_guitar records have an x_listing"
+        ]
+        if missing_listings:
+            parts.append(f"{len(missing_listings)} listing(s) missing")
+        parts.append(
+            f"{len(geared_guitar_ids & expected_gear_guitar_ids)}/{len(expected_gear_guitar_ids)} "
+            f"owned-status x_guitar records have an x_gear"
+        )
+        if missing_gear:
+            parts.append(f"{len(missing_gear)} owned-status gear record(s) missing")
+
         return CheckResult(
             name="coverage",
             passed=False,
-            message=(
-                f"{len(migrated_guitar_ids)}/{len(total_guitar_ids)} x_guitar records migrated"
-                f" — {len(missing)} missing"
-            ),
+            message=" — ".join(parts),
             warnings=warnings,
         )
 
     return CheckResult(
         name="coverage",
         passed=True,
-        message=f"All {len(total_guitar_ids)} x_guitar records have a corresponding x_gear",
+        message=(
+            f"All {len(total_guitar_ids)} x_guitar records have an x_listing, and all "
+            f"{len(expected_gear_guitar_ids)} owned-status x_guitar records have a corresponding x_gear"
+        ),
         warnings=warnings,
     )
 
@@ -211,6 +243,23 @@ def check_not_interested_flag(conn) -> CheckResult:
         [("x_guitar_id", "in", ni_guitar_ids)],
         ["id", "x_is_not_interested", "x_guitar_id"],
     )
+
+    found_guitar_ids = {
+        r["x_guitar_id"][0] if isinstance(r["x_guitar_id"], (list, tuple)) else r["x_guitar_id"]
+        for r in gear_records
+        if r.get("x_guitar_id")
+    }
+    missing_guitar_ids = sorted(set(ni_guitar_ids) - found_guitar_ids)
+
+    if missing_guitar_ids:
+        return CheckResult(
+            name="not_interested",
+            passed=False,
+            message=(
+                f"{len(missing_guitar_ids)} 'Not Interested' x_guitar record(s) have no linked x_gear "
+                f"record, so x_is_not_interested could not be validated"
+            ),
+        )
 
     wrong: list[int] = [r["id"] for r in gear_records if not r.get("x_is_not_interested")]
 

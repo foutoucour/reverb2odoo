@@ -235,8 +235,8 @@ def _apply_validation_updates(conn, report: list[dict]) -> list[dict]:
     """Write validation changes back to Odoo.
 
     Only updates existing x_listing records (no creates).  When an entry
-    being updated has no ``x_image``, the first Reverb listing photo is
-    downloaded and included in the update.
+    being updated has no ``x_studio_image``, the first Reverb listing photo
+    is downloaded and included in the update.
 
     Returns a list of dicts with ``id``, ``name``, and ``fields`` (list of
     changed field names) for each updated record.
@@ -268,7 +268,11 @@ def _apply_validation_updates(conn, report: list[dict]) -> list[dict]:
                 logger.info("  ↳ downloaded image for id={}", eid)
 
         # Log changes without the (potentially huge) image blob
-        log_changes = {k: v for k, v in changes.items() if k != "x_image"}
+        log_changes = {
+            k: v
+            for k, v in changes.items()
+            if k not in {"x_image", "x_studio_image"}
+        }
         logger.info("Updating id={}: {}", eid, log_changes)
         listing.write(eid, changes)
         updated_items.append(
