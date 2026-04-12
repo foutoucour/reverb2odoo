@@ -98,6 +98,17 @@ class SpecGroup(BaseModel):
     style: str = "tiles"  # "tiles" | "rows"
 
 
+class NeckProfile(BaseModel):
+    """Neck cross-section data for the SVG diagram."""
+
+    nut_width_mm: float
+    thickness_1st_mm: float
+    thickness_12th_mm: float
+    nut_width_disp: str
+    thickness_1st_disp: str
+    thickness_12th_disp: str
+
+
 class CardContext(BaseModel):
     """Full context passed to the Jinja2 template."""
 
@@ -108,6 +119,7 @@ class CardContext(BaseModel):
     intent: str
     spec_groups: list[SpecGroup]
     photos: list[str]
+    neck_profile: NeckProfile | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -160,26 +172,6 @@ type _MeasEntry = _MeasPair | tuple[str, list[_MeasPair]]
 _MEASUREMENTS: list[_MeasEntry] = [
     ("Scale length", "x_studio_scale_length", "cm", "x_studio_scale_length_imperial", "in"),
     ("Scale radius", "x_studio_scale_radius", "cm", "x_studio_scale_radius_imperial", "in"),
-    ("Nut width", "x_studio_nut_width", "mm", "x_studio_nut_width_imperial", "in"),
-    (
-        "Thickness",
-        [
-            (
-                "1st fret",
-                "x_studio_thickness_first_fret",
-                "mm",
-                "x_studio_thickness_first_fret_imperial",
-                "in",
-            ),
-            (
-                "12th fret",
-                "x_studio_thickness_twelfth_fret",
-                "mm",
-                "x_studio_thickness_twelfth_fret_imperial",
-                "in",
-            ),
-        ],
-    ),
     ("Weight", "x_studio_weight", "kg", "x_studio_weight_imperial", "lbs"),
 ]
 
@@ -439,6 +431,42 @@ def _build_spec_groups(
     return groups
 
 
+def _raw_float(gear: GearRecord, field: str) -> float:
+    val = gear.model_extra.get(field)
+    if val is False or val is None:
+        return 0.0
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _build_neck_profile(gear: GearRecord) -> NeckProfile | None:
+    nut_w = _raw_float(gear, "x_studio_nut_width")
+    if nut_w <= 0:
+        return None
+
+    def _disp(mm_field: str, in_field: str) -> str:
+        mm = _raw_float(gear, mm_field)
+        imp = _raw_float(gear, in_field)
+        mm_s = f"{mm:.1f} mm" if mm else "—"
+        in_s = f"{imp:.3f}".rstrip("0").rstrip(".") + '"' if imp else ""
+        return f"{mm_s}  {in_s}".strip() if in_s else mm_s
+
+    return NeckProfile(
+        nut_width_mm=nut_w,
+        thickness_1st_mm=_raw_float(gear, "x_studio_thickness_first_fret"),
+        thickness_12th_mm=_raw_float(gear, "x_studio_thickness_twelfth_fret"),
+        nut_width_disp=_disp("x_studio_nut_width", "x_studio_nut_width_imperial"),
+        thickness_1st_disp=_disp(
+            "x_studio_thickness_first_fret", "x_studio_thickness_first_fret_imperial"
+        ),
+        thickness_12th_disp=_disp(
+            "x_studio_thickness_twelfth_fret", "x_studio_thickness_twelfth_fret_imperial"
+        ),
+    )
+
+
 def _build_context(
     gear: GearRecord,
     field_meta: dict[str, FieldMeta],
@@ -470,6 +498,7 @@ def _build_context(
         intent=intent,
         spec_groups=spec_groups,
         photos=photos,
+        neck_profile=_build_neck_profile(gear),
     )
 
 
