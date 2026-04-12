@@ -120,6 +120,7 @@ class CardContext(BaseModel):
     spec_groups: list[SpecGroup]
     photos: list[str]
     neck_profile: NeckProfile | None = None
+    weight_lbs: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -499,6 +500,7 @@ def _build_context(
         spec_groups=spec_groups,
         photos=photos,
         neck_profile=_build_neck_profile(gear),
+        weight_lbs=_raw_float(gear, "x_studio_weight_imperial"),
     )
 
 

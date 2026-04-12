@@ -224,6 +224,77 @@
       </div>
       {% endfor %}
 
+      {# ── Weight gauge ── #}
+      {% if weight_lbs > 0 %}
+      {% set WMN  = 5.0 %}
+      {% set WMX  = 11.0 %}
+      {% set TL   = 48 %}
+      {% set TR   = 352 %}
+      {% set TW   = TR - TL %}
+      {% set TY   = 46 %}
+      {% set TH   = 8 %}
+      {% set CLW  = [weight_lbs, WMN] | max %}
+      {% set CLW  = [CLW, WMX] | min %}
+      {% set PCT  = (CLW - WMN) / (WMX - WMN) %}
+      {% set MX   = TL + PCT * TW %}
+      {% set WDISP = weight_lbs | round(1) %}
+      <div class="section">
+        <div class="section-title">Weight</div>
+        <svg viewBox="0 0 400 78"
+             style="width:100%;max-width:480px;display:block"
+             xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="wgrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%"   stop-color="#2dd4bf"/>
+              <stop offset="45%"  stop-color="#f0a732"/>
+              <stop offset="100%" stop-color="#ef4444"/>
+            </linearGradient>
+            <clipPath id="wclip">
+              <rect x="{{ TL }}" y="{{ TY - TH / 2 }}" width="{{ PCT * TW }}" height="{{ TH }}" rx="4"/>
+            </clipPath>
+          </defs>
+
+          {# Track background #}
+          <rect x="{{ TL }}" y="{{ TY - TH / 2 }}" width="{{ TW }}" height="{{ TH }}" rx="4" fill="#1c1f2b"/>
+
+          {# Gradient fill up to marker position #}
+          <rect x="{{ TL }}" y="{{ TY - TH / 2 }}" width="{{ TW }}" height="{{ TH }}" rx="4"
+                fill="url(#wgrad)" clip-path="url(#wclip)"/>
+
+          {# Tick marks and labels #}
+          {% for i in range(7) %}
+          {% set TX = TL + i / 6.0 * TW %}
+          <line x1="{{ TX }}" y1="{{ TY + TH / 2 }}" x2="{{ TX }}" y2="{{ TY + TH / 2 + 5 }}"
+                stroke="#434a5e" stroke-width="1"/>
+          <text x="{{ TX }}" y="{{ TY + TH / 2 + 16 }}" text-anchor="middle"
+                font-size="9" fill="#434a5e"
+                font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">{{ 5 + i }}</text>
+          {% endfor %}
+
+          {# Range labels #}
+          <text x="{{ TL }}" y="{{ TY + TH / 2 + 28 }}" text-anchor="middle"
+                font-size="8" fill="#2dd4bf" letter-spacing=".5"
+                font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">LIGHT</text>
+          <text x="{{ TR }}" y="{{ TY + TH / 2 + 28 }}" text-anchor="middle"
+                font-size="8" fill="#ef4444" letter-spacing=".5"
+                font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">HEAVY</text>
+
+          {# Marker stem #}
+          <line x1="{{ MX }}" y1="{{ TY - TH / 2 - 2 }}" x2="{{ MX }}" y2="{{ TY - TH / 2 - 10 }}"
+                stroke="#e4e6f0" stroke-width="1.5"/>
+
+          {# Marker triangle (pointing down) #}
+          <polygon points="{{ MX }},{{ TY - TH / 2 - 1 }} {{ MX - 5 }},{{ TY - TH / 2 - 10 }} {{ MX + 5 }},{{ TY - TH / 2 - 10 }}"
+                   fill="#e4e6f0"/>
+
+          {# Weight label #}
+          <text x="{{ MX }}" y="{{ TY - TH / 2 - 14 }}" text-anchor="middle"
+                font-size="9.5" font-weight="700" fill="#e4e6f0"
+                font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">{{ WDISP }} lbs</text>
+        </svg>
+      </div>
+      {% endif %}
+
       {# ── Neck Profile diagram ── #}
       {% if neck_profile and neck_profile.nut_width_mm > 0 %}
       {% set NW   = neck_profile.nut_width_mm %}
