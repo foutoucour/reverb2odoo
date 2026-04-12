@@ -22,6 +22,7 @@ from loguru import logger
 from compute_price_brackets import cli as compute_price_brackets_cmd
 from create_odoo_schema import cli as add_model_fields_cmd
 from dedup_model import cli as dedup_cmd
+from gear_page import cli as gear_page_cmd
 from gpt_model import cli as gpt_files_cmd
 from odoo_connector import get_connection
 from remove_studio_sequence import cli as remove_studio_sequence_cmd
@@ -79,6 +80,7 @@ def main(
     )
 
 
+main.add_command(gear_page_cmd)
 main.add_command(sync_cmd)
 main.add_command(validate_cmd)
 main.add_command(gpt_files_cmd)

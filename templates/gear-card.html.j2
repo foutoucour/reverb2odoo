@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ gear_name }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+    .card {
+      background: #1e1e2e;
+      border-radius: 16px;
+      box-shadow: 0 8px 48px rgba(0,0,0,.5);
+      width: 100%;
+      max-width: 680px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+
+    /* Photos */
+    .photos {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #0d0d1a;
+      max-height: 420px;
+      overflow: hidden;
+    }
+    .photos img {
+      max-height: 420px;
+      max-width: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .photos-empty {
+      width: 100%;
+      height: 200px;
+      background: #16162a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #4a4a6a;
+      font-size: 0.9rem;
+    }
+
+    /* Header */
+    .body { padding: 28px 24px; }
+    .title {
+      font-size: 1.7rem;
+      font-weight: 800;
+      line-height: 1.2;
+      color: #f0e6d3;
+      margin-bottom: 28px;
+      letter-spacing: -.01em;
+    }
+
+    /* Section */
+    .section { margin-bottom: 24px; }
+    .section-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+    }
+
+    /* Section accent colors */
+    .section:nth-child(1) .section-title { color: #e2a04f; }
+    .section:nth-child(2) .section-title { color: #7ec8e3; }
+    .section:nth-child(3) .section-title { color: #b08ee0; }
+    .section:nth-child(4) .section-title { color: #7ecba1; }
+    .section:nth-child(5) .section-title { color: #e07eb0; }
+    .section:nth-child(6) .section-title { color: #e2a04f; }
+
+    /* Spec tiles */
+    .specs {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+    }
+    .spec {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 10px;
+      padding: 10px 14px;
+      transition: background .15s;
+    }
+    .spec-label {
+      font-size: 0.66rem;
+      color: #666888;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+    }
+    .spec-value {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: #ddd8f0;
+      margin-top: 4px;
+    }
+
+    /* Row style (measurements, materials) */
+    .measurements {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .mrow {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 10px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+    }
+    .mrow:last-child { border-bottom: none; }
+    .mrow:nth-child(even) { background: rgba(255,255,255,.025); }
+    .mrow-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #888aaa;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      flex-shrink: 0;
+      margin-right: 16px;
+    }
+    .mrow-value {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #ddd8f0;
+      text-align: right;
+      white-space: pre-line;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 12px 24px;
+      background: rgba(0,0,0,.2);
+      border-top: 1px solid rgba(255,255,255,.05);
+      font-size: 0.72rem;
+      color: #3a3a5a;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+
+    {# Photos #}
+    {% if photos %}
+    <div class="photos">
+      {% for photo_b64 in photos %}
+      <img src="data:image/jpeg;base64,{{ photo_b64 }}" alt="gear photo" />
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="photos-empty">No photos</div>
+    {% endif %}
+
+    <div class="body">
+      <div class="title">{{ brand }}{% if model_name %} {{ model_name }}{% endif %}</div>
+
+      {# Grouped specs #}
+      {% for group in spec_groups %}
+      <div class="section">
+        <div class="section-title">{{ group.title }}</div>
+        {% if group.style == "rows" %}
+        <div class="measurements">
+          {% for label, value in group.specs %}
+          <div class="mrow">
+            <span class="mrow-label">{{ label }}</span>
+            <span class="mrow-value">{{ value | replace("\n", "<br>") | safe }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="specs">
+          {% for label, value in group.specs %}
+          <div class="spec">
+            <div class="spec-label">{{ label }}</div>
+            <div class="spec-value">{{ value }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+    </div>
+
+    <div class="footer">lespaulpedia</div>
+  </div>
+</body>
+</html>
