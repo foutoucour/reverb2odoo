@@ -5,27 +5,91 @@
 [![Daily Sync (Wanna)](https://github.com/foutoucour/reverb2odoo/actions/workflows/sync-wanna.yml/badge.svg)](https://github.com/foutoucour/reverb2odoo/actions/workflows/sync-wanna.yml)
 [![Daily Price Brackets](https://github.com/foutoucour/reverb2odoo/actions/workflows/compute-price-brackets.yml/badge.svg)](https://github.com/foutoucour/reverb2odoo/actions/workflows/compute-price-brackets.yml)
 
-CLI tool to sync gear listings from [Reverb.com](https://reverb.com) into an [Odoo](https://www.odoo.com) database. It
-searches the Reverb public API, compares results against existing Odoo records, and creates or updates entries as
-needed.
+CLI tool to sync gear listings from [Reverb.com](https://reverb.com) into an [Odoo](https://www.odoo.com) database.
+It searches the Reverb public API, compares results against existing Odoo records, and creates or updates entries as
+needed. It also ships an **MCP server** that exposes the collection as live resources for Claude Desktop.
 
 ## Data model
 
 | Model | Purpose |
 |---|---|
-| `x_listing` | Marketplace entry — one record per Reverb listing. Primary sync target. |
-| `x_gear` | Physical item — created only when a listing is acquired (~20 records vs thousands). Holds serial number, neck profile, and other physical details. |
-| `x_models` | Gear model catalogue (brand, specs, Reverb category, price brackets). |
+| `x_listing` | Marketplace entry — one record per listing. Primary sync target. |
+| `x_gear` | Physical item — one per guitar/pedal/amp. Owns the item lifecycle. |
+| `x_models` | Gear model catalogue (brand, specs, Reverb category, price brackets p25/p50/p75). |
 | `x_reverb_category` | Reverb category slugs and default shipping costs. |
 
-`x_listing` drives the workflow: the `sync` command creates and updates listing records. `x_gear` records are created
-manually in Odoo when you mark a listing as acquired.
+`x_listing` drives the sync workflow. `x_gear` records are created manually in Odoo when a listing is acquired.
+
+### x_gear status lifecycle
+
+`owned` → `for_sale` → `sold`
 
 ### x_listing status lifecycle
 
-**Buy side** (from sync): `watching` → `acquired` | `passed` | `closed`
+**Buy side** (from sync): `watching` → `acquired` | `passed`
 
-**Sell side** (created manually per platform): `for_sale` → `sold` | `closed`
+**Sell side** (created manually per platform): `for_sale` → `sold`
+
+## MCP Server — Collection Source of Truth
+
+The `odoo-mcp` server exposes your Odoo collection as live [MCP](https://modelcontextprotocol.io) resources for
+Claude Desktop, replacing static markdown knowledge-base files with real-time queries.
+
+### Resources
+
+| URI | Source | Description |
+|---|---|---|
+| `odoo://collection` | `x_gear` (owned + for_sale) | Gear you own or are currently selling, with listing details |
+| `odoo://watchlist` | `x_models` (wanna=True) | Models you want, with score-ranked watching listings and price brackets |
+| `odoo://sold` | `x_gear` (sold) | Flip history with P&L per item |
+| `odoo://brands` | `res.partner` + GitHub README | Brand catalog by category, enriched with construction details |
+| `odoo://models` | `x_models` (all) | Full model catalog; highlights wanna=True models with no listings tracked |
+
+### Tools
+
+| Tool | Params | Returns |
+|---|---|---|
+| `search_gear` | `brand`, `model_type`, `status`, `intent` (all optional) | Filtered gear cards |
+| `get_model` | `name_or_id` | Full model spec with all linked gear and listings |
+| `get_gear` | `gear_id` | Single gear detail with scores, notes, and listing history |
+
+### Claude Desktop setup
+
+Add to your Claude Desktop `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "odoo-collection": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/reverb2odoo", "run", "odoo-mcp"],
+      "env": {
+        "ODOO_HOSTNAME": "https://yourinstance.odoo.com/odoo",
+        "ODOO_DATABASE": "yourdb",
+        "ODOO_LOGIN": "user@example.com",
+        "ODOO_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
+Or use a `.env` file at the project root (same vars as the CLI) — the server loads it automatically.
+
+### Running the server manually
+
+```bash
+uv run odoo-mcp
+```
+
+Use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) to explore resources interactively:
+
+```bash
+npx @modelcontextprotocol/inspector uv run odoo-mcp
+```
+
+> **Note**: `x_models` field names (especially computed score fields) should be verified against your live Odoo
+> schema before first use. Run `conn.get_model("x_models").fields_get()` to inspect.
 
 ## Requirements
 
@@ -104,10 +168,12 @@ uv run reverb2odoo dedup --delete          # prompt before deleting each duplica
 uv run reverb2odoo dedup --delete --yes    # delete all duplicates without prompting
 ```
 
-### `gpt-files` — Generate ChatGPT knowledge-base files
+### `gpt-files` — Generate knowledge-base files (superseded by MCP server)
 
-Reads every model from the Odoo `x_models` catalogue and writes two RAG-optimised markdown files for use as a custom GPT
-knowledge base:
+> The `odoo://models` and `odoo://watchlist` MCP resources provide the same information as live queries.
+> This command is kept for offline use or custom GPT integrations.
+
+Reads every model from the Odoo `x_models` catalogue and writes two RAG-optimised markdown files:
 
 | File                         | Content                                         |
 |------------------------------|-------------------------------------------------|
