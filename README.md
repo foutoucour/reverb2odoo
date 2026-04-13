@@ -88,6 +88,9 @@ Use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) to ex
 npx @modelcontextprotocol/inspector uv run odoo-mcp
 ```
 
+> **Read-only**: the MCP server never writes to Odoo. Every operation uses `search_read` only — no
+> `write`, `create`, or `unlink` calls. It is safe to connect to a production instance.
+
 > **Note**: `x_models` field names (especially computed score fields) should be verified against your live Odoo
 > schema before first use. Run `conn.get_model("x_models").fields_get()` to inspect.
 

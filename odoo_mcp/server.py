@@ -2,6 +2,13 @@
 
 Wires FastMCP resources and tools to the underlying render/run functions
 from the odoo_mcp package.  Transport defaults to stdio (Claude Desktop).
+
+READ-ONLY CONSTRAINT
+====================
+This server is strictly read-only.  Every Odoo call in this package uses
+``search_read`` (or equivalent read operations) — no ``write``, ``create``,
+or ``unlink`` calls are permitted.  Resources and tools must never mutate
+Odoo state.  Enforce this when adding new resources or tools.
 """
 
 from mcp.server.fastmcp import FastMCP
