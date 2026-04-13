@@ -21,6 +21,7 @@ from typing import Any
 
 import click
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from playwright.sync_api import sync_playwright
 from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 from rich.panel import Panel
@@ -406,7 +407,7 @@ def _build_spec_groups(
         groups.append(
             SpecGroup(
                 title="Pickups",
-                specs=[("Pickup", name) for name in pickup_names],
+                specs=[("", name) for name in pickup_names],
             )
         )
     assigned.add("x_studio_current_pickup_ids")
@@ -524,6 +525,26 @@ def _slugify(name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Image rendering
+# ---------------------------------------------------------------------------
+
+
+def _render_image(html_path: Path) -> Path:
+    """Render an HTML card to a high-resolution PNG via headless Chromium."""
+    png_path = html_path.with_suffix(".png")
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page(
+            viewport={"width": 760, "height": 900},
+            device_scale_factor=2,
+        )
+        page.goto(f"file://{html_path.resolve()}", wait_until="networkidle")
+        page.screenshot(path=str(png_path), full_page=True)
+        browser.close()
+    return png_path
+
+
+# ---------------------------------------------------------------------------
 # Core logic
 # ---------------------------------------------------------------------------
 
@@ -588,8 +609,9 @@ def generate_gear_card(conn, gear_ref: str, *, output_dir: Path) -> Path:
     show_default=True,
     help="Directory to write the HTML file into.",
 )
+@click.option("--no-image", "skip_image", is_flag=True, default=False, help="Skip PNG export.")
 @click.pass_context
-def cli(ctx: click.Context, gear_ref: str, output_dir: str) -> None:
+def cli(ctx: click.Context, gear_ref: str, output_dir: str, skip_image: bool) -> None:
     """Generate a shareable product card for a single gear item.
 
     GEAR_REF is either a numeric gear ID or a name (partial match).
@@ -601,3 +623,8 @@ def cli(ctx: click.Context, gear_ref: str, output_dir: str) -> None:
     conn = ctx.obj["conn"]
     out = generate_gear_card(conn, gear_ref, output_dir=Path(output_dir))
     _console.print(f"\n[bold green]✓[/bold green] Card written → [cyan]{out}[/cyan]")
+
+    if not skip_image:
+        with _console.status("[bold cyan]Rendering image…[/bold cyan]"):
+            img_out = _render_image(out)
+        _console.print(f"[bold green]✓[/bold green] Image written → [cyan]{img_out}[/cyan]")

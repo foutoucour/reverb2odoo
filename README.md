@@ -168,54 +168,6 @@ uv run reverb2odoo dedup --delete          # prompt before deleting each duplica
 uv run reverb2odoo dedup --delete --yes    # delete all duplicates without prompting
 ```
 
-### `gpt-files` — Generate knowledge-base files (superseded by MCP server)
-
-> The `odoo://models` and `odoo://watchlist` MCP resources provide the same information as live queries.
-> This command is kept for offline use or custom GPT integrations.
-
-Reads every model from the Odoo `x_models` catalogue and writes two RAG-optimised markdown files:
-
-| File                         | Content                                         |
-|------------------------------|-------------------------------------------------|
-| `gpt-files/models_gibson.md` | Gibson, Gibson Custom Shop, and Epiphone Guitars models |
-| `gpt-files/models_others.md` | All other brands                                |
-
-```bash
-uv run reverb2odoo gpt-files
-# custom output paths:
-uv run reverb2odoo gpt-files --gibson-file path/to/gibson.md --other-file path/to/other.md
-```
-
-Each model is rendered as a `###` section sorted alphabetically by name:
-
-```markdown
-### Les Paul Standard 50s
-
-- brand: Gibson
-- Model type: Guitar
-- construction: set-neck + Solid body
-- neckFeel: slim
-- scale: 24.75
-- finish: Nitrocellulose Lacquer
-- fretboard: Rosewood
-- web page: https://www.gibson.com/...
-- notes: Classic Les Paul with vintage-spec pickups and a chunky 50s neck profile.
-```
-
-**Field sources:**
-
-| Field          | Odoo field                     | Notes                             |
-|----------------|--------------------------------|-----------------------------------|
-| `brand`        | `x_studio_partner_id`          | many2one display name (res.partner) |
-| `Model type`   | `x_studio_model_type`          | selection string                  |
-| `construction` | `x_studio_guitar_familly_ids`  | many2many names joined with ` + ` |
-| `neckFeel`     | `x_studio_guitar_neck_feel_id` | many2one display name             |
-| `scale`        | `x_studio_scale`               | selection string                  |
-| `finish`       | `x_studio_finish`              | many2one display name             |
-| `fretboard`    | `x_studio_fretboard_1`         | many2one display name             |
-| `web page`     | `x_studio_web_page_1`          | plain text URL                    |
-| `notes`        | `x_studio_notes`               | HTML stripped to plain text       |
-
 ### `add-model-fields` — Add custom fields to x_gear, x_listing, and x_models
 
 Adds application-specific fields to models that must already exist in Odoo.

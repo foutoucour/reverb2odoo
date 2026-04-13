@@ -1,0 +1,207 @@
+{
+  "project": "Odoo MCP Server — Collection Source of Truth",
+  "branchName": "003-odoo-mcp-server",
+  "userStories": [
+    {
+      "id": "T-001",
+      "title": "Add mcp and python-dotenv dependencies + entry point",
+      "priority": 1,
+      "round": 1,
+      "passes": false,
+      "dependsOn": [],
+      "acceptanceCriteria": [
+        "mcp[cli]>=1.0,<2 added to pyproject.toml dependencies",
+        "python-dotenv>=1.0,<2 added to pyproject.toml dependencies",
+        "odoo-mcp = 'odoo_mcp.server:main' added under [project.scripts]",
+        "odoo_mcp added to ruff known-first-party isort config",
+        "uv sync completes without error"
+      ]
+    },
+    {
+      "id": "T-002",
+      "title": "Add MCP field constants to odoo_connector.py",
+      "priority": 2,
+      "round": 1,
+      "passes": false,
+      "dependsOn": [],
+      "acceptanceCriteria": [
+        "GEAR_FIELDS_MCP constant added with: id, x_name, x_model_id, x_intent, x_condition, x_status, x_serial_number, x_neck_profile, x_studio_acquiring_price, x_studio_notes, x_listing_ids",
+        "LISTING_FIELDS_MCP constant added with: id, x_name, x_model_id, x_url, x_platform, x_price, x_currency_id, x_shipping, x_condition, x_status, x_is_available, x_can_accept_offers, x_is_taxed, x_published_at, x_gear_id, x_studio_listing_score, x_studio_price_score, x_studio_notes",
+        "MODEL_FIELDS_MCP constant added with: id, x_name, x_studio_partner_id, x_studio_model_type, x_studio_wanna, x_studio_guitar_familly_ids, x_studio_guitar_neck_feel_id, x_studio_scale, x_studio_finish, x_studio_fretboard_1, x_studio_p25, x_studio_p50, x_studio_p75",
+        "Existing GUITAR_FIELDS, LISTING_FIELDS, GEAR_FIELDS constants unchanged",
+        "from odoo_connector import GEAR_FIELDS_MCP, LISTING_FIELDS_MCP, MODEL_FIELDS_MCP raises no ImportError"
+      ]
+    },
+    {
+      "id": "T-003",
+      "title": "Create odoo_mcp/config.py with OdooConfig and get_connection_from_env",
+      "priority": 3,
+      "round": 2,
+      "passes": false,
+      "dependsOn": ["T-001", "T-002"],
+      "acceptanceCriteria": [
+        "odoo_mcp/__init__.py created (empty)",
+        "odoo_mcp/config.py created with OdooConfig dataclass (hostname, database, login, password fields)",
+        "get_odoo_config() reads ODOO_HOSTNAME, ODOO_DATABASE, ODOO_LOGIN, ODOO_PASSWORD from environment",
+        "load_dotenv loads .env from project root (parent of odoo_mcp/)",
+        "get_connection_from_env() returns authenticated odoolib connection",
+        "get_odoo_config() raises KeyError when any required env var is missing"
+      ]
+    },
+    {
+      "id": "T-004",
+      "title": "Create odoo_mcp/brand_cache.py with GitHub README parser and TTL cache",
+      "priority": 4,
+      "round": 3,
+      "passes": false,
+      "dependsOn": ["T-003"],
+      "acceptanceCriteria": [
+        "parse_readme_brands(text: str) -> list[dict] parses '## Brand:' sections extracting name, web, made_in, price_range, single_cut_models, description",
+        "get_brands(conn) fetches res.partner with domain [('category_id', '!=', False)] and fields: id, name, x_studio_average_price, country_id, website, category_id",
+        "get_brands(conn) merges Odoo partners with README brands by case-insensitive name match",
+        "get_brands(conn) returns partial records: brand in Odoo only has made_in=None; brand in README only has odoo_id=None",
+        "Module-level cache (_cache, _fetched_at) prevents re-fetching within 30 days",
+        "Cache is invalidated and refreshed when >30 days old",
+        "GitHub README fetched from https://raw.githubusercontent.com/foutoucour/awesome-single-cut-guitars/main/README.md using httpx"
+      ]
+    },
+    {
+      "id": "T-005",
+      "title": "Create odoo_mcp/resources/collection.py",
+      "priority": 5,
+      "round": 3,
+      "passes": false,
+      "dependsOn": ["T-003"],
+      "acceptanceCriteria": [
+        "render(conn) queries x_gear where x_status in ['owned', 'for_sale'] using GEAR_FIELDS_MCP",
+        "For owned gear: fetches linked x_listing where x_status='acquired'",
+        "For for_sale gear: fetches linked x_listing where x_status in ['for_sale', 'sold']",
+        "Each gear rendered with: name, status, model name, condition, intent, acquiring_price, serial_number",
+        "Gear notes rendered only when non-empty/non-False",
+        "Each listing rendered with: platform, url, price, currency, listing_score, listing notes",
+        "Returns formatted markdown string"
+      ]
+    },
+    {
+      "id": "T-006",
+      "title": "Create odoo_mcp/resources/watchlist.py",
+      "priority": 6,
+      "round": 3,
+      "passes": false,
+      "dependsOn": ["T-003"],
+      "acceptanceCriteria": [
+        "render(conn) queries x_models where x_studio_wanna=True using MODEL_FIELDS_MCP",
+        "For each model: fetches x_listing where x_status='watching' using LISTING_FIELDS_MCP",
+        "Watching listings sorted by x_studio_listing_score descending",
+        "Each model rendered with: name, brand, model_type, scale, neck_feel, p25, p50, p75",
+        "Each listing rendered with: listing_score, price_score, price, currency, platform, url, notes",
+        "Models with zero watching listings show 'No listings tracked'",
+        "Returns formatted markdown string"
+      ]
+    },
+    {
+      "id": "T-007",
+      "title": "Create odoo_mcp/resources/sold.py",
+      "priority": 7,
+      "round": 3,
+      "passes": false,
+      "dependsOn": ["T-003"],
+      "acceptanceCriteria": [
+        "render(conn) queries x_gear where x_status='sold' using GEAR_FIELDS_MCP",
+        "For each sold gear: fetches x_listing where x_status='sold' using LISTING_FIELDS_MCP",
+        "P&L computed as sale_price - acquiring_price when both available and same currency",
+        "P&L shows 'unknown' when no sold listing found",
+        "P&L shows 'mixed currencies' when currencies differ",
+        "Each gear rendered with: name, model, condition, acquiring_price, sale_price, platform, P&L, notes",
+        "Returns formatted markdown string"
+      ]
+    },
+    {
+      "id": "T-008",
+      "title": "Create odoo_mcp/resources/brands.py",
+      "priority": 8,
+      "round": 3,
+      "passes": false,
+      "dependsOn": ["T-003", "T-004"],
+      "acceptanceCriteria": [
+        "render(conn) calls brand_cache.get_brands(conn) to get merged brand list",
+        "Brands grouped by their res.partner category names",
+        "Guitar-maker brands show: country, made_in, price_range, single_cut_models, average_price, description",
+        "Non-guitar brands show: country, average_price (README fields omitted)",
+        "Brands in Odoo but not README render without README fields (no error)",
+        "Returns formatted markdown string with one H2 section per category"
+      ]
+    },
+    {
+      "id": "T-009",
+      "title": "Create odoo_mcp/resources/models.py",
+      "priority": 9,
+      "round": 3,
+      "passes": false,
+      "dependsOn": ["T-003"],
+      "acceptanceCriteria": [
+        "render(conn) queries ALL x_models records (no wanna filter) using MODEL_FIELDS_MCP",
+        "For each model: counts linked x_gear grouped by status (owned, for_sale, sold) and x_listing with status=watching",
+        "Top section '⚠️ Wanted — No Listings Tracked' lists wanna=True models with zero watching listings",
+        "Full catalog section shows all models with: brand, type, wanna flag, scale, neck, fretboard, finish, p25/p50/p75, gear counts per status",
+        "Returns formatted markdown string"
+      ]
+    },
+    {
+      "id": "T-010",
+      "title": "Create odoo_mcp/tools/ with search_gear, get_model, get_gear",
+      "priority": 10,
+      "round": 3,
+      "passes": false,
+      "dependsOn": ["T-003"],
+      "acceptanceCriteria": [
+        "odoo_mcp/tools/__init__.py created (empty)",
+        "search_gear.run(conn, brand, model_type, status, intent) builds Odoo domain from non-empty params and searches x_gear joined with x_models",
+        "search_gear returns compact cards: name, status, model, condition, intent as markdown",
+        "get_model.run(conn, name_or_id) searches x_models by name (ilike) when name_or_id is non-numeric, by id when numeric",
+        "get_model returns full model spec + all linked x_gear across all statuses + x_listing grouped by status",
+        "get_gear.run(conn, gear_id) fetches single x_gear by id with GEAR_FIELDS_MCP",
+        "get_gear returns full gear record with gear notes + all linked listings with full details (scores, notes, url)"
+      ]
+    },
+    {
+      "id": "T-011",
+      "title": "Create odoo_mcp/server.py — wire FastMCP app",
+      "priority": 11,
+      "round": 4,
+      "passes": false,
+      "dependsOn": ["T-005", "T-006", "T-007", "T-008", "T-009", "T-010"],
+      "acceptanceCriteria": [
+        "FastMCP('odoo-collection') app created",
+        "odoo://collection resource registered, calls collection.render(get_connection_from_env())",
+        "odoo://watchlist resource registered, calls watchlist.render(get_connection_from_env())",
+        "odoo://sold resource registered, calls sold.render(get_connection_from_env())",
+        "odoo://brands resource registered, calls brands.render(get_connection_from_env())",
+        "odoo://models resource registered, calls models.render(get_connection_from_env())",
+        "search_gear tool registered with params: brand, model_type, status, intent (all optional str)",
+        "get_model tool registered with param: name_or_id (str)",
+        "get_gear tool registered with param: gear_id (int)",
+        "main() function calls mcp.run() with no arguments (stdio transport default)",
+        "uv run odoo-mcp starts without import errors (requires valid .env)"
+      ]
+    },
+    {
+      "id": "T-012",
+      "title": "Update .mcp.json and write unit tests",
+      "priority": 12,
+      "round": 5,
+      "passes": false,
+      "dependsOn": ["T-011"],
+      "acceptanceCriteria": [
+        ".mcp.json updated with odoo-collection server entry: command=uv, args=['run','odoo-mcp'], env passthrough for 4 ODOO_* vars",
+        "tests/test_odoo_mcp_config.py created: get_odoo_config() raises KeyError when ODOO_HOSTNAME missing from env",
+        "tests/test_odoo_mcp_config.py: get_odoo_config() returns OdooConfig with correct values when all vars set",
+        "tests/test_odoo_mcp_brand_cache.py created: parse_readme_brands() extracts name and made_in from sample README markdown",
+        "tests/test_odoo_mcp_brand_cache.py: get_brands() returns cached result without HTTP call when cache <30 days old (mock datetime and httpx)",
+        "tests/test_odoo_mcp_brand_cache.py: brand in Odoo but not README returns partial record with made_in=None",
+        "All new tests use pytest.param with id= for parameterized cases",
+        "uv run pytest passes with all existing and new tests"
+      ]
+    }
+  ]
+}
