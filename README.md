@@ -151,47 +151,6 @@ uv run reverb2odoo validate "Frank Brothers Arcane"
 uv run reverb2odoo validate --all --include-sold   # also validate sold listings
 ```
 
-### `dedup` — Find and remove duplicate listings
-
-Scans all `x_listing` records and reports duplicates in two categories:
-
-| Category | Description |
-|---|---|
-| **Exact URL duplicates** | Records sharing the same URL (query-string ignored) |
-| **Same Reverb item ID** | Records with the same numeric item ID but a different URL slug (listing renamed/relisted on Reverb) |
-
-In each group the record to keep is chosen by priority: active+available first, then lowest Odoo ID.
-
-```bash
-uv run reverb2odoo dedup                   # report only
-uv run reverb2odoo dedup --delete          # prompt before deleting each duplicate
-uv run reverb2odoo dedup --delete --yes    # delete all duplicates without prompting
-```
-
-### `add-model-fields` — Add custom fields to x_gear, x_listing, and x_models
-
-Adds application-specific fields to models that must already exist in Odoo.
-Create `x_gear` and `x_listing` via **Odoo Studio** first (in that order — `x_listing.x_gear_id`
-references `x_gear`). Studio handles model initialisation, default views, and menu wiring. Then
-run this command to add the fields Studio would not create automatically.
-
-Fields added to `x_listing`: `x_name`, `x_model_id`, `x_url`, `x_platform`, `x_currency_id`,
-`x_price`, `x_shipping`, `x_condition`, `x_status`, `x_is_available`, `x_can_accept_offers`,
-`x_is_taxed`, `x_published_at`, `x_gear_id`.
-
-Fields added to `x_gear`: `x_name`, `x_model_id`, `x_intent`, `x_condition`, `x_status`,
-`x_serial_number`, `x_neck_profile`.
-
-Also adds five price bracket fields (`x_price_p25`, `x_price_p50`,
-`x_price_p75`, `x_price_sample_size`, `x_price_updated_at`) to `x_models`.
-
-Idempotent: already-existing fields are silently skipped.
-
-```bash
-uv run reverb2odoo add-model-fields           # dry-run (default)
-uv run reverb2odoo add-model-fields --apply   # write to Odoo
-```
-
 ### `set-default-currency` — Set CAD as the default currency on a model
 
 Sets `CAD` as the default value for `x_studio_currency_id` on the given Odoo model.
