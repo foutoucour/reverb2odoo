@@ -153,16 +153,20 @@ def _build_validation_report(
 
         item["reverb"] = reverb
 
-        # Skip ended / sold listings unless the caller opted in
-        if reverb.get("sale_ended") and not include_sold:
+        sale_ended = reverb.get("sale_ended", False)
+
+        if sale_ended:
             item["warnings"].append(f"status: {reverb.get('status', 'ended/sold')}")
-            report.append(item)
-            continue
+            # Always clear availability for ended listings regardless of include_sold
+            if entry.get("x_is_available") is True:
+                item["changes"]["x_is_available"] = False
+            if not include_sold:
+                item["action"] = "update" if item["changes"] else "ok"
+                report.append(item)
+                continue
 
         item["changes"] = _compute_changes(entry, reverb)
         item["action"] = "update" if item["changes"] else "ok"
-        if reverb.get("sale_ended"):
-            item["warnings"].append(f"status: {reverb.get('status', 'ended/sold')}")
 
         # Informational warnings
         if reverb.get("ships_to_canada") is False:

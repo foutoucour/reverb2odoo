@@ -180,9 +180,9 @@ class TestBuildValidationReport:
         assert report[0]["action"] == "skip"
         assert "Reverb API error" in report[0]["warnings"][0]
 
-    def test_sold_listing_skipped(self):
+    def test_sold_listing_clears_availability_without_include_sold(self):
         url = "https://reverb.com/item/1-g"
-        entries = [self._make_entry(url=url)]
+        entries = [self._make_entry(url=url, x_is_available=True)]
         reverb_data = {
             url: self._make_reverb(
                 sale_ended=True,
@@ -193,13 +193,30 @@ class TestBuildValidationReport:
 
         report = _build_validation_report(entries, reverb_data)
 
-        assert report[0]["action"] == "skip"
+        assert report[0]["action"] == "update"
+        assert report[0]["changes"].get("x_is_available") is False
+        assert any("status: Sold" in w for w in report[0]["warnings"])
+
+    def test_sold_listing_already_unavailable_is_ok_without_include_sold(self):
+        url = "https://reverb.com/item/1-g"
+        entries = [self._make_entry(url=url, x_is_available=False)]
+        reverb_data = {
+            url: self._make_reverb(
+                sale_ended=True,
+                status="Sold",
+                shipping_price=None,
+            )
+        }
+
+        report = _build_validation_report(entries, reverb_data)
+
+        assert report[0]["action"] == "ok"
         assert report[0]["changes"] == {}
         assert any("status: Sold" in w for w in report[0]["warnings"])
 
     def test_sold_listing_processed_when_include_sold(self):
         url = "https://reverb.com/item/1-g"
-        entries = [self._make_entry(url=url, x_studio_is_available=True)]
+        entries = [self._make_entry(url=url, x_is_available=True)]
         reverb_data = {
             url: self._make_reverb(
                 sale_ended=True,

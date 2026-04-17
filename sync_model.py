@@ -321,6 +321,14 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
     if price > 0 and _round_price(price) != _round_price(entry.get("x_price", 0)):
         changes["x_price"] = _round_price(price)
 
+    # Re-watch passed listings when the price drops
+    if (
+        price > 0
+        and entry.get("x_status") == "passed"
+        and _round_price(price) < _round_price(entry.get("x_price", 0))
+    ):
+        changes["x_status"] = "watching"
+
     # Offers
     if offers != entry.get("x_can_accept_offers"):
         changes["x_can_accept_offers"] = offers

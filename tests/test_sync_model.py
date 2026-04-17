@@ -338,6 +338,75 @@ class TestComputeChanges:
         changes = _compute_changes(entry, reverb)
         assert changes["x_is_available"] is True
 
+    def test_passed_listing_reverts_to_watching_on_price_drop(self):
+        entry = {
+            "x_price": 5000.0,
+            "x_status": "passed",
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+        }
+        reverb = {
+            "price": "4000.00",
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert changes["x_status"] == "watching"
+        assert changes["x_price"] == 4000.0
+
+    def test_passed_listing_stays_passed_when_price_same(self):
+        entry = {
+            "x_price": 5000.0,
+            "x_status": "passed",
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+        }
+        reverb = {
+            "price": "5000.00",
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_status" not in changes
+
+    def test_passed_listing_stays_passed_when_price_rises(self):
+        entry = {
+            "x_price": 5000.0,
+            "x_status": "passed",
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+        }
+        reverb = {
+            "price": "6000.00",
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_status" not in changes
+
+    def test_watching_listing_unaffected_by_price_drop(self):
+        entry = {
+            "x_price": 5000.0,
+            "x_status": "watching",
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+        }
+        reverb = {
+            "price": "4000.00",
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_status" not in changes
+
     def test_already_unavailable_stays_unchanged(self):
         entry = {
             "x_price": 5000.0,
