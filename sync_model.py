@@ -43,6 +43,10 @@ _console = Console()
 #: Default shipping cost assumed when Reverb does not return one.
 DEFAULT_SHIPPING = 250.0
 
+#: Minimum fractional price drop required to revert a passed listing to watching.
+#: 5 % filters CAD/USD conversion noise (~1-3 %) while catching real seller drops.
+REWATCH_PRICE_DROP_THRESHOLD = 0.05
+
 #: Default number of worker threads for ``--all`` mode.
 DEFAULT_WORKERS = 4
 
@@ -321,11 +325,15 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
     if price > 0 and _round_price(price) != _round_price(entry.get("x_price", 0)):
         changes["x_price"] = _round_price(price)
 
-    # Re-watch passed listings when the price drops
+    # Re-watch passed listings only when the price drops meaningfully.
+    # A raw CAD/USD conversion swing is typically 1-3 %; require >= REWATCH_PRICE_DROP_THRESHOLD
+    # so currency noise does not revert a deliberate "passed" decision.
+    existing_price = entry.get("x_price", 0)
     if (
         price > 0
+        and existing_price > 0
         and entry.get("x_status") == "passed"
-        and _round_price(price) < _round_price(entry.get("x_price", 0))
+        and price <= existing_price * (1 - REWATCH_PRICE_DROP_THRESHOLD)
     ):
         changes["x_status"] = "watching"
 

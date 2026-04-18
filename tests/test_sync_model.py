@@ -7,6 +7,7 @@ from click.testing import CliRunner
 
 from sync_model import (
     DEFAULT_SHIPPING,
+    REWATCH_PRICE_DROP_THRESHOLD,
     _apply_updates,
     _build_report,
     _clean_url,
@@ -355,6 +356,26 @@ class TestComputeChanges:
         changes = _compute_changes(entry, reverb)
         assert changes["x_status"] == "watching"
         assert changes["x_price"] == 4000.0
+
+    def test_passed_listing_stays_passed_on_currency_noise_drop(self):
+        # A < REWATCH_PRICE_DROP_THRESHOLD drop (e.g. 2 %) is treated as conversion noise
+        existing = 5000.0
+        noise_drop = existing * (1 - REWATCH_PRICE_DROP_THRESHOLD / 2)  # half the threshold
+        entry = {
+            "x_price": existing,
+            "x_status": "passed",
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+        }
+        reverb = {
+            "price": str(noise_drop),
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_status" not in changes
 
     def test_passed_listing_stays_passed_when_price_same(self):
         entry = {
