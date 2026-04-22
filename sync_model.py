@@ -345,6 +345,12 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
     if published_at and not entry.get("x_published_at"):
         changes["x_published_at"] = published_at + " 00:00:00"
 
+    # Notes (description from Reverb)
+    description = reverb.get("description", "")
+    existing_notes = entry.get("x_studio_notes") or ""
+    if description and description != existing_notes:
+        changes["x_studio_notes"] = description
+
     # Availability
     if sale_ended and entry.get("x_is_available") is True:
         changes["x_is_available"] = False
@@ -386,6 +392,9 @@ def _reverb_to_listing_vals(
         "x_can_accept_offers": reverb.get("offers_enabled", False),
         "x_is_taxed": False,
     }
+    description = reverb.get("description", "")
+    if description:
+        vals["x_studio_notes"] = description
     if published:
         vals["x_published_at"] = published + " 00:00:00"
 

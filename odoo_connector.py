@@ -117,6 +117,7 @@ LISTING_FIELDS: list[str] = [
     "x_gear_id",
     "x_guitar_id",
     "x_studio_image",
+    "x_studio_notes",
 ]
 
 # ---------------------------------------------------------------------------
