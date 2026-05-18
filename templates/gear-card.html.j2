@@ -123,6 +123,13 @@
       background: var(--border);
       border: 1px solid var(--border);
     }
+    /* Wide variant — two large tiles (used for pickups, etc.) */
+    .specs--wide {
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+    .specs--wide .spec { padding: 20px 24px; }
+    .specs--wide .spec-label { font-size: 0.68rem; }
+    .specs--wide .spec-value { font-size: 1.15rem; margin-top: 8px; }
     .spec {
       background: var(--surface);
       padding: 14px 18px;
@@ -212,7 +219,7 @@
           {% endfor %}
         </div>
         {% else %}
-        <div class="specs">
+        <div class="specs{% if group.style == 'tiles-wide' %} specs--wide{% endif %}">
           {% for label, value in group.specs %}
           <div class="spec">
             <div class="spec-label">{{ label }}</div>
