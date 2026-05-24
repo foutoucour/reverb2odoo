@@ -24,7 +24,9 @@
       "Bash(grep:*)",
       "WebFetch(domain:www.odoo.com)",
       "WebFetch(domain:odoo-master.readthedocs.io)",
-      "Bash(uv add:*)"
+      "Bash(uv add:*)",
+      "Bash(uv remove:*)",
+      "Bash(git checkout:*)"
     ]
   }
 }

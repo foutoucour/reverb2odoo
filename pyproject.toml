@@ -14,13 +14,17 @@ dependencies = [
     "httpx>=0.28,<1",
     "jinja2>=3.1,<4",
     "loguru>=0.7,<1",
+    "mcp[cli]>=1.0,<2",
     "odoo-client-lib>=2.0,<3",
+    "playwright>=1.40,<2",
     "pydantic>=2.0,<3",
+    "python-dotenv>=1.0,<2",
     "rich>=13,<15",
     "uritemplate>=4.1,<5",
 ]
 
 [project.scripts]
+odoo-mcp = "odoo_mcp.server:main"
 reverb2odoo = "cli:main"
 
 [dependency-groups]
@@ -57,7 +61,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["reverb_scraper", "odoo_connector", "sync_model", "validate_model", "sync_categories", "cli"]
+known-first-party = ["odoo_mcp", "reverb_scraper", "odoo_connector", "sync_model", "validate_model", "sync_categories", "cli"]
 
 [tool.recording]
 # Default record mode: "none" replays cassettes only (no network).

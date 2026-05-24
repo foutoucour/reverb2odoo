@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "odoo-collection": {
+      "command": "uv",
+      "args": ["run", "odoo-mcp"],
+      "env": {
+        "ODOO_HOSTNAME": "${ODOO_HOSTNAME}",
+        "ODOO_DATABASE": "${ODOO_DATABASE}",
+        "ODOO_LOGIN": "${ODOO_LOGIN}",
+        "ODOO_PASSWORD": "${ODOO_PASSWORD}"
+      }
+    }
+  }
+}

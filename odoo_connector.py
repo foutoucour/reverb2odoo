@@ -136,6 +136,64 @@ GEAR_FIELDS: list[str] = [
     "x_neck_profile",
 ]
 
+# ---------------------------------------------------------------------------
+# MCP field sets (used by odoo_mcp server)
+# ---------------------------------------------------------------------------
+
+#: Fields for x_gear model in MCP server.
+GEAR_FIELDS_MCP: list[str] = [
+    "id",
+    "x_name",
+    "x_model_id",
+    "x_intent",
+    "x_condition",
+    "x_status",
+    "x_serial_number",
+    "x_neck_profile",
+    "x_studio_acquiring_price",
+    "x_studio_notes",
+    "x_listing_ids",
+]
+
+#: Fields for x_listing model in MCP server.
+LISTING_FIELDS_MCP: list[str] = [
+    "id",
+    "x_name",
+    "x_model_id",
+    "x_url",
+    "x_platform",
+    "x_price",
+    "x_currency_id",
+    "x_shipping",
+    "x_condition",
+    "x_status",
+    "x_is_available",
+    "x_can_accept_offers",
+    "x_is_taxed",
+    "x_published_at",
+    "x_gear_id",
+    "x_studio_listing_score",
+    "x_studio_price_score",
+    "x_studio_notes",
+]
+
+#: Fields for x_models model in MCP server.
+MODEL_FIELDS_MCP: list[str] = [
+    "id",
+    "x_name",
+    "x_studio_partner_id",
+    "x_studio_model_type",
+    "x_studio_wanna",
+    "x_studio_guitar_familly_ids",
+    "x_studio_guitar_neck_feel_id",
+    "x_studio_scale",
+    "x_studio_finish",
+    "x_studio_fretboard_1",
+    "x_studio_p25",
+    "x_studio_p50",
+    "x_studio_p75",
+]
+
 
 def find_guitar_by_url(
     conn: odoolib.main.Connection,
