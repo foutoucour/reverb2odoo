@@ -4,9 +4,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from models import ListingRecord
 from odoo_connector import (
     GUITAR_FIELDS,
-    LISTING_FIELDS,
     _extract_reverb_item_id,
     _hostname_from_url,
     find_guitar_by_url,
@@ -215,4 +215,4 @@ class TestFindListingByUrl:
         find_listing_by_url(conn, "https://reverb.com/item/1-test")
 
         call_args = model.search_read.call_args
-        assert call_args[0][1] == LISTING_FIELDS
+        assert call_args[0][1] == ListingRecord.odoo_fields()

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
+from models import GearRecord, ListingRecord
 from odoo_mcp.resources.sold import (
     _compute_pnl,
     _currency_symbol,
@@ -42,11 +44,13 @@ def _make_conn(gear_records: list[dict], listing_records: list[dict]) -> MagicMo
     return conn
 
 
-_CAD = [6, "CAD"]
-_USD = [7, "USD"]
+_CAD_RAW = [6, "CAD"]
+_USD_RAW = [7, "USD"]
+_CAD: tuple[int, str] = (6, "CAD")
+_USD: tuple[int, str] = (7, "USD")
 
 
-def _gear(
+def _gear_dict(
     *,
     name: str = "Telecaster",
     model_id: Any = None,
@@ -61,27 +65,31 @@ def _gear(
         "id": 1,
         "x_name": name,
         "x_model_id": model_id,
-        "x_condition": condition,
+        "x_studio_current_condition": condition,
         "x_studio_acquiring_price": acquiring_price,
-        "x_listing_ids": listing_ids or [],
+        "x_studio_lsting_ids": listing_ids or [],
         "x_studio_notes": notes,
         "x_status": "sold",
         "x_intent": "flip",
     }
 
 
-def _listing(
+def _gear(**kwargs) -> GearRecord:
+    return GearRecord.from_odoo(_gear_dict(**kwargs))
+
+
+def _listing_dict(
     *,
     listing_id: int = 99,
     price: float = 1500.0,
-    currency: list = _CAD,
+    currency: list | None = None,
     platform: str = "reverb",
     status: str = "sold",
 ) -> dict:
     return {
         "id": listing_id,
         "x_price": price,
-        "x_currency_id": currency,
+        "x_currency_id": currency if currency is not None else _CAD_RAW,
         "x_platform": platform,
         "x_status": status,
         "x_name": "Listing #99",
@@ -89,8 +97,9 @@ def _listing(
     }
 
 
-# Suppress the Any type hint used inside the fixture helpers above.
-from typing import Any  # noqa: E402 — placed after function defs intentionally
+def _listing(**kwargs) -> ListingRecord:
+    return ListingRecord.from_odoo(_listing_dict(**kwargs))
+
 
 # ---------------------------------------------------------------------------
 # _name
@@ -100,12 +109,8 @@ from typing import Any  # noqa: E402 — placed after function defs intentionall
 @pytest.mark.parametrize(
     "field, expected",
     [
-        pytest.param([10, "Fender Telecaster"], "Fender Telecaster", id="many2one-list"),
         pytest.param((10, "Fender Telecaster"), "Fender Telecaster", id="many2one-tuple"),
-        pytest.param(False, "", id="false-value"),
         pytest.param(None, "", id="none-value"),
-        pytest.param([], "", id="empty-list"),
-        pytest.param([10], "", id="single-element-list"),
     ],
 )
 def test_name(field: Any, expected: str) -> None:
@@ -118,18 +123,18 @@ def test_name(field: Any, expected: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "currency_field, expected",
+    "currency, expected",
     [
-        pytest.param([6, "CAD"], "CA$", id="cad"),
-        pytest.param([7, "USD"], "US$", id="usd"),
-        pytest.param([8, "EUR"], "€", id="eur"),
-        pytest.param([9, "GBP"], "£", id="gbp"),
-        pytest.param([10, "JPY"], "JPY", id="unknown-falls-back-to-code"),
-        pytest.param(False, "", id="false-no-symbol"),
+        pytest.param(_CAD, "CA$", id="cad"),
+        pytest.param(_USD, "US$", id="usd"),
+        pytest.param((8, "EUR"), "€", id="eur"),
+        pytest.param((9, "GBP"), "£", id="gbp"),
+        pytest.param((10, "JPY"), "JPY", id="unknown-falls-back-to-code"),
+        pytest.param(None, "", id="none-no-symbol"),
     ],
 )
-def test_currency_symbol(currency_field: Any, expected: str) -> None:
-    assert _currency_symbol(currency_field) == expected
+def test_currency_symbol(currency: Any, expected: str) -> None:
+    assert _currency_symbol(currency) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -138,17 +143,16 @@ def test_currency_symbol(currency_field: Any, expected: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "price, currency_field, expected",
+    "price, currency, expected",
     [
         pytest.param(1200.0, _CAD, "CA$1,200.00", id="cad-price"),
         pytest.param(999.5, _USD, "US$999.50", id="usd-price"),
         pytest.param(0, _CAD, "unknown", id="zero-is-unknown"),
-        pytest.param(False, _CAD, "unknown", id="false-is-unknown"),
         pytest.param(None, _CAD, "unknown", id="none-is-unknown"),
     ],
 )
-def test_format_price(price: Any, currency_field: Any, expected: str) -> None:
-    assert _format_price(price, currency_field) == expected
+def test_format_price(price: Any, currency: Any, expected: str) -> None:
+    assert _format_price(price, currency) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -163,14 +167,29 @@ def test_format_price(price: Any, currency_field: Any, expected: str) -> None:
         pytest.param(1200.0, [], "unknown", id="no-listings-with-price"),
         pytest.param(False, [_listing()], "unknown", id="no-acquiring-price"),
         pytest.param(0, [_listing()], "unknown", id="zero-acquiring-price"),
-        pytest.param(1200.0, [_listing(price=1500.0, currency=_CAD)], "+CA$300.00", id="profit"),
-        pytest.param(1500.0, [_listing(price=1200.0, currency=_CAD)], "-CA$300.00", id="loss"),
-        pytest.param(1200.0, [_listing(price=1200.0, currency=_CAD)], "+CA$0.00", id="breakeven"),
+        pytest.param(
+            1200.0,
+            [_listing(price=1500.0, currency=_CAD_RAW)],
+            "+CA$300.00",
+            id="profit",
+        ),
+        pytest.param(
+            1500.0,
+            [_listing(price=1200.0, currency=_CAD_RAW)],
+            "-CA$300.00",
+            id="loss",
+        ),
+        pytest.param(
+            1200.0,
+            [_listing(price=1200.0, currency=_CAD_RAW)],
+            "+CA$0.00",
+            id="breakeven",
+        ),
         pytest.param(
             1200.0,
             [
-                _listing(listing_id=1, price=1500.0, currency=_CAD),
-                _listing(listing_id=2, price=1600.0, currency=_USD),
+                _listing(listing_id=1, price=1500.0, currency=_CAD_RAW),
+                _listing(listing_id=2, price=1600.0, currency=_USD_RAW),
             ],
             "mixed currencies",
             id="mixed-currencies",
@@ -178,15 +197,17 @@ def test_format_price(price: Any, currency_field: Any, expected: str) -> None:
         pytest.param(
             1200.0,
             [
-                _listing(listing_id=1, price=1500.0, currency=_CAD),
-                _listing(listing_id=2, price=1600.0, currency=_CAD),
+                _listing(listing_id=1, price=1500.0, currency=_CAD_RAW),
+                _listing(listing_id=2, price=1600.0, currency=_CAD_RAW),
             ],
             "+CA$300.00",
             id="two-listings-same-currency-uses-first",
         ),
     ],
 )
-def test_compute_pnl(acquiring_price: Any, sold_listings: list[dict], expected: str) -> None:
+def test_compute_pnl(
+    acquiring_price: Any, sold_listings: list[ListingRecord], expected: str
+) -> None:
     assert _compute_pnl(acquiring_price, sold_listings) == expected
 
 
@@ -198,7 +219,7 @@ def test_compute_pnl(acquiring_price: Any, sold_listings: list[dict], expected: 
 def test_fetch_sold_listings_calls_search_read_with_correct_domain() -> None:
     conn = MagicMock()
     listing_model = MagicMock()
-    listing_model.search_read.return_value = [_listing()]
+    listing_model.search_read.return_value = [_listing_dict()]
     conn.get_model.return_value = listing_model
 
     result = _fetch_sold_listings(conn, [99, 100])
@@ -208,7 +229,8 @@ def test_fetch_sold_listings_calls_search_read_with_correct_domain() -> None:
     domain = args[0]
     assert ("id", "in", [99, 100]) in domain
     assert ("x_status", "=", "sold") in domain
-    assert result == [_listing()]
+    assert len(result) == 1
+    assert isinstance(result[0], ListingRecord)
 
 
 def test_fetch_sold_listings_empty_ids_returns_empty() -> None:
@@ -225,7 +247,7 @@ def test_fetch_sold_listings_empty_ids_returns_empty() -> None:
 
 def test_render_gear_with_sold_listing() -> None:
     gear = _gear(name="Telecaster", acquiring_price=1200.0, listing_ids=[99])
-    listing = _listing(price=1500.0, currency=_CAD, platform="reverb")
+    listing = _listing(price=1500.0, currency=_CAD_RAW, platform="reverb")
 
     output = _render_gear(gear, [listing])
 
@@ -266,8 +288,8 @@ def test_render_gear_no_acquiring_price() -> None:
 
 def test_render_returns_markdown_header() -> None:
     conn = _make_conn(
-        gear_records=[_gear(listing_ids=[99])],
-        listing_records=[_listing()],
+        gear_records=[_gear_dict(listing_ids=[99])],
+        listing_records=[_listing_dict()],
     )
     result = render(conn)
     assert result.startswith("# Sold Gear")
@@ -282,8 +304,8 @@ def test_render_no_sold_gear() -> None:
 
 def test_render_queries_correct_models() -> None:
     conn = _make_conn(
-        gear_records=[_gear(listing_ids=[99])],
-        listing_records=[_listing()],
+        gear_records=[_gear_dict(listing_ids=[99])],
+        listing_records=[_listing_dict()],
     )
     render(conn)
 
@@ -294,11 +316,11 @@ def test_render_queries_correct_models() -> None:
 
 
 def test_render_includes_all_gear_sections() -> None:
-    gear1 = {**_gear(name="Telecaster", listing_ids=[10]), "id": 1}
-    gear2 = {**_gear(name="Les Paul", listing_ids=[20]), "id": 2}
+    gear1 = {**_gear_dict(name="Telecaster", listing_ids=[10]), "id": 1}
+    gear2 = {**_gear_dict(name="Les Paul", listing_ids=[20]), "id": 2}
     conn = _make_conn(
         gear_records=[gear1, gear2],
-        listing_records=[_listing()],
+        listing_records=[_listing_dict()],
     )
     result = render(conn)
     assert "## Telecaster" in result

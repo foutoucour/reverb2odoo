@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from models import GearRecord, ListingRecord
 from odoo_mcp.resources.collection import _name, _render_gear, _render_listing, _val, render
 
 # ---------------------------------------------------------------------------
@@ -14,8 +15,7 @@ from odoo_mcp.resources.collection import _name, _render_gear, _render_listing, 
 @pytest.mark.parametrize(
     "field, expected",
     [
-        pytest.param([42, "Gibson Les Paul"], "Gibson Les Paul", id="valid-m2o"),
-        pytest.param(False, "", id="false-m2o"),
+        pytest.param((42, "Gibson Les Paul"), "Gibson Les Paul", id="valid-m2o"),
         pytest.param(None, "", id="none-m2o"),
     ],
 )
@@ -46,8 +46,9 @@ def test_val(field: object, expected: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_listing(**overrides: object) -> dict:
+def _listing_dict(**overrides: object) -> dict:
     base: dict = {
+        "id": overrides.pop("id", 100),
         "x_platform": "reverb",
         "x_url": "https://reverb.com/item/12345-les-paul",
         "x_price": 2500.0,
@@ -57,6 +58,10 @@ def _make_listing(**overrides: object) -> dict:
     }
     base.update(overrides)
     return base
+
+
+def _make_listing(**overrides: object) -> ListingRecord:
+    return ListingRecord.from_odoo(_listing_dict(**overrides))
 
 
 def test_render_listing_basic() -> None:
@@ -91,21 +96,25 @@ def test_render_listing_omits_score_when_false() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_gear(**overrides: object) -> dict:
+def _gear_dict(**overrides: object) -> dict:
     base: dict = {
         "id": 1,
         "x_name": "2021 Gibson Les Paul Standard",
         "x_status": "owned",
         "x_model_id": [10, "Les Paul Standard"],
-        "x_condition": "excellent",
+        "x_studio_current_condition": "excellent",
         "x_intent": "keeper",
         "x_studio_acquiring_price": 2200.0,
         "x_serial_number": "SN123456",
         "x_studio_notes": False,
-        "x_listing_ids": [],
+        "x_studio_lsting_ids": [],
     }
     base.update(overrides)
     return base
+
+
+def _make_gear(**overrides: object) -> GearRecord:
+    return GearRecord.from_odoo(_gear_dict(**overrides))
 
 
 def test_render_gear_header_contains_name_and_status() -> None:
@@ -193,7 +202,7 @@ def test_render_queries_correct_gear_statuses() -> None:
 
 
 def test_render_owned_gear_queries_acquired_listings() -> None:
-    gear = _make_gear(id=1, x_status="owned", x_listing_ids=[10])
+    gear = _gear_dict(id=1, x_status="owned", x_studio_lsting_ids=[10])
     conn = _make_conn([gear], [])
     render(conn)
     listing_proxy = conn.get_model("x_listing")
@@ -204,7 +213,7 @@ def test_render_owned_gear_queries_acquired_listings() -> None:
 
 
 def test_render_for_sale_gear_queries_for_sale_and_sold_listings() -> None:
-    gear = _make_gear(id=2, x_status="for_sale", x_listing_ids=[20])
+    gear = _gear_dict(id=2, x_status="for_sale", x_studio_lsting_ids=[20])
     conn = _make_conn([gear], [])
     render(conn)
     listing_proxy = conn.get_model("x_listing")
@@ -215,15 +224,15 @@ def test_render_for_sale_gear_queries_for_sale_and_sold_listings() -> None:
 
 
 def test_render_includes_gear_name_in_output() -> None:
-    gear = _make_gear(x_name="2019 Fender Telecaster", x_status="owned")
+    gear = _gear_dict(x_name="2019 Fender Telecaster", x_status="owned")
     conn = _make_conn([gear], [])
     result = render(conn)
     assert "2019 Fender Telecaster" in result
 
 
 def test_render_multiple_gear_records() -> None:
-    gear1 = _make_gear(id=1, x_name="Les Paul", x_status="owned")
-    gear2 = _make_gear(id=2, x_name="Telecaster", x_status="for_sale")
+    gear1 = _gear_dict(id=1, x_name="Les Paul", x_status="owned")
+    gear2 = _gear_dict(id=2, x_name="Telecaster", x_status="for_sale")
     conn = _make_conn([gear1, gear2], [])
     result = render(conn)
     assert "Les Paul" in result

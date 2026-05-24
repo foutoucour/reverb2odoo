@@ -10,13 +10,11 @@ from typing import Any
 
 from loguru import logger
 
-from odoo_connector import LISTING_FIELDS_MCP
+from models import ListingRecord
 
 
-def _label(value: list | bool | None) -> str:
-    if isinstance(value, list) and len(value) == 2:
-        return str(value[1])
-    return ""
+def _label(value: tuple[int, str] | None) -> str:
+    return value[1] if value else ""
 
 
 def _scalar(value: object, fallback: str = "") -> str:
@@ -41,14 +39,14 @@ def _model_ids_for_type(conn: Any, model_type: str) -> list[int]:
     return [r["id"] for r in records]
 
 
-def _render_card(listing: dict) -> str:
-    model_name = _label(listing.get("x_model_id"))
-    price = _scalar(listing.get("x_price"))
-    currency = _label(listing.get("x_currency_id"))
-    platform = _scalar(listing.get("x_platform"))
-    status = _scalar(listing.get("x_status"))
-    score = _scalar(listing.get("x_studio_listing_score"))
-    url = _scalar(listing.get("x_url"))
+def _render_card(listing: ListingRecord) -> str:
+    model_name = _label(listing.x_model_id)
+    price = _scalar(listing.x_price)
+    currency = _label(listing.x_currency_id)
+    platform = _scalar(listing.x_platform)
+    status = _scalar(listing.x_status)
+    score = _scalar(listing.x_studio_listing_score)
+    url = _scalar(listing.x_url)
 
     score_part = f" | score={score}" if score else ""
     line = f"- **{model_name}** [{status}] — {price} {currency} on {platform}{score_part}"
@@ -114,16 +112,17 @@ def run(
         domain.append(("x_status", "=", status.strip()))
 
     logger.info("search_listings: domain={}", domain)
-    listings: list[dict] = conn.get_model("x_listing").search_read(
+    rows: list[dict] = conn.get_model("x_listing").search_read(
         domain,
-        LISTING_FIELDS_MCP,
+        ListingRecord.odoo_fields(),
     )
-    logger.info("search_listings: {} listing(s) found", len(listings))
+    logger.info("search_listings: {} listing(s) found", len(rows))
 
-    if not listings:
+    if not rows:
         return "No listings found matching the supplied filters."
 
-    listings.sort(key=lambda lst: lst.get("x_studio_listing_score") or 0, reverse=True)
+    listings = [ListingRecord.from_odoo(r) for r in rows]
+    listings.sort(key=lambda lst: lst.x_studio_listing_score or 0, reverse=True)
 
     lines: list[str] = [f"# Listing Search Results ({len(listings)} found)\n"]
     for lst in listings:

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from models import GearRecord, ListingRecord
 from odoo_mcp.tools.get_gear import (
     _label,
     _render_gear_header,
@@ -21,8 +22,7 @@ from odoo_mcp.tools.get_gear import (
 @pytest.mark.parametrize(
     "field, expected",
     [
-        pytest.param([1, "Reverb"], "Reverb", id="valid-m2o"),
-        pytest.param(False, "", id="false-m2o"),
+        pytest.param((1, "Reverb"), "Reverb", id="valid-m2o"),
         pytest.param(None, "", id="none-m2o"),
     ],
 )
@@ -47,22 +47,25 @@ def test_scalar(value: object, fallback: str, expected: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_gear(**overrides: object) -> dict:
+def _gear_dict(**overrides: object) -> dict:
     base: dict = {
         "id": 1,
         "x_name": "2021 Gibson Les Paul Standard",
         "x_status": "owned",
         "x_model_id": [10, "Les Paul Standard"],
-        "x_condition": "excellent",
+        "x_studio_current_condition": "excellent",
         "x_intent": "keeper",
         "x_serial_number": "SN123456",
-        "x_neck_profile": "SlimTaper",
         "x_studio_acquiring_price": 2200.0,
         "x_studio_notes": False,
-        "x_listing_ids": [],
+        "x_studio_lsting_ids": [],
     }
     base.update(overrides)
     return base
+
+
+def _make_gear(**overrides: object) -> GearRecord:
+    return GearRecord.from_odoo(_gear_dict(**overrides))
 
 
 def test_render_gear_header_contains_name_and_status() -> None:
@@ -84,12 +87,6 @@ def test_render_gear_header_contains_acquiring_price_and_serial() -> None:
     result = _render_gear_header(gear)
     assert "**Acquired for**: 2200.0" in result
     assert "**Serial**: SN123456" in result
-
-
-def test_render_gear_header_contains_neck_profile() -> None:
-    gear = _make_gear()
-    result = _render_gear_header(gear)
-    assert "**Neck**: SlimTaper" in result
 
 
 def test_render_gear_header_shows_notes_when_present() -> None:
@@ -115,7 +112,7 @@ def test_render_gear_header_unnamed_fallback() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_listing(**overrides: object) -> dict:
+def _listing_dict(**overrides: object) -> dict:
     base: dict = {
         "id": 100,
         "x_name": "Les Paul Standard listing",
@@ -138,6 +135,10 @@ def _make_listing(**overrides: object) -> dict:
     }
     base.update(overrides)
     return base
+
+
+def _make_listing(**overrides: object) -> ListingRecord:
+    return ListingRecord.from_odoo(_listing_dict(**overrides))
 
 
 def test_render_listing_detail_header_contains_id_status_platform() -> None:
@@ -253,7 +254,7 @@ def test_run_not_found_returns_notice() -> None:
 
 
 def test_run_fetches_gear_by_id() -> None:
-    gear = _make_gear(id=42)
+    gear = _gear_dict(id=42)
     conn = _make_conn(gear_records=[gear])
     run(conn, 42)
     gear_proxy = conn.get_model("x_gear")
@@ -262,7 +263,7 @@ def test_run_fetches_gear_by_id() -> None:
 
 
 def test_run_fetches_listings_by_gear_id() -> None:
-    gear = _make_gear(id=42)
+    gear = _gear_dict(id=42)
     conn = _make_conn(gear_records=[gear])
     run(conn, 42)
     listing_proxy = conn.get_model("x_listing")
@@ -271,29 +272,29 @@ def test_run_fetches_listings_by_gear_id() -> None:
 
 
 def test_run_output_contains_gear_name() -> None:
-    gear = _make_gear()
+    gear = _gear_dict()
     conn = _make_conn(gear_records=[gear])
     result = run(conn, 1)
     assert "2021 Gibson Les Paul Standard" in result
 
 
 def test_run_output_contains_listing_url() -> None:
-    gear = _make_gear()
-    listing = _make_listing()
+    gear = _gear_dict()
+    listing = _listing_dict()
     conn = _make_conn(gear_records=[gear], listing_records=[listing])
     result = run(conn, 1)
     assert "https://reverb.com/item/12345-les-paul" in result
 
 
 def test_run_no_listings_shows_placeholder() -> None:
-    gear = _make_gear()
+    gear = _gear_dict()
     conn = _make_conn(gear_records=[gear], listing_records=[])
     result = run(conn, 1)
     assert "*No listings recorded*" in result
 
 
 def test_run_gear_notes_included_in_output() -> None:
-    gear = _make_gear(x_studio_notes="Custom wiring harness")
+    gear = _gear_dict(x_studio_notes="Custom wiring harness")
     conn = _make_conn(gear_records=[gear])
     result = run(conn, 1)
     assert "Custom wiring harness" in result

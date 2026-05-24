@@ -6,45 +6,22 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from odoo_mcp.tools.missed_deals import (
-    _float_or_none,
-    _format_got_away,
-    _format_under_p25,
-    _model_id_from_listing,
-    run,
-)
-
-# ── helpers ───────────────────────────────────────────────────────────────────
-
-
-@pytest.mark.parametrize(
-    "value, expected",
-    [
-        pytest.param(1500.0, 1500.0, id="float"),
-        pytest.param("1500", 1500.0, id="numeric-string"),
-        pytest.param(False, None, id="false"),
-        pytest.param(None, None, id="none"),
-        pytest.param("", None, id="empty-string"),
-        pytest.param("not-a-number", None, id="garbage"),
-    ],
-)
-def test_float_or_none(value: object, expected: float | None) -> None:
-    assert _float_or_none(value) == expected
-
-
-@pytest.mark.parametrize(
-    "field, expected",
-    [
-        pytest.param([10, "Les Paul"], 10, id="valid-m2o"),
-        pytest.param(False, None, id="false"),
-        pytest.param(None, None, id="none"),
-    ],
-)
-def test_model_id_from_listing(field: object, expected: int | None) -> None:
-    assert _model_id_from_listing({"x_model_id": field}) == expected
-
+from models import ListingRecord, ModelsRecord
+from odoo_mcp.tools.missed_deals import _format_got_away, _format_under_p25, run
 
 # ── formatters ────────────────────────────────────────────────────────────────
+
+
+def _listing(**kwargs: object) -> ListingRecord:
+    base: dict = {"id": kwargs.pop("id", 1)}
+    base.update(kwargs)
+    return ListingRecord.from_odoo(base)
+
+
+def _model(**kwargs: object) -> ModelsRecord:
+    base: dict = {"id": kwargs.pop("id", 10)}
+    base.update(kwargs)
+    return ModelsRecord.from_odoo(base)
 
 
 def test_format_under_p25_empty_says_so() -> None:
@@ -53,18 +30,18 @@ def test_format_under_p25_empty_says_so() -> None:
 
 
 def test_format_under_p25_includes_model_and_gap() -> None:
-    listing = {
-        "x_price": 1800.0,
-        "x_currency_id": [1, "CAD"],
-        "x_platform": "reverb",
-        "x_url": "https://reverb.com/item/abc",
-        "x_studio_listing_score": 80,
-    }
-    model = {
-        "x_name": "Les Paul Standard",
-        "x_studio_partner_id": [38, "Gibson"],
-        "x_studio_p25": 2200.0,
-    }
+    listing = _listing(
+        x_price=1800.0,
+        x_currency_id=[1, "CAD"],
+        x_platform="reverb",
+        x_url="https://reverb.com/item/abc",
+        x_studio_listing_score=80,
+    )
+    model = _model(
+        x_name="Les Paul Standard",
+        x_studio_partner_id=[38, "Gibson"],
+        x_price_p25=2200.0,
+    )
     lines = _format_under_p25([(listing, model, 400.0)])
     blob = "\n".join(lines)
     assert "Les Paul Standard" in blob
@@ -78,15 +55,15 @@ def test_format_got_away_empty_says_so() -> None:
 
 
 def test_format_got_away_lists_listings_per_model() -> None:
-    model = {"x_name": "SG", "x_studio_partner_id": [38, "Gibson"]}
-    listing = {
-        "x_status": "sold",
-        "x_price": 1500.0,
-        "x_currency_id": [1, "CAD"],
-        "x_platform": "reverb",
-        "x_published_at": "2026-04-01",
-        "x_url": "https://reverb.com/item/sold",
-    }
+    model = _model(x_name="SG", x_studio_partner_id=[38, "Gibson"])
+    listing = _listing(
+        x_status="sold",
+        x_price=1500.0,
+        x_currency_id=[1, "CAD"],
+        x_platform="reverb",
+        x_published_at="2026-04-01",
+        x_url="https://reverb.com/item/sold",
+    )
     lines = _format_got_away({5: [listing]}, {5: model})
     blob = "\n".join(lines)
     assert "SG" in blob
@@ -115,7 +92,6 @@ def _make_conn(
     gear_proxy.search_read.return_value = owned_gear or []
 
     def listing_search_read(domain: list, fields: list) -> list[dict]:
-        # Detect which bucket by inspecting the domain tuples.
         statuses: list = []
         for clause in domain:
             if isinstance(clause, tuple) and clause[0] == "x_status":
@@ -151,9 +127,9 @@ def test_run_renders_both_sections_when_data_present() -> None:
         "id": 10,
         "x_name": "Les Paul",
         "x_studio_partner_id": [38, "Gibson"],
-        "x_studio_p25": 2200.0,
-        "x_studio_p50": 2500.0,
-        "x_studio_p75": 2800.0,
+        "x_price_p25": 2200.0,
+        "x_price_p50": 2500.0,
+        "x_price_p75": 2800.0,
         "x_studio_wanna": True,
     }
     watching = {
@@ -195,11 +171,12 @@ def test_run_excludes_models_user_already_owns_from_got_away() -> None:
         "id": 10,
         "x_name": "Les Paul",
         "x_studio_partner_id": [38, "Gibson"],
-        "x_studio_p25": 2200.0,
+        "x_price_p25": 2200.0,
         "x_studio_wanna": True,
     }
     owned = {"id": 1, "x_model_id": [10, "Les Paul"]}
     missed = {
+        "id": 99,
         "x_model_id": [10, "Les Paul"],
         "x_status": "sold",
         "x_price": 2100.0,
@@ -223,10 +200,11 @@ def test_run_skips_listings_at_or_above_p25() -> None:
         "id": 10,
         "x_name": "Les Paul",
         "x_studio_partner_id": [38, "Gibson"],
-        "x_studio_p25": 2200.0,
+        "x_price_p25": 2200.0,
         "x_studio_wanna": True,
     }
     pricey = {
+        "id": 200,
         "x_model_id": [10, "Les Paul"],
         "x_status": "watching",
         "x_price": 2200.0,  # equal to p25 — excluded
@@ -248,3 +226,14 @@ def test_run_negative_days_clamps_to_default() -> None:
     """Negative days_lookback should not raise."""
     conn = _make_conn(wanna_models=[])
     run(conn, days_lookback=-5)
+
+
+# Keep pytest happy if no parametrize id collides.
+@pytest.mark.parametrize(
+    "value",
+    [pytest.param(0.0, id="zero"), pytest.param(None, id="none")],
+)
+def test_listing_record_handles_empty_price(value: object) -> None:
+    """Quick sanity check on the pydantic m2o coercion."""
+    rec = ListingRecord.from_odoo({"id": 1, "x_price": value if value is not None else False})
+    assert rec.x_price in (None, 0.0)

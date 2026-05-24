@@ -19,13 +19,11 @@ from typing import Any
 
 from loguru import logger
 
-from odoo_connector import LISTING_FIELDS_MCP, MODEL_FIELDS_MCP
+from models import ListingRecord, ModelsRecord
 
 
-def _label(value: list | bool | None) -> str:
-    if isinstance(value, list) and len(value) == 2:
-        return str(value[1])
-    return ""
+def _label(value: tuple[int, str] | None) -> str:
+    return value[1] if value else ""
 
 
 def _scalar(value: object, fallback: str = "") -> str:
@@ -34,36 +32,22 @@ def _scalar(value: object, fallback: str = "") -> str:
     return str(value)
 
 
-def _float_or_none(value: object) -> float | None:
-    if value is False or value is None or value == "":
-        return None
-    try:
-        return float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return None
-
-
-def _model_id_from_listing(listing: dict) -> int | None:
-    ref = listing.get("x_model_id")
-    if isinstance(ref, list) and len(ref) == 2:
-        return int(ref[0])
-    return None
-
-
-def _format_under_p25(listings_and_gaps: list[tuple[dict, dict, float]]) -> list[str]:
+def _format_under_p25(
+    listings_and_gaps: list[tuple[ListingRecord, ModelsRecord, float]],
+) -> list[str]:
     if not listings_and_gaps:
         return ["*No active listings priced below p25 on wanted models.*"]
 
     lines: list[str] = []
     for listing, model, gap in listings_and_gaps:
-        model_name = _scalar(model.get("x_name"), fallback="(unnamed)")
-        brand = _label(model.get("x_studio_partner_id"))
-        price = _scalar(listing.get("x_price"))
-        currency = _label(listing.get("x_currency_id"))
-        platform = _scalar(listing.get("x_platform"))
-        p25 = _scalar(model.get("x_studio_p25"))
-        url = _scalar(listing.get("x_url"))
-        listing_score = _scalar(listing.get("x_studio_listing_score"))
+        model_name = _scalar(model.x_name, fallback="(unnamed)")
+        brand = _label(model.x_studio_partner_id)
+        price = _scalar(listing.x_price)
+        currency = _label(listing.x_currency_id)
+        platform = _scalar(listing.x_platform)
+        p25 = _scalar(model.x_price_p25)
+        url = _scalar(listing.x_url)
+        listing_score = _scalar(listing.x_studio_listing_score)
 
         header = f"- **{model_name}** ({brand}) — {price} {currency} on {platform}"
         details = f"  gap: {gap:.0f} below p25={p25} | listing_score={listing_score}"
@@ -75,29 +59,29 @@ def _format_under_p25(listings_and_gaps: list[tuple[dict, dict, float]]) -> list
 
 
 def _format_got_away(
-    listings_by_model: dict[int, list[dict]],
-    models: dict[int, dict],
+    listings_by_model: dict[int, list[ListingRecord]],
+    models: dict[int, ModelsRecord],
 ) -> list[str]:
     if not listings_by_model:
         return ["*No closed/sold listings on wanted models within the window.*"]
 
     def _sort_key(mid: int) -> str:
-        return (models[mid].get("x_name") or "").lower()
+        return (models[mid].x_name or "").lower()
 
     lines: list[str] = []
     for mid in sorted(listings_by_model.keys(), key=_sort_key):
         model = models[mid]
-        model_name = _scalar(model.get("x_name"), fallback="(unnamed)")
-        brand = _label(model.get("x_studio_partner_id"))
+        model_name = _scalar(model.x_name, fallback="(unnamed)")
+        brand = _label(model.x_studio_partner_id)
         listings = listings_by_model[mid]
         lines.append(f"- **{model_name}** ({brand}) — {len(listings)} got away")
         for listing in listings:
-            status = _scalar(listing.get("x_status"))
-            price = _scalar(listing.get("x_price"))
-            currency = _label(listing.get("x_currency_id"))
-            platform = _scalar(listing.get("x_platform"))
-            published = _scalar(listing.get("x_published_at"))
-            url = _scalar(listing.get("x_url"))
+            status = _scalar(listing.x_status)
+            price = _scalar(listing.x_price)
+            currency = _label(listing.x_currency_id)
+            platform = _scalar(listing.x_platform)
+            published = _scalar(listing.x_published_at)
+            url = _scalar(listing.x_url)
             lines.append(f"  - [{status}] {price} {currency} on {platform} | published {published}")
             if url:
                 lines.append(f"    {url}")
@@ -126,10 +110,11 @@ def run(conn: Any, days_lookback: int = 30) -> str:
     logger.info("missed_deals: days_lookback={}", days_lookback)
 
     models_proxy = conn.get_model("x_models")
-    wanna_models: list[dict] = models_proxy.search_read(
+    wanna_rows: list[dict] = models_proxy.search_read(
         [("x_studio_wanna", "=", True)],
-        MODEL_FIELDS_MCP,
+        ModelsRecord.odoo_fields(),
     )
+    wanna_models = [ModelsRecord.from_odoo(r) for r in wanna_rows]
     logger.info("missed_deals: {} wanna models", len(wanna_models))
 
     if not wanna_models:
@@ -138,7 +123,7 @@ def run(conn: Any, days_lookback: int = 30) -> str:
             "*No models marked as `wanna=True`. Mark models you want in Odoo to enable this tool.*"
         )
 
-    model_by_id: dict[int, dict] = {m["id"]: m for m in wanna_models}
+    model_by_id: dict[int, ModelsRecord] = {m.id: m for m in wanna_models}
     model_ids: list[int] = list(model_by_id.keys())
 
     # Models the user already owns gear of (excludes them from bucket B).
@@ -157,22 +142,22 @@ def run(conn: Any, days_lookback: int = 30) -> str:
     listing_proxy = conn.get_model("x_listing")
 
     # Bucket A — active watching listings below p25.
-    watching_listings: list[dict] = listing_proxy.search_read(
+    watching_rows: list[dict] = listing_proxy.search_read(
         [("x_model_id", "in", model_ids), ("x_status", "=", "watching")],
-        LISTING_FIELDS_MCP,
+        ListingRecord.odoo_fields(),
     )
+    watching_listings = [ListingRecord.from_odoo(r) for r in watching_rows]
     logger.info("missed_deals: {} watching listings on wanna models", len(watching_listings))
 
-    under_p25: list[tuple[dict, dict, float]] = []
+    under_p25: list[tuple[ListingRecord, ModelsRecord, float]] = []
     for listing in watching_listings:
-        mid = _model_id_from_listing(listing)
-        if mid is None:
+        if listing.x_model_id is None:
             continue
-        model = model_by_id.get(mid)
+        model = model_by_id.get(listing.x_model_id[0])
         if model is None:
             continue
-        price = _float_or_none(listing.get("x_price"))
-        p25 = _float_or_none(model.get("x_studio_p25"))
+        price = listing.x_price
+        p25 = model.x_price_p25
         if price is None or p25 is None or price >= p25:
             continue
         under_p25.append((listing, model, p25 - price))
@@ -182,20 +167,23 @@ def run(conn: Any, days_lookback: int = 30) -> str:
 
     # Bucket B — closed/sold listings within the window, excluding owned models.
     cutoff = (datetime.now(tz=UTC) - timedelta(days=days_lookback)).strftime("%Y-%m-%d %H:%M:%S")
-    missed_candidates: list[dict] = listing_proxy.search_read(
+    missed_rows: list[dict] = listing_proxy.search_read(
         [
             ("x_model_id", "in", model_ids),
             ("x_status", "in", ["closed", "sold"]),
             ("write_date", ">=", cutoff),
         ],
-        LISTING_FIELDS_MCP,
+        ListingRecord.odoo_fields(),
     )
+    missed_candidates = [ListingRecord.from_odoo(r) for r in missed_rows]
     logger.info("missed_deals: {} closed/sold listings in window", len(missed_candidates))
 
-    got_away_by_model: dict[int, list[dict]] = {}
+    got_away_by_model: dict[int, list[ListingRecord]] = {}
     for listing in missed_candidates:
-        mid = _model_id_from_listing(listing)
-        if mid is None or mid in owned_model_ids:
+        if listing.x_model_id is None:
+            continue
+        mid = listing.x_model_id[0]
+        if mid in owned_model_ids:
             continue
         got_away_by_model.setdefault(mid, []).append(listing)
 

@@ -5,32 +5,28 @@ from __future__ import annotations
 import odoolib
 from loguru import logger
 
-from odoo_connector import LISTING_FIELDS_MCP, MODEL_FIELDS_MCP
+from models import ListingRecord, ModelsRecord
 
 
-def _label(value: list | bool | None) -> str:
-    """Extract display name from a many2one field value ([id, name] or False)."""
-    if isinstance(value, list) and len(value) == 2:
-        return str(value[1])
-    return ""
+def _label(value: tuple[int, str] | None) -> str:
+    return value[1] if value else ""
 
 
 def _scalar(value: object, fallback: str = "") -> str:
-    """Return str(value) unless it is False/None, in which case return fallback."""
-    if value is False or value is None:
+    if value is False or value is None or value == "":
         return fallback
     return str(value)
 
 
-def _render_listing(listing: dict) -> str:
+def _render_listing(listing: ListingRecord) -> str:
     """Render a single listing as a markdown bullet block."""
-    listing_score = listing.get("x_studio_listing_score") or 0
-    price_score = listing.get("x_studio_price_score") or 0
-    price = _scalar(listing.get("x_price"))
-    currency = _label(listing.get("x_currency_id"))
-    platform = _scalar(listing.get("x_platform"))
-    url = _scalar(listing.get("x_url"))
-    notes = _scalar(listing.get("x_studio_notes"))
+    listing_score = listing.x_studio_listing_score or 0
+    price_score = listing.x_studio_price_score or 0
+    price = _scalar(listing.x_price)
+    currency = _label(listing.x_currency_id)
+    platform = _scalar(listing.x_platform)
+    url = _scalar(listing.x_url)
+    notes = _scalar(listing.x_studio_notes)
 
     lines = [f"- [score:{listing_score} price:{price_score}] {price} {currency} on {platform}"]
     if url:
@@ -41,20 +37,20 @@ def _render_listing(listing: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_model(model: dict, listings: list[dict]) -> str:
+def _render_model(model: ModelsRecord, listings: list[ListingRecord]) -> str:
     """Render a single model block with its watching listings."""
-    name = _scalar(model.get("x_name"), fallback="(unnamed)")
-    brand = _label(model.get("x_studio_partner_id"))
-    model_type = _scalar(model.get("x_studio_model_type"))
-    scale = _scalar(model.get("x_studio_scale"))
-    neck_feel = _label(model.get("x_studio_guitar_neck_feel_id"))
-    p25 = _scalar(model.get("x_studio_p25"))
-    p50 = _scalar(model.get("x_studio_p50"))
-    p75 = _scalar(model.get("x_studio_p75"))
+    name = _scalar(model.x_name, fallback="(unnamed)")
+    brand = _label(model.x_studio_partner_id)
+    model_type = _scalar(model.x_studio_model_type)
+    scale = _scalar(model.x_studio_scale)
+    neck_feel = _label(model.x_studio_guitar_neck_feel_id)
+    p25 = _scalar(model.x_price_p25)
+    p50 = _scalar(model.x_price_p50)
+    p75 = _scalar(model.x_price_p75)
 
     sorted_listings = sorted(
         listings,
-        key=lambda lst: lst.get("x_studio_listing_score") or 0,
+        key=lambda lst: lst.x_studio_listing_score or 0,
         reverse=True,
     )
 
@@ -91,36 +87,37 @@ def render(conn: odoolib.main.Connection) -> str:
         Formatted markdown with one section per model.
     """
     models_proxy = conn.get_model("x_models")
-    wanna_models: list[dict] = models_proxy.search_read(
+    model_rows: list[dict] = models_proxy.search_read(
         [("x_studio_wanna", "=", True)],
-        MODEL_FIELDS_MCP,
+        ModelsRecord.odoo_fields(),
     )
+    wanna_models = [ModelsRecord.from_odoo(r) for r in model_rows]
     logger.info("Watchlist: {} wanna models found", len(wanna_models))
 
     if not wanna_models:
         return "# Watchlist\n\nNo models on the watchlist.\n"
 
-    model_ids = [m["id"] for m in wanna_models]
+    model_ids = [m.id for m in wanna_models]
 
     listing_proxy = conn.get_model("x_listing")
-    watching_listings: list[dict] = listing_proxy.search_read(
+    listing_rows: list[dict] = listing_proxy.search_read(
         [("x_model_id", "in", model_ids), ("x_status", "=", "watching")],
-        LISTING_FIELDS_MCP,
+        ListingRecord.odoo_fields(),
     )
+    watching_listings = [ListingRecord.from_odoo(r) for r in listing_rows]
     logger.info("Watchlist: {} watching listings fetched", len(watching_listings))
 
-    listings_by_model: dict[int, list[dict]] = {m["id"]: [] for m in wanna_models}
+    listings_by_model: dict[int, list[ListingRecord]] = {m.id: [] for m in wanna_models}
     for listing in watching_listings:
-        model_ref = listing.get("x_model_id")
-        if isinstance(model_ref, list) and len(model_ref) == 2:
-            mid = model_ref[0]
-            if mid in listings_by_model:
-                listings_by_model[mid].append(listing)
+        if listing.x_model_id is None:
+            continue
+        mid = listing.x_model_id[0]
+        if mid in listings_by_model:
+            listings_by_model[mid].append(listing)
 
     sections = ["# Watchlist", ""]
     for model in wanna_models:
-        mid = model["id"]
-        sections.append(_render_model(model, listings_by_model[mid]))
+        sections.append(_render_model(model, listings_by_model[model.id]))
         sections.append("")
 
     return "\n".join(sections).rstrip() + "\n"

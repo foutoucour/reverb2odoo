@@ -65,6 +65,14 @@ def get_connection(
 # ---------------------------------------------------------------------------
 # Model helpers
 # ---------------------------------------------------------------------------
+#
+# Field lists for x_gear, x_listing and x_models now live on the pydantic
+# classes in ``models.py`` — see ``GearRecord.odoo_fields()``,
+# ``ListingRecord.odoo_fields()``, ``ModelsRecord.odoo_fields()``.
+#
+# Only x_guitar still has a flat field list here, because it is being
+# decommissioned (migration to x_gear + x_listing is in progress) and no
+# longer needs a typed wrapper.
 
 
 # ---------------------------------------------------------------------------
@@ -92,106 +100,6 @@ GUITAR_FIELDS: list[str] = [
     "x_studio_target_price_ht",
     "x_studio_target_price_ttc",
     "x_studio_published_at",
-]
-
-# ---------------------------------------------------------------------------
-# x_listing lookups
-# ---------------------------------------------------------------------------
-
-#: Fields typically needed when looking up a listing entry.
-LISTING_FIELDS: list[str] = [
-    "id",
-    "x_name",
-    "x_model_id",
-    "x_url",
-    "x_platform",
-    "x_price",
-    "x_currency_id",
-    "x_shipping",
-    "x_condition",
-    "x_status",
-    "x_is_available",
-    "x_can_accept_offers",
-    "x_is_taxed",
-    "x_published_at",
-    "x_gear_id",
-    "x_guitar_id",
-    "x_studio_image",
-    "x_studio_notes",
-]
-
-# ---------------------------------------------------------------------------
-# x_gear lookups
-# ---------------------------------------------------------------------------
-
-#: Fields typically needed when looking up an owned gear entry.
-GEAR_FIELDS: list[str] = [
-    "id",
-    "x_name",
-    "x_model_id",
-    "x_intent",
-    "x_condition",
-    "x_status",
-    "x_serial_number",
-    "x_neck_profile",
-]
-
-# ---------------------------------------------------------------------------
-# MCP field sets (used by odoo_mcp server)
-# ---------------------------------------------------------------------------
-
-#: Fields for x_gear model in MCP server.
-GEAR_FIELDS_MCP: list[str] = [
-    "id",
-    "x_name",
-    "x_model_id",
-    "x_intent",
-    "x_condition",
-    "x_status",
-    "x_serial_number",
-    "x_neck_profile",
-    "x_studio_acquiring_price",
-    "x_studio_notes",
-    "x_listing_ids",
-]
-
-#: Fields for x_listing model in MCP server.
-LISTING_FIELDS_MCP: list[str] = [
-    "id",
-    "x_name",
-    "x_model_id",
-    "x_url",
-    "x_platform",
-    "x_price",
-    "x_currency_id",
-    "x_shipping",
-    "x_condition",
-    "x_status",
-    "x_is_available",
-    "x_can_accept_offers",
-    "x_is_taxed",
-    "x_published_at",
-    "x_gear_id",
-    "x_studio_listing_score",
-    "x_studio_price_score",
-    "x_studio_notes",
-]
-
-#: Fields for x_models model in MCP server.
-MODEL_FIELDS_MCP: list[str] = [
-    "id",
-    "x_name",
-    "x_studio_partner_id",
-    "x_studio_model_type",
-    "x_studio_wanna",
-    "x_studio_guitar_familly_ids",
-    "x_studio_guitar_neck_feel_id",
-    "x_studio_scale",
-    "x_studio_finish",
-    "x_studio_fretboard_1",
-    "x_studio_p25",
-    "x_studio_p50",
-    "x_studio_p75",
 ]
 
 
@@ -270,7 +178,7 @@ def find_listing_by_url(
     url:
         The full listing URL to search for.
     fields:
-        Fields to return.  Defaults to :data:`LISTING_FIELDS`.
+        Fields to return.  Defaults to ``ListingRecord.odoo_fields()``.
 
     Returns
     -------
@@ -278,7 +186,9 @@ def find_listing_by_url(
         The matching record, or ``None`` if nothing was found.
     """
     if fields is None:
-        fields = LISTING_FIELDS
+        from models import ListingRecord
+
+        fields = ListingRecord.odoo_fields()
 
     model = conn.get_model("x_listing")
 

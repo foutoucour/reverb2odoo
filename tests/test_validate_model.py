@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
+from models import ListingRecord
 from sync_model import _fetch_all_models
 from validate_model import (
     _apply_validation_updates,
@@ -96,7 +97,7 @@ class TestValidateCli:
 class TestBuildValidationReport:
     """Unit tests for _build_validation_report (pure logic, no I/O)."""
 
-    def _make_entry(self, url="https://reverb.com/item/1-g", **kwargs):
+    def _make_entry(self, url="https://reverb.com/item/1-g", **kwargs) -> ListingRecord:
         base = {
             "id": 100,
             "x_name": "Guitar",
@@ -108,7 +109,7 @@ class TestBuildValidationReport:
             "x_published_at": "2025-06-20 00:00:00",
         }
         base.update(kwargs)
-        return base
+        return ListingRecord.from_odoo(base)
 
     def _make_reverb(self, **kwargs):
         base = {
@@ -304,21 +305,21 @@ class TestPrintValidationReport:
         report = [
             {
                 "action": "ok",
-                "entry": {"id": 1, "x_name": "A"},
+                "entry": ListingRecord.from_odoo({"id": 1, "x_name": "A"}),
                 "reverb": {"price_display": "$1"},
                 "changes": {},
                 "warnings": [],
             },
             {
                 "action": "update",
-                "entry": {"id": 2, "x_name": "B"},
+                "entry": ListingRecord.from_odoo({"id": 2, "x_name": "B"}),
                 "reverb": {"price_display": "$2"},
                 "changes": {"x_price": 99},
                 "warnings": [],
             },
             {
                 "action": "skip",
-                "entry": {"id": 3, "x_name": "C"},
+                "entry": ListingRecord.from_odoo({"id": 3, "x_name": "C"}),
                 "reverb": None,
                 "changes": {},
                 "warnings": ["non-Reverb URL — skipped"],
@@ -331,7 +332,7 @@ class TestPrintValidationReport:
         report = [
             {
                 "action": "ok",
-                "entry": {"id": 1, "x_name": "A"},
+                "entry": ListingRecord.from_odoo({"id": 1, "x_name": "A"}),
                 "reverb": {"price_display": "$1"},
                 "changes": {},
                 "warnings": [],
@@ -361,10 +362,10 @@ class TestApplyValidationUpdates:
         report = [
             {
                 "action": "update",
-                "entry": {"id": 100},
+                "entry": ListingRecord.from_odoo({"id": 100}),
                 "changes": {"x_price": 4000.0},
             },
-            {"action": "ok", "entry": {"id": 200}, "changes": {}},
+            {"action": "ok", "entry": ListingRecord.from_odoo({"id": 200}), "changes": {}},
         ]
         updated = _apply_validation_updates(conn, report)
         assert len(updated) == 1
@@ -373,8 +374,8 @@ class TestApplyValidationUpdates:
     def test_skips_ok_and_skip_entries(self):
         conn, model = self._mock_conn()
         report = [
-            {"action": "ok", "entry": {"id": 1}, "changes": {}},
-            {"action": "skip", "entry": {"id": 2}, "changes": {}},
+            {"action": "ok", "entry": ListingRecord.from_odoo({"id": 1}), "changes": {}},
+            {"action": "skip", "entry": ListingRecord.from_odoo({"id": 2}), "changes": {}},
         ]
         updated = _apply_validation_updates(conn, report)
         assert len(updated) == 0
@@ -385,15 +386,15 @@ class TestApplyValidationUpdates:
         report = [
             {
                 "action": "update",
-                "entry": {"id": 100},
+                "entry": ListingRecord.from_odoo({"id": 100}),
                 "changes": {"x_price": 4000.0},
             },
             {
                 "action": "update",
-                "entry": {"id": 200},
+                "entry": ListingRecord.from_odoo({"id": 200}),
                 "changes": {"x_is_available": False},
             },
-            {"action": "ok", "entry": {"id": 300}, "changes": {}},
+            {"action": "ok", "entry": ListingRecord.from_odoo({"id": 300}), "changes": {}},
         ]
         updated = _apply_validation_updates(conn, report)
         assert len(updated) == 2
@@ -408,9 +409,9 @@ class TestScrapeReverbUrls:
 
     async def test_scrapes_reverb_urls_only(self):
         entries = [
-            {"x_url": "https://reverb.com/item/1-guitar"},
-            {"x_url": "https://other.com/guitar"},
-            {"x_url": "https://reverb.com/item/2-bass"},
+            ListingRecord.from_odoo({"id": 1, "x_url": "https://reverb.com/item/1-guitar"}),
+            ListingRecord.from_odoo({"id": 2, "x_url": "https://other.com/guitar"}),
+            ListingRecord.from_odoo({"id": 3, "x_url": "https://reverb.com/item/2-bass"}),
         ]
 
         mock_results = [
@@ -438,8 +439,8 @@ class TestScrapeReverbUrls:
 
     async def test_no_reverb_urls_returns_empty(self):
         entries = [
-            {"x_url": "https://other.com/guitar"},
-            {"x_url": ""},
+            ListingRecord.from_odoo({"id": 1, "x_url": "https://other.com/guitar"}),
+            ListingRecord.from_odoo({"id": 2, "x_url": ""}),
         ]
         result = await _scrape_reverb_urls(entries)
         assert result == {}
@@ -708,7 +709,7 @@ class TestApplyValidationUpdatesImages:
         report = [
             {
                 "action": "update",
-                "entry": {"id": 100},
+                "entry": ListingRecord.from_odoo({"id": 100}),
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
                 "changes": {"x_price": 4000.0},
             },
@@ -728,7 +729,7 @@ class TestApplyValidationUpdatesImages:
         report = [
             {
                 "action": "update",
-                "entry": {"id": 100},
+                "entry": ListingRecord.from_odoo({"id": 100}),
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
                 "changes": {"x_price": 4000.0},
             },
@@ -747,7 +748,7 @@ class TestApplyValidationUpdatesImages:
         report = [
             {
                 "action": "update",
-                "entry": {"id": 100},
+                "entry": ListingRecord.from_odoo({"id": 100}),
                 "reverb": {"photo_url": "https://img.reverb.com/broken.jpg"},
                 "changes": {"x_price": 4000.0},
             },
@@ -767,7 +768,7 @@ class TestApplyValidationUpdatesImages:
         report = [
             {
                 "action": "update",
-                "entry": {"id": 100},
+                "entry": ListingRecord.from_odoo({"id": 100}),
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
                 "changes": original_changes,
             },
@@ -784,7 +785,7 @@ class TestApplyValidationUpdatesImages:
         report = [
             {
                 "action": "update",
-                "entry": {"id": 100},
+                "entry": ListingRecord.from_odoo({"id": 100}),
                 "reverb": None,
                 "changes": {"x_price": 4000.0},
             },

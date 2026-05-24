@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from models import GearRecord, ListingRecord, ModelsRecord
 from odoo_mcp.tools.get_model import (
     _label,
     _render_gear_section,
@@ -21,8 +22,7 @@ from odoo_mcp.tools.get_model import (
 @pytest.mark.parametrize(
     "field, expected",
     [
-        pytest.param([1, "Gibson"], "Gibson", id="valid-m2o"),
-        pytest.param(False, "", id="false-m2o"),
+        pytest.param((1, "Gibson"), "Gibson", id="valid-m2o"),
         pytest.param(None, "", id="none-m2o"),
     ],
 )
@@ -47,7 +47,7 @@ def test_scalar(value: object, expected: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_model(**overrides: object) -> dict:
+def _model_dict(**overrides: object) -> dict:
     base: dict = {
         "id": 10,
         "x_name": "Les Paul Standard",
@@ -59,35 +59,39 @@ def _make_model(**overrides: object) -> dict:
         "x_studio_scale": "24.75",
         "x_studio_finish": [2, "Gloss"],
         "x_studio_fretboard_1": [3, "Rosewood"],
-        "x_studio_p25": 1800.0,
-        "x_studio_p50": 2200.0,
-        "x_studio_p75": 2700.0,
+        "x_price_p25": 1800.0,
+        "x_price_p50": 2200.0,
+        "x_price_p75": 2700.0,
     }
     base.update(overrides)
     return base
 
 
+def _make_model(**overrides: object) -> ModelsRecord:
+    return ModelsRecord.from_odoo(_model_dict(**overrides))
+
+
 def test_render_model_spec_name_and_brand_in_header() -> None:
     model = _make_model()
-    result = _render_model_spec(model)
+    result = _render_model_spec(model, [])
     assert "# Les Paul Standard — Gibson" in result
 
 
 def test_render_model_spec_wanna_yes() -> None:
     model = _make_model(x_studio_wanna=True)
-    result = _render_model_spec(model)
+    result = _render_model_spec(model, [])
     assert "**Wanna**: yes" in result
 
 
 def test_render_model_spec_wanna_no() -> None:
     model = _make_model(x_studio_wanna=False)
-    result = _render_model_spec(model)
+    result = _render_model_spec(model, [])
     assert "**Wanna**: no" in result
 
 
 def test_render_model_spec_price_brackets() -> None:
     model = _make_model()
-    result = _render_model_spec(model)
+    result = _render_model_spec(model, [])
     assert "p25=1800.0" in result
     assert "p50=2200.0" in result
     assert "p75=2700.0" in result
@@ -95,16 +99,22 @@ def test_render_model_spec_price_brackets() -> None:
 
 def test_render_model_spec_scale_neck_fretboard() -> None:
     model = _make_model()
-    result = _render_model_spec(model)
+    result = _render_model_spec(model, [])
     assert "24.75" in result
     assert "SlimTaper" in result
     assert "Rosewood" in result
 
 
-def test_render_model_spec_omits_family_when_false() -> None:
+def test_render_model_spec_omits_family_when_empty() -> None:
     model = _make_model(x_studio_guitar_familly_ids=False)
-    result = _render_model_spec(model)
+    result = _render_model_spec(model, [])
     assert "**Construction**" not in result
+
+
+def test_render_model_spec_shows_family_when_provided() -> None:
+    model = _make_model()
+    result = _render_model_spec(model, ["Set neck", "Carved top"])
+    assert "**Construction**: Set neck, Carved top" in result
 
 
 # ---------------------------------------------------------------------------
@@ -112,19 +122,23 @@ def test_render_model_spec_omits_family_when_false() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_gear(**overrides: object) -> dict:
+def _gear_dict(**overrides: object) -> dict:
     base: dict = {
         "id": 1,
         "x_name": "2021 Gibson Les Paul",
         "x_status": "owned",
-        "x_condition": "excellent",
+        "x_studio_current_condition": "excellent",
         "x_intent": "keeper",
         "x_model_id": [10, "Les Paul Standard"],
         "x_studio_notes": False,
-        "x_listing_ids": [],
+        "x_studio_lsting_ids": [],
     }
     base.update(overrides)
     return base
+
+
+def _make_gear(**overrides: object) -> GearRecord:
+    return GearRecord.from_odoo(_gear_dict(**overrides))
 
 
 def test_render_gear_section_empty_returns_none_recorded() -> None:
@@ -148,7 +162,7 @@ def test_render_gear_section_groups_by_status() -> None:
 
 
 def test_render_gear_section_shows_condition_and_intent() -> None:
-    gear = _make_gear(x_condition="good", x_intent="flip")
+    gear = _make_gear(x_studio_current_condition="good", x_intent="flip")
     result = _render_gear_section([gear])
     assert "Condition: good" in result
     assert "Intent: flip" in result
@@ -159,7 +173,7 @@ def test_render_gear_section_shows_condition_and_intent() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_listing(**overrides: object) -> dict:
+def _listing_dict(**overrides: object) -> dict:
     base: dict = {
         "id": 100,
         "x_name": "Les Paul Standard",
@@ -182,6 +196,10 @@ def _make_listing(**overrides: object) -> dict:
     }
     base.update(overrides)
     return base
+
+
+def _make_listing(**overrides: object) -> ListingRecord:
+    return ListingRecord.from_odoo(_listing_dict(**overrides))
 
 
 def test_render_listing_section_empty_returns_none_recorded() -> None:
@@ -233,22 +251,29 @@ def _make_conn(
     model_records: list[dict] | None = None,
     gear_records: list[dict] | None = None,
     listing_records: list[dict] | None = None,
+    family_records: list[dict] | None = None,
 ) -> MagicMock:
     conn = MagicMock()
     models_proxy = MagicMock()
     gear_proxy = MagicMock()
     listing_proxy = MagicMock()
+    family_proxy = MagicMock()
 
     models_proxy.search_read.return_value = model_records or []
     gear_proxy.search_read.return_value = gear_records or []
     listing_proxy.search_read.return_value = listing_records or []
+    family_proxy.search_read.return_value = family_records or []
 
     def get_model(name: str) -> MagicMock:
         if name == "x_models":
             return models_proxy
         if name == "x_gear":
             return gear_proxy
-        return listing_proxy
+        if name == "x_listing":
+            return listing_proxy
+        if name == "x_guitar_familly":
+            return family_proxy
+        raise ValueError(f"Unexpected model: {name}")
 
     conn.get_model.side_effect = get_model
     return conn
@@ -261,7 +286,7 @@ def test_run_not_found_returns_notice() -> None:
 
 
 def test_run_numeric_id_uses_id_domain() -> None:
-    model = _make_model()
+    model = _model_dict()
     conn = _make_conn(model_records=[model])
     run(conn, "10")
     models_proxy = conn.get_model("x_models")
@@ -270,7 +295,7 @@ def test_run_numeric_id_uses_id_domain() -> None:
 
 
 def test_run_name_string_uses_ilike_domain() -> None:
-    model = _make_model()
+    model = _model_dict()
     conn = _make_conn(model_records=[model])
     run(conn, "Les Paul")
     models_proxy = conn.get_model("x_models")
@@ -279,7 +304,7 @@ def test_run_name_string_uses_ilike_domain() -> None:
 
 
 def test_run_queries_gear_by_model_id() -> None:
-    model = _make_model(id=10)
+    model = _model_dict(id=10)
     conn = _make_conn(model_records=[model])
     run(conn, "Les Paul")
     gear_proxy = conn.get_model("x_gear")
@@ -288,7 +313,7 @@ def test_run_queries_gear_by_model_id() -> None:
 
 
 def test_run_queries_listings_by_model_id() -> None:
-    model = _make_model(id=10)
+    model = _model_dict(id=10)
     conn = _make_conn(model_records=[model])
     run(conn, "Les Paul")
     listing_proxy = conn.get_model("x_listing")
@@ -297,15 +322,15 @@ def test_run_queries_listings_by_model_id() -> None:
 
 
 def test_run_output_contains_model_name() -> None:
-    model = _make_model()
+    model = _model_dict()
     conn = _make_conn(model_records=[model])
     result = run(conn, "Les Paul")
     assert "Les Paul Standard" in result
 
 
 def test_run_output_contains_gear_section() -> None:
-    model = _make_model()
-    gear = _make_gear()
+    model = _model_dict()
+    gear = _gear_dict()
     conn = _make_conn(model_records=[model], gear_records=[gear])
     result = run(conn, "Les Paul")
     assert "## Gear Instances" in result
@@ -313,15 +338,15 @@ def test_run_output_contains_gear_section() -> None:
 
 
 def test_run_output_contains_listing_section() -> None:
-    model = _make_model()
-    listing = _make_listing()
+    model = _model_dict()
+    listing = _listing_dict()
     conn = _make_conn(model_records=[model], listing_records=[listing])
     result = run(conn, "Les Paul")
     assert "## Listings" in result
 
 
 def test_run_strips_whitespace_from_name_or_id() -> None:
-    model = _make_model()
+    model = _model_dict()
     conn = _make_conn(model_records=[model])
     run(conn, "  42  ")
     models_proxy = conn.get_model("x_models")

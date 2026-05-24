@@ -3,7 +3,7 @@
 Computes:
 
 - **Owned** — count, total spent (sum of ``x_studio_acquiring_price``),
-  total notional value (sum of linked model's ``x_studio_p50``), and the
+  total notional value (sum of linked model's ``x_price_p50``), and the
   unrealized P&L (notional − spent).
 - **Sold** — count and realized P&L summed from sold listings.
 - **By brand** and **by intent** pivots.
@@ -20,13 +20,11 @@ from typing import Any
 
 from loguru import logger
 
-from odoo_connector import GEAR_FIELDS_MCP, LISTING_FIELDS_MCP, MODEL_FIELDS_MCP
+from models import GearRecord, ListingRecord, ModelsRecord
 
 
-def _label(value: list | bool | None) -> str:
-    if isinstance(value, list) and len(value) == 2:
-        return str(value[1])
-    return ""
+def _label(value: tuple[int, str] | None) -> str:
+    return value[1] if value else ""
 
 
 def _float_or_zero(value: object) -> float:
@@ -36,19 +34,6 @@ def _float_or_zero(value: object) -> float:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return 0.0
-
-
-def _model_id_from(record: dict) -> int | None:
-    ref = record.get("x_model_id")
-    if isinstance(ref, list) and len(ref) == 2:
-        return int(ref[0])
-    return None
-
-
-def _currency_name(field: Any) -> str | None:
-    if isinstance(field, list) and len(field) == 2:
-        return str(field[1])
-    return None
 
 
 def _format_money(value: float) -> str:
@@ -88,14 +73,16 @@ def run(conn: Any) -> str:
     """
     logger.info("portfolio_summary: aggregating gear collection")
     gear_proxy = conn.get_model("x_gear")
-    owned_gear: list[dict] = gear_proxy.search_read(
+    owned_rows: list[dict] = gear_proxy.search_read(
         [("x_status", "=", "owned")],
-        GEAR_FIELDS_MCP,
+        GearRecord.odoo_fields(),
     )
-    sold_gear: list[dict] = gear_proxy.search_read(
+    sold_rows: list[dict] = gear_proxy.search_read(
         [("x_status", "=", "sold")],
-        GEAR_FIELDS_MCP,
+        GearRecord.odoo_fields(),
     )
+    owned_gear = [GearRecord.from_odoo(r) for r in owned_rows]
+    sold_gear = [GearRecord.from_odoo(r) for r in sold_rows]
     logger.info(
         "portfolio_summary: {} owned, {} sold gear records",
         len(owned_gear),
@@ -103,15 +90,15 @@ def run(conn: Any) -> str:
     )
 
     # Build x_models lookup for p50.
-    model_ids = {mid for g in owned_gear + sold_gear if (mid := _model_id_from(g)) is not None}
-    models_by_id: dict[int, dict] = {}
+    model_ids = {g.x_model_id[0] for g in owned_gear + sold_gear if g.x_model_id is not None}
+    models_by_id: dict[int, ModelsRecord] = {}
     if model_ids:
         models_proxy = conn.get_model("x_models")
-        records = models_proxy.search_read(
+        model_rows = models_proxy.search_read(
             [("id", "in", list(model_ids))],
-            MODEL_FIELDS_MCP,
+            ModelsRecord.odoo_fields(),
         )
-        models_by_id = {r["id"]: r for r in records}
+        models_by_id = {r["id"]: ModelsRecord.from_odoo(r) for r in model_rows}
 
     # Owned aggregates.
     owned_total_spent = 0.0
@@ -124,16 +111,16 @@ def run(conn: Any) -> str:
     )
 
     for gear in owned_gear:
-        spent = _float_or_zero(gear.get("x_studio_acquiring_price"))
-        mid = _model_id_from(gear)
+        spent = _float_or_zero(gear.x_studio_acquiring_price)
+        mid = gear.x_model_id[0] if gear.x_model_id else None
         model = models_by_id.get(mid) if mid is not None else None
-        notional = _float_or_zero(model.get("x_studio_p50") if model else 0)
+        notional = _float_or_zero(model.x_price_p50 if model else 0)
 
         owned_total_spent += spent
         owned_total_notional += notional
 
-        brand = _label(model.get("x_studio_partner_id")) if model else "(unknown)"
-        intent = gear.get("x_intent") or "unknown"
+        brand = _label(model.x_studio_partner_id) if model else "(unknown)"
+        intent = gear.x_intent or "unknown"
 
         for pivot, key in ((by_brand, brand or "(unknown)"), (by_intent, intent)):
             pivot[key]["count"] += 1
@@ -143,32 +130,30 @@ def run(conn: Any) -> str:
     # Sold aggregates (realized P&L = sale - acquiring).
     sold_listing_ids: list[int] = []
     for gear in sold_gear:
-        ids = gear.get("x_listing_ids") or []
-        sold_listing_ids.extend(int(i) for i in ids)
+        sold_listing_ids.extend(gear.x_studio_lsting_ids)
 
-    sold_listings_by_gear: dict[int, dict] = {}
+    sold_listings_by_gear: dict[int, ListingRecord] = {}
     currencies_seen: set[str] = set()
     if sold_listing_ids:
         listing_proxy = conn.get_model("x_listing")
-        listings = listing_proxy.search_read(
+        listing_rows = listing_proxy.search_read(
             [("id", "in", sold_listing_ids), ("x_status", "=", "sold")],
-            LISTING_FIELDS_MCP,
+            ListingRecord.odoo_fields(),
         )
-        for lst in listings:
-            gid_ref = lst.get("x_gear_id")
-            if isinstance(gid_ref, list) and len(gid_ref) == 2:
-                sold_listings_by_gear[int(gid_ref[0])] = lst
-            cname = _currency_name(lst.get("x_currency_id"))
-            if cname:
-                currencies_seen.add(cname)
+        for row in listing_rows:
+            lst = ListingRecord.from_odoo(row)
+            if lst.x_gear_id is not None:
+                sold_listings_by_gear[lst.x_gear_id[0]] = lst
+            if lst.x_currency_id is not None:
+                currencies_seen.add(lst.x_currency_id[1])
 
     sold_realized = 0.0
     for gear in sold_gear:
-        spent = _float_or_zero(gear.get("x_studio_acquiring_price"))
-        listing = sold_listings_by_gear.get(int(gear["id"]))
+        spent = _float_or_zero(gear.x_studio_acquiring_price)
+        listing = sold_listings_by_gear.get(gear.id)
         if listing is None:
             continue
-        sale = _float_or_zero(listing.get("x_price"))
+        sale = _float_or_zero(listing.x_price)
         sold_realized += sale - spent
 
     # Render.

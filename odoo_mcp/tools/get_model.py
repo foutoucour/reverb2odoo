@@ -9,48 +9,40 @@ from __future__ import annotations
 import odoolib
 from loguru import logger
 
-from odoo_connector import GEAR_FIELDS_MCP, LISTING_FIELDS_MCP, MODEL_FIELDS_MCP
+from models import GearRecord, ListingRecord, ModelsRecord
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
 
 
-def _label(m2o: list | bool | None) -> str:
-    """Extract display name from a many2one [id, name] value, or '' when absent."""
-    if isinstance(m2o, list) and len(m2o) == 2:
-        return str(m2o[1])
-    return ""
+def _label(m2o: tuple[int, str] | None) -> str:
+    """Extract display name from a normalised many2one value."""
+    return m2o[1] if m2o else ""
 
 
 def _scalar(value: object, fallback: str = "") -> str:
-    """Return str(value) unless it is False/None, in which case return fallback."""
-    if value is False or value is None:
+    """Return str(value) unless it is False/None/empty, in which case return fallback."""
+    if value is False or value is None or value == "":
         return fallback
     return str(value)
 
 
-def _render_model_spec(model: dict) -> str:
+def _render_model_spec(model: ModelsRecord, family_names: list[str]) -> str:
     """Render the core x_models fields as a markdown spec block."""
-    name = _scalar(model.get("x_name"), fallback="(unnamed)")
-    brand = _label(model.get("x_studio_partner_id"))
-    model_type = _scalar(model.get("x_studio_model_type"))
-    wanna = model.get("x_studio_wanna", False)
-    scale = _scalar(model.get("x_studio_scale"))
-    neck_feel = _label(model.get("x_studio_guitar_neck_feel_id"))
-    finish = _label(model.get("x_studio_finish"))
-    fretboard = _label(model.get("x_studio_fretboard_1"))
-    p25 = _scalar(model.get("x_studio_p25"))
-    p50 = _scalar(model.get("x_studio_p50"))
-    p75 = _scalar(model.get("x_studio_p75"))
+    name = _scalar(model.x_name, fallback="(unnamed)")
+    brand = _label(model.x_studio_partner_id)
+    model_type = _scalar(model.x_studio_model_type)
+    wanna = model.x_studio_wanna or False
+    scale = _scalar(model.x_studio_scale)
+    neck_feel = _label(model.x_studio_guitar_neck_feel_id)
+    finish = _label(model.x_studio_finish)
+    fretboard = _label(model.x_studio_fretboard_1)
+    p25 = _scalar(model.x_price_p25)
+    p50 = _scalar(model.x_price_p50)
+    p75 = _scalar(model.x_price_p75)
 
-    # Construction/family is a many2many — stored as list of [id, name] pairs or ids.
-    family_raw = model.get("x_studio_guitar_familly_ids") or []
-    if family_raw and isinstance(family_raw[0], list):
-        family = ", ".join(str(item[1]) for item in family_raw)
-    else:
-        family = ""
-
+    family = ", ".join(family_names) if family_names else ""
     wanna_str = "yes" if wanna else "no"
 
     lines: list[str] = [
@@ -65,50 +57,49 @@ def _render_model_spec(model: dict) -> str:
     return "\n".join(lines)
 
 
-def _render_gear_section(gear_records: list[dict]) -> str:
+def _render_gear_section(gear_records: list[GearRecord]) -> str:
     """Render all x_gear records grouped by status."""
     if not gear_records:
         return "## Gear Instances\n\n*None recorded*"
 
-    by_status: dict[str, list[dict]] = {}
+    by_status: dict[str, list[GearRecord]] = {}
     for gear in gear_records:
-        s = _scalar(gear.get("x_status"), fallback="unknown")
+        s = _scalar(gear.x_status, fallback="unknown")
         by_status.setdefault(s, []).append(gear)
 
     lines: list[str] = ["## Gear Instances"]
     for status, items in sorted(by_status.items()):
         lines.append(f"\n### {status} ({len(items)})")
         for gear in items:
-            name = _scalar(gear.get("x_name"), fallback="(unnamed)")
-            condition = _scalar(gear.get("x_condition"))
-            intent = _scalar(gear.get("x_intent"))
-            gear_id = gear.get("id", "")
-            lines.append(f"- **{name}** (id={gear_id}) | Condition: {condition} | Intent: {intent}")
+            name = _scalar(gear.x_name, fallback="(unnamed)")
+            condition = _scalar(gear.x_studio_current_condition)
+            intent = _scalar(gear.x_intent)
+            lines.append(f"- **{name}** (id={gear.id}) | Condition: {condition} | Intent: {intent}")
 
     return "\n".join(lines)
 
 
-def _render_listing_section(listing_records: list[dict]) -> str:
+def _render_listing_section(listing_records: list[ListingRecord]) -> str:
     """Render all x_listing records grouped by status."""
     if not listing_records:
         return "## Listings\n\n*None recorded*"
 
-    by_status: dict[str, list[dict]] = {}
+    by_status: dict[str, list[ListingRecord]] = {}
     for listing in listing_records:
-        s = _scalar(listing.get("x_status"), fallback="unknown")
+        s = _scalar(listing.x_status, fallback="unknown")
         by_status.setdefault(s, []).append(listing)
 
     lines: list[str] = ["## Listings"]
     for status, items in sorted(by_status.items()):
         lines.append(f"\n### {status} ({len(items)})")
         for listing in items:
-            price = _scalar(listing.get("x_price"))
-            currency = _label(listing.get("x_currency_id"))
-            platform = _scalar(listing.get("x_platform"))
-            url = _scalar(listing.get("x_url"))
-            listing_score = _scalar(listing.get("x_studio_listing_score"))
-            price_score = _scalar(listing.get("x_studio_price_score"))
-            notes = _scalar(listing.get("x_studio_notes"))
+            price = _scalar(listing.x_price)
+            currency = _label(listing.x_currency_id)
+            platform = _scalar(listing.x_platform)
+            url = _scalar(listing.x_url)
+            listing_score = _scalar(listing.x_studio_listing_score)
+            price_score = _scalar(listing.x_studio_price_score)
+            notes = _scalar(listing.x_studio_notes)
 
             score_part = (
                 f" | scores: listing={listing_score} price={price_score}"
@@ -122,6 +113,14 @@ def _render_listing_section(listing_records: list[dict]) -> str:
                 lines.append(f"  Notes: {notes}")
 
     return "\n".join(lines)
+
+
+def _resolve_family_names(conn: odoolib.main.Connection, family_ids: list[int]) -> list[str]:
+    """Resolve x_guitar_familly ids to display names."""
+    if not family_ids:
+        return []
+    rows = conn.get_model("x_guitar_familly").search_read([("id", "in", family_ids)], ["x_name"])
+    return [str(r.get("x_name") or "") for r in rows if r.get("x_name")]
 
 
 # ---------------------------------------------------------------------------
@@ -160,31 +159,34 @@ def run(conn: odoolib.main.Connection, name_or_id: str) -> str:
         logger.info("get_model: searching by name ilike '{}'", name_or_id)
         domain = [("x_name", "ilike", name_or_id)]
 
-    model_records: list[dict] = models_proxy.search_read(domain, MODEL_FIELDS_MCP, limit=1)
+    model_rows: list[dict] = models_proxy.search_read(domain, ModelsRecord.odoo_fields(), limit=1)
 
-    if not model_records:
+    if not model_rows:
         return f"No model found matching: **{name_or_id}**"
 
-    model = model_records[0]
-    model_id: int = model["id"]
-    logger.info("get_model: found model id={}", model_id)
+    model = ModelsRecord.from_odoo(model_rows[0])
+    logger.info("get_model: found model id={}", model.id)
+
+    family_names = _resolve_family_names(conn, model.x_studio_guitar_familly_ids)
 
     gear_proxy = conn.get_model("x_gear")
-    gear_records: list[dict] = gear_proxy.search_read(
-        [("x_model_id", "=", model_id)],
-        GEAR_FIELDS_MCP,
+    gear_rows: list[dict] = gear_proxy.search_read(
+        [("x_model_id", "=", model.id)],
+        GearRecord.odoo_fields(),
     )
+    gear_records = [GearRecord.from_odoo(r) for r in gear_rows]
     logger.debug("get_model: {} gear record(s) linked", len(gear_records))
 
     listing_proxy = conn.get_model("x_listing")
-    listing_records: list[dict] = listing_proxy.search_read(
-        [("x_model_id", "=", model_id)],
-        LISTING_FIELDS_MCP,
+    listing_rows: list[dict] = listing_proxy.search_read(
+        [("x_model_id", "=", model.id)],
+        ListingRecord.odoo_fields(),
     )
+    listing_records = [ListingRecord.from_odoo(r) for r in listing_rows]
     logger.debug("get_model: {} listing record(s) linked", len(listing_records))
 
     sections: list[str] = [
-        _render_model_spec(model),
+        _render_model_spec(model, family_names),
         "",
         _render_gear_section(gear_records),
         "",

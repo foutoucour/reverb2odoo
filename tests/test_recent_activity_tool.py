@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from models import GearRecord, ListingRecord
 from odoo_mcp.tools.recent_activity import (
     _render_gear_update,
     _render_new_listing,
@@ -15,15 +16,18 @@ from odoo_mcp.tools.recent_activity import (
 
 
 def test_render_new_listing_includes_model_price_url() -> None:
-    listing = {
-        "x_model_id": [10, "Les Paul"],
-        "x_price": 2000.0,
-        "x_currency_id": [1, "CAD"],
-        "x_platform": "reverb",
-        "x_status": "watching",
-        "x_url": "https://reverb.com/item/x",
-        "x_studio_listing_score": 80,
-    }
+    listing = ListingRecord.from_odoo(
+        {
+            "id": 1,
+            "x_model_id": [10, "Les Paul"],
+            "x_price": 2000.0,
+            "x_currency_id": [1, "CAD"],
+            "x_platform": "reverb",
+            "x_status": "watching",
+            "x_url": "https://reverb.com/item/x",
+            "x_studio_listing_score": 80,
+        }
+    )
     line = _render_new_listing(listing)
     assert "Les Paul" in line
     assert "2000.0 CAD" in line
@@ -32,25 +36,30 @@ def test_render_new_listing_includes_model_price_url() -> None:
 
 
 def test_render_sold_listing_marks_sold() -> None:
-    listing = {
-        "x_model_id": [10, "Les Paul"],
-        "x_price": 2500.0,
-        "x_currency_id": [1, "CAD"],
-        "x_platform": "reverb",
-        "x_url": "",
-    }
+    listing = ListingRecord.from_odoo(
+        {
+            "id": 1,
+            "x_model_id": [10, "Les Paul"],
+            "x_price": 2500.0,
+            "x_currency_id": [1, "CAD"],
+            "x_platform": "reverb",
+            "x_url": "",
+        }
+    )
     line = _render_sold_listing(listing)
     assert "sold at 2500.0" in line
 
 
 def test_render_gear_update_includes_id_status_model() -> None:
-    gear = {
-        "id": 42,
-        "x_name": "2021 Les Paul",
-        "x_status": "owned",
-        "x_model_id": [10, "Les Paul"],
-        "x_intent": "keeper",
-    }
+    gear = GearRecord.from_odoo(
+        {
+            "id": 42,
+            "x_name": "2021 Les Paul",
+            "x_status": "owned",
+            "x_model_id": [10, "Les Paul"],
+            "x_intent": "keeper",
+        }
+    )
     line = _render_gear_update(gear)
     assert "id=42" in line
     assert "[owned]" in line

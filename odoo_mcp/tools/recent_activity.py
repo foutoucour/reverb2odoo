@@ -16,13 +16,11 @@ from typing import Any
 
 from loguru import logger
 
-from odoo_connector import GEAR_FIELDS_MCP, LISTING_FIELDS_MCP
+from models import GearRecord, ListingRecord
 
 
-def _label(value: list | bool | None) -> str:
-    if isinstance(value, list) and len(value) == 2:
-        return str(value[1])
-    return ""
+def _label(value: tuple[int, str] | None) -> str:
+    return value[1] if value else ""
 
 
 def _scalar(value: object, fallback: str = "") -> str:
@@ -31,14 +29,14 @@ def _scalar(value: object, fallback: str = "") -> str:
     return str(value)
 
 
-def _render_new_listing(listing: dict) -> str:
-    model = _label(listing.get("x_model_id"))
-    price = _scalar(listing.get("x_price"))
-    currency = _label(listing.get("x_currency_id"))
-    platform = _scalar(listing.get("x_platform"))
-    status = _scalar(listing.get("x_status"))
-    url = _scalar(listing.get("x_url"))
-    score = _scalar(listing.get("x_studio_listing_score"))
+def _render_new_listing(listing: ListingRecord) -> str:
+    model = _label(listing.x_model_id)
+    price = _scalar(listing.x_price)
+    currency = _label(listing.x_currency_id)
+    platform = _scalar(listing.x_platform)
+    status = _scalar(listing.x_status)
+    url = _scalar(listing.x_url)
+    score = _scalar(listing.x_studio_listing_score)
 
     line = f"- **{model}** [{status}] — {price} {currency} on {platform}"
     if score:
@@ -48,12 +46,12 @@ def _render_new_listing(listing: dict) -> str:
     return line
 
 
-def _render_sold_listing(listing: dict) -> str:
-    model = _label(listing.get("x_model_id"))
-    price = _scalar(listing.get("x_price"))
-    currency = _label(listing.get("x_currency_id"))
-    platform = _scalar(listing.get("x_platform"))
-    url = _scalar(listing.get("x_url"))
+def _render_sold_listing(listing: ListingRecord) -> str:
+    model = _label(listing.x_model_id)
+    price = _scalar(listing.x_price)
+    currency = _label(listing.x_currency_id)
+    platform = _scalar(listing.x_platform)
+    url = _scalar(listing.x_url)
 
     line = f"- **{model}** — sold at {price} {currency} on {platform}"
     if url:
@@ -61,13 +59,12 @@ def _render_sold_listing(listing: dict) -> str:
     return line
 
 
-def _render_gear_update(gear: dict) -> str:
-    name = _scalar(gear.get("x_name"), fallback="(unnamed)")
-    status = _scalar(gear.get("x_status"))
-    model = _label(gear.get("x_model_id"))
-    intent = _scalar(gear.get("x_intent"))
-    gear_id = gear.get("id", "")
-    return f"- **{name}** (id={gear_id}) [{status}] | model: {model} | intent: {intent}"
+def _render_gear_update(gear: GearRecord) -> str:
+    name = _scalar(gear.x_name, fallback="(unnamed)")
+    status = _scalar(gear.x_status)
+    model = _label(gear.x_model_id)
+    intent = _scalar(gear.x_intent)
+    return f"- **{name}** (id={gear.id}) [{status}] | model: {model} | intent: {intent}"
 
 
 def run(conn: Any, days: int = 7) -> str:
@@ -95,22 +92,25 @@ def run(conn: Any, days: int = 7) -> str:
     listing_proxy = conn.get_model("x_listing")
     gear_proxy = conn.get_model("x_gear")
 
-    new_listings: list[dict] = listing_proxy.search_read(
+    new_rows: list[dict] = listing_proxy.search_read(
         [("create_date", ">=", cutoff)],
-        LISTING_FIELDS_MCP,
+        ListingRecord.odoo_fields(),
     )
+    new_listings = [ListingRecord.from_odoo(r) for r in new_rows]
     logger.debug("recent_activity: {} new listings", len(new_listings))
 
-    sold_listings: list[dict] = listing_proxy.search_read(
+    sold_rows: list[dict] = listing_proxy.search_read(
         [("x_status", "=", "sold"), ("write_date", ">=", cutoff)],
-        LISTING_FIELDS_MCP,
+        ListingRecord.odoo_fields(),
     )
+    sold_listings = [ListingRecord.from_odoo(r) for r in sold_rows]
     logger.debug("recent_activity: {} sold listings", len(sold_listings))
 
-    gear_updates: list[dict] = gear_proxy.search_read(
+    gear_rows: list[dict] = gear_proxy.search_read(
         [("write_date", ">=", cutoff), ("x_status", "!=", "closed")],
-        GEAR_FIELDS_MCP,
+        GearRecord.odoo_fields(),
     )
+    gear_updates = [GearRecord.from_odoo(r) for r in gear_rows]
     logger.debug("recent_activity: {} gear updates", len(gear_updates))
 
     sections: list[str] = [

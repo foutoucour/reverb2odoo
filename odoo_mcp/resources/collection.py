@@ -8,39 +8,31 @@ markdown document suitable for consumption by an LLM context window.
 import odoolib
 from loguru import logger
 
-from odoo_connector import GEAR_FIELDS_MCP, LISTING_FIELDS_MCP
+from models import GearRecord, ListingRecord
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
 
 
-def _name(m2o_field: list | bool) -> str:
-    """Extract the display name from a many2one field value.
-
-    Odoo returns many2one fields as ``[id, name]`` when set, or ``False``
-    when the field is empty.
-    """
-    if not m2o_field:
-        return ""
-    return m2o_field[1]
+def _name(m2o: tuple[int, str] | None) -> str:
+    return m2o[1] if m2o else ""
 
 
 def _val(field: object) -> str:
-    """Return the field value as a string, or an empty string when False."""
-    if field is False or field is None:
+    if field is False or field is None or field == "":
         return ""
     return str(field)
 
 
-def _render_listing(listing: dict) -> str:
+def _render_listing(listing: ListingRecord) -> str:
     """Render a single listing as a markdown bullet point."""
-    platform = _val(listing.get("x_platform"))
-    url = _val(listing.get("x_url"))
-    price = _val(listing.get("x_price"))
-    currency = _name(listing.get("x_currency_id"))
-    score = _val(listing.get("x_studio_listing_score"))
-    notes = _val(listing.get("x_studio_notes"))
+    platform = _val(listing.x_platform)
+    url = _val(listing.x_url)
+    price = _val(listing.x_price)
+    currency = _name(listing.x_currency_id)
+    score = _val(listing.x_studio_listing_score)
+    notes = _val(listing.x_studio_notes)
 
     price_currency = f"{price} {currency}".strip() if price else ""
     score_part = f" | score: {score}" if score else ""
@@ -53,16 +45,16 @@ def _render_listing(listing: dict) -> str:
     return line
 
 
-def _render_gear(gear: dict, listings: list[dict]) -> str:
+def _render_gear(gear: GearRecord, listings: list[ListingRecord]) -> str:
     """Render a single gear record and its listings as a markdown block."""
-    name = _val(gear.get("x_name"))
-    status = _val(gear.get("x_status"))
-    model_name = _name(gear.get("x_model_id"))
-    condition = _val(gear.get("x_condition"))
-    intent = _val(gear.get("x_intent"))
-    acquiring_price = _val(gear.get("x_studio_acquiring_price"))
-    serial_number = _val(gear.get("x_serial_number"))
-    notes = _val(gear.get("x_studio_notes"))
+    name = _val(gear.x_name)
+    status = _val(gear.x_status)
+    model_name = _name(gear.x_model_id)
+    condition = _val(gear.x_studio_current_condition)
+    intent = _val(gear.x_intent)
+    acquiring_price = _val(gear.x_studio_acquiring_price)
+    serial_number = _val(gear.x_serial_number)
+    notes = _val(gear.x_studio_notes)
 
     lines: list[str] = []
     lines.append(f"## {name} [{status}]")
@@ -112,28 +104,29 @@ def render(conn: odoolib.main.Connection) -> str:
     listing_model = conn.get_model("x_listing")
 
     logger.info("Fetching gear collection (owned + for_sale)…")
-    gear_records: list[dict] = gear_model.search_read(
+    gear_rows: list[dict] = gear_model.search_read(
         [("x_status", "in", ["owned", "for_sale"])],
-        GEAR_FIELDS_MCP,
+        GearRecord.odoo_fields(),
     )
+    gear_records = [GearRecord.from_odoo(r) for r in gear_rows]
     logger.info("Found {} gear record(s)", len(gear_records))
 
     lines: list[str] = ["# My Collection\n"]
 
     for gear in gear_records:
-        status = gear.get("x_status")
-        listing_statuses = ["acquired"] if status == "owned" else ["for_sale", "sold"]
+        listing_statuses = ["acquired"] if gear.x_status == "owned" else ["for_sale", "sold"]
 
         logger.debug(
             "Fetching listings for gear id={} (status={}, listing_statuses={})",
-            gear["id"],
-            status,
+            gear.id,
+            gear.x_status,
             listing_statuses,
         )
-        listings: list[dict] = listing_model.search_read(
-            [("x_gear_id", "=", gear["id"]), ("x_status", "in", listing_statuses)],
-            LISTING_FIELDS_MCP,
+        listing_rows: list[dict] = listing_model.search_read(
+            [("x_gear_id", "=", gear.id), ("x_status", "in", listing_statuses)],
+            ListingRecord.odoo_fields(),
         )
+        listings = [ListingRecord.from_odoo(r) for r in listing_rows]
 
         lines.append(_render_gear(gear, listings))
 

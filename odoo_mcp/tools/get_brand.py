@@ -11,15 +11,13 @@ from typing import Any
 import odoolib
 from loguru import logger
 
-from odoo_connector import MODEL_FIELDS_MCP
+from models import ModelsRecord
 from odoo_mcp import brand_cache
 from odoo_mcp.resources.brands import _render_brand
 
 
-def _label(value: list | bool | None) -> str:
-    if isinstance(value, list) and len(value) == 2:
-        return str(value[1])
-    return ""
+def _label(value: tuple[int, str] | None) -> str:
+    return value[1] if value else ""
 
 
 def _scalar(value: object, fallback: str = "") -> str:
@@ -47,21 +45,21 @@ def _find_brand(brands: list[dict], name: str) -> dict | None:
     return None
 
 
-def _render_linked_models(models: list[dict]) -> str:
+def _render_linked_models(models: list[ModelsRecord]) -> str:
     if not models:
         return "## Models in catalog\n\n*No x_models records linked to this partner.*"
 
     lines: list[str] = [f"## Models in catalog ({len(models)})"]
 
-    wanted: list[dict] = []
-    others: list[dict] = []
+    wanted: list[ModelsRecord] = []
+    others: list[ModelsRecord] = []
     for model in models:
-        (wanted if model.get("x_studio_wanna") else others).append(model)
+        (wanted if model.x_studio_wanna else others).append(model)
 
-    def _line(model: dict) -> str:
-        name = _scalar(model.get("x_name"), fallback="(unnamed)")
-        mtype = _scalar(model.get("x_studio_model_type"))
-        p50 = _scalar(model.get("x_studio_p50"))
+    def _line(model: ModelsRecord) -> str:
+        name = _scalar(model.x_name, fallback="(unnamed)")
+        mtype = _scalar(model.x_studio_model_type)
+        p50 = _scalar(model.x_price_p50)
         parts: list[str] = [f"**{name}**"]
         if mtype:
             parts.append(f"type={mtype}")
@@ -72,13 +70,13 @@ def _render_linked_models(models: list[dict]) -> str:
     if wanted:
         lines.append("")
         lines.append("### Wanted")
-        for model in sorted(wanted, key=lambda m: (m.get("x_name") or "").lower()):
+        for model in sorted(wanted, key=lambda m: (m.x_name or "").lower()):
             lines.append(_line(model))
 
     if others:
         lines.append("")
         lines.append("### Other")
-        for model in sorted(others, key=lambda m: (m.get("x_name") or "").lower()):
+        for model in sorted(others, key=lambda m: (m.x_name or "").lower()):
             lines.append(_line(model))
 
     return "\n".join(lines)
@@ -116,10 +114,11 @@ def run(conn: Any, name: str) -> str:
     odoo_id = brand.get("odoo_id")
     if odoo_id:
         models_proxy: odoolib.main.Model = conn.get_model("x_models")
-        models: list[dict] = models_proxy.search_read(
+        model_rows: list[dict] = models_proxy.search_read(
             [("x_studio_partner_id", "=", odoo_id)],
-            MODEL_FIELDS_MCP,
+            ModelsRecord.odoo_fields(),
         )
+        models = [ModelsRecord.from_odoo(r) for r in model_rows]
         logger.debug("get_brand: {} linked x_models", len(models))
         sections.append("")
         sections.append(_render_linked_models(models))

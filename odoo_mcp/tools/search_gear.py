@@ -9,23 +9,21 @@ from __future__ import annotations
 import odoolib
 from loguru import logger
 
-from odoo_connector import GEAR_FIELDS_MCP
+from models import GearRecord
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
 
 
-def _label(m2o: list | bool | None) -> str:
-    """Extract display name from a many2one [id, name] value, or '' when absent."""
-    if isinstance(m2o, list) and len(m2o) == 2:
-        return str(m2o[1])
-    return ""
+def _label(m2o: tuple[int, str] | None) -> str:
+    """Extract display name from a normalised many2one value."""
+    return m2o[1] if m2o else ""
 
 
 def _scalar(value: object, fallback: str = "") -> str:
-    """Return str(value) unless it is False/None, in which case return fallback."""
-    if value is False or value is None:
+    """Return str(value) unless it is False/None/empty, in which case return fallback."""
+    if value is False or value is None or value == "":
         return fallback
     return str(value)
 
@@ -50,13 +48,13 @@ def _model_ids_for_type(conn: odoolib.main.Connection, model_type: str) -> list[
     return [r["id"] for r in records]
 
 
-def _render_card(gear: dict) -> str:
+def _render_card(gear: GearRecord) -> str:
     """Render a single gear record as a compact markdown bullet."""
-    name = _scalar(gear.get("x_name"), fallback="(unnamed)")
-    status = _scalar(gear.get("x_status"))
-    model_name = _label(gear.get("x_model_id"))
-    condition = _scalar(gear.get("x_condition"))
-    intent = _scalar(gear.get("x_intent"))
+    name = _scalar(gear.x_name, fallback="(unnamed)")
+    status = _scalar(gear.x_status)
+    model_name = _label(gear.x_model_id)
+    condition = _scalar(gear.x_studio_current_condition)
+    intent = _scalar(gear.x_intent)
 
     return (
         f"- **{name}** [{status}] | Model: {model_name} | Condition: {condition} | Intent: {intent}"
@@ -134,12 +132,13 @@ def run(
 
     logger.info("Searching x_gear with domain: {}", domain)
     gear_proxy = conn.get_model("x_gear")
-    records: list[dict] = gear_proxy.search_read(domain, GEAR_FIELDS_MCP)
-    logger.info("search_gear: {} record(s) found", len(records))
+    rows: list[dict] = gear_proxy.search_read(domain, GearRecord.odoo_fields())
+    logger.info("search_gear: {} record(s) found", len(rows))
 
-    if not records:
+    if not rows:
         return "No gear found matching the supplied filters."
 
+    records = [GearRecord.from_odoo(r) for r in rows]
     lines: list[str] = [f"# Gear Search Results ({len(records)} found)\n"]
     for gear in records:
         lines.append(_render_card(gear))

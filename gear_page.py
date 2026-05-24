@@ -27,11 +27,13 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from models import GearRecord, ListingRecord, ModelsRecord
+
 _console = Console()
 
 
 # ---------------------------------------------------------------------------
-# Pydantic models
+# Pydantic models (template-only — Odoo records live in models.py)
 # ---------------------------------------------------------------------------
 
 
@@ -45,42 +47,6 @@ class FieldMeta(BaseModel):
     string: str = ""
     selection: list[list[str]] = []
     relation: str = ""
-
-
-class GearRecord(BaseModel):
-    """Raw x_gear record as returned by Odoo search_read."""
-
-    model_config = ConfigDict(extra="allow")
-
-    id: int
-    x_name: str = ""
-    x_model_id: Any = False
-    x_studio_image: Any = False
-
-
-class ModelRecord(BaseModel):
-    """Raw x_models record."""
-
-    model_config = ConfigDict(extra="allow")
-
-    x_name: str = ""
-    x_studio_partner_id: Any = False
-    x_studio_model_type: Any = False
-    x_studio_notes: Any = False
-
-
-class ListingRecord(BaseModel):
-    """Raw x_listing record."""
-
-    model_config = ConfigDict(extra="allow")
-
-    id: int
-    x_price: float = 0.0
-    x_shipping: float = 0.0
-    x_currency_id: Any = False
-    x_platform: str = ""
-    x_is_available: bool = False
-    x_studio_image: Any = False
 
 
 class ListingRow(BaseModel):
@@ -210,24 +176,6 @@ _GEAR_SPEC_FIELDS: list[str] = [
     "x_studio_weight_imperial",
 ]
 
-_MODEL_FIELDS: list[str] = [
-    "x_name",
-    "x_studio_partner_id",
-    "x_studio_model_type",
-    "x_studio_notes",
-]
-
-_LISTING_FIELDS: list[str] = [
-    "id",
-    "x_price",
-    "x_shipping",
-    "x_currency_id",
-    "x_platform",
-    "x_is_available",
-    "x_studio_image",
-]
-
-
 # ---------------------------------------------------------------------------
 # Field metadata
 # ---------------------------------------------------------------------------
@@ -259,9 +207,9 @@ def _available_fields(conn, model_name: str, wanted: list[str]) -> list[str]:
     return [f for f in wanted if f in existing]
 
 
-def _find_gear(conn, gear_ref: str, field_names: list[str]) -> GearRecord:
+def _find_gear(conn, gear_ref: str) -> GearRecord:
     gear_model = conn.get_model("x_gear")
-    fields = ["id", "x_name", "x_model_id", "x_studio_image"] + field_names
+    fields = GearRecord.odoo_fields()
 
     if gear_ref.isdigit():
         results = gear_model.search_read([("id", "=", int(gear_ref))], fields, limit=1)
@@ -277,21 +225,19 @@ def _find_gear(conn, gear_ref: str, field_names: list[str]) -> GearRecord:
         _console.print(f"[red]Ambiguous — {len(results)} matches: {matches}[/red]")
         sys.exit(1)
 
-    return GearRecord(**results[0])
+    return GearRecord.from_odoo(results[0])
 
 
-def _fetch_model(conn, model_id: int) -> ModelRecord:
-    fields = _available_fields(conn, "x_models", _MODEL_FIELDS)
+def _fetch_model(conn, model_id: int) -> ModelsRecord | None:
     model = conn.get_model("x_models")
-    results = model.search_read([("id", "=", model_id)], fields, limit=1)
-    return ModelRecord(**results[0]) if results else ModelRecord()
+    results = model.search_read([("id", "=", model_id)], ModelsRecord.odoo_fields(), limit=1)
+    return ModelsRecord.from_odoo(results[0]) if results else None
 
 
 def _fetch_listings(conn, gear_id: int) -> list[ListingRecord]:
-    fields = _available_fields(conn, "x_listing", _LISTING_FIELDS)
     listing_model = conn.get_model("x_listing")
-    rows = listing_model.search_read([("x_gear_id", "=", gear_id)], fields)
-    return [ListingRecord(**r) for r in rows]
+    rows = listing_model.search_read([("x_gear_id", "=", gear_id)], ListingRecord.odoo_fields())
+    return [ListingRecord.from_odoo(r) for r in rows]
 
 
 def _resolve_m2m_names(
@@ -304,7 +250,7 @@ def _resolve_m2m_names(
     for fname, meta in field_meta.items():
         if meta.type != "many2many":
             continue
-        ids = getattr(gear, fname, None) or gear.model_extra.get(fname)
+        ids = getattr(gear, fname, None)
         if not ids:
             continue
         if not meta.relation:
@@ -381,7 +327,7 @@ def _build_spec_groups(
     field_meta: dict[str, FieldMeta],
     m2m_resolved: dict[str, list[str]],
 ) -> list[SpecGroup]:
-    all_values = {**gear.model_dump(), **gear.model_extra}
+    all_values = gear.model_dump()
 
     formatted: dict[str, tuple[str, str]] = {}
     for fname, meta in field_meta.items():
@@ -444,7 +390,7 @@ def _build_spec_groups(
 
 
 def _raw_float(gear: GearRecord, field: str) -> float:
-    val = gear.model_extra.get(field)
+    val = getattr(gear, field, None)
     if val is False or val is None:
         return 0.0
     try:
@@ -482,14 +428,14 @@ def _build_neck_profile(gear: GearRecord) -> NeckProfile | None:
 def _build_context(
     gear: GearRecord,
     field_meta: dict[str, FieldMeta],
-    model: ModelRecord,
+    model: ModelsRecord | None,
     listings: list[ListingRecord],
     m2m_resolved: dict[str, str],
 ) -> CardContext:
     spec_groups = _build_spec_groups(gear, field_meta, m2m_resolved)
 
     # Resolve intent label from field metadata
-    intent_raw = gear.model_extra.get("x_intent") or ""
+    intent_raw = gear.x_intent or ""
     intent_meta = field_meta.get("x_intent")
     if intent_meta and intent_raw:
         label_map = {k: v for k, v in intent_meta.selection}
@@ -505,8 +451,8 @@ def _build_context(
     return CardContext(
         gear_id=gear.id,
         gear_name=gear.x_name or "(unnamed)",
-        brand=_m2o_name(model.x_studio_partner_id),
-        model_name=model.x_name,
+        brand=_m2o_name(model.x_studio_partner_id) if model else "",
+        model_name=(model.x_name if model else "") or "",
         intent=intent,
         spec_groups=spec_groups,
         photos=photos,
@@ -567,17 +513,16 @@ def generate_gear_card(conn, gear_ref: str, *, output_dir: Path) -> Path:
     """
     with _console.status("[bold cyan]Fetching gear record…[/bold cyan]"):
         field_meta = _get_gear_field_meta(conn)
-        gear = _find_gear(conn, gear_ref, list(field_meta.keys()))
+        gear = _find_gear(conn, gear_ref)
     _console.print(f"  [dim]Gear:[/dim] [bold]{gear.x_name}[/bold] [dim](id={gear.id})[/dim]")
 
-    model: ModelRecord = ModelRecord()
-    if gear.x_model_id:
-        model_id = (
-            gear.x_model_id[0] if isinstance(gear.x_model_id, (list, tuple)) else gear.x_model_id
-        )
+    model: ModelsRecord | None = None
+    if gear.x_model_id is not None:
+        model_id = gear.x_model_id[0]
         with _console.status("[bold cyan]Fetching model…[/bold cyan]"):
             model = _fetch_model(conn, model_id)
-        _console.print(f"  [dim]Model:[/dim] {model.x_name}")
+        if model is not None:
+            _console.print(f"  [dim]Model:[/dim] {model.x_name}")
 
     with _console.status("[bold cyan]Fetching listings…[/bold cyan]"):
         listings = _fetch_listings(conn, gear.id)

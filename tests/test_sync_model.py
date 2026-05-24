@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
+from models import ListingRecord
 from sync_model import (
     DEFAULT_SHIPPING,
     REWATCH_PRICE_DROP_THRESHOLD,
@@ -186,7 +187,7 @@ class TestComputeChanges:
             "sale_ended": False,
             "shipping_price": "250.00",
         }
-        assert _compute_changes(entry, reverb) == {}
+        assert _compute_changes(ListingRecord.from_odoo(entry), reverb) == {}
 
     def test_price_change(self):
         entry = {
@@ -201,7 +202,7 @@ class TestComputeChanges:
             "sale_ended": False,
             "shipping_price": "250.00",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert changes["x_price"] == 4500.0
 
     def test_price_fx_noise_ignored(self):
@@ -218,7 +219,7 @@ class TestComputeChanges:
             "sale_ended": False,
             "shipping_price": "250.00",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert "x_price" not in changes
 
     def test_offers_toggled_off(self):
@@ -234,7 +235,7 @@ class TestComputeChanges:
             "sale_ended": False,
             "shipping_price": "250.00",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert changes["x_can_accept_offers"] is False
 
     def test_sale_ended_marks_unavailable(self):
@@ -250,7 +251,7 @@ class TestComputeChanges:
             "sale_ended": True,
             "shipping_price": None,
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert changes["x_is_available"] is False
 
     def test_sale_ended_does_not_update_shipping(self):
@@ -266,7 +267,7 @@ class TestComputeChanges:
             "sale_ended": True,
             "shipping_price": None,
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert "x_shipping" not in changes
 
     def test_live_listing_updates_shipping(self):
@@ -282,7 +283,7 @@ class TestComputeChanges:
             "sale_ended": False,
             "shipping_price": "300.00",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert changes["x_shipping"] == 300.0
 
     def test_published_at_not_updated_when_already_set(self):
@@ -301,7 +302,7 @@ class TestComputeChanges:
             "shipping_price": "250.00",
             "published_at": "2025-06-20",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert "x_published_at" not in changes
 
     def test_published_at_set_when_empty(self):
@@ -320,7 +321,7 @@ class TestComputeChanges:
             "shipping_price": "250.00",
             "published_at": "2025-06-20",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert changes["x_published_at"] == "2025-06-20 00:00:00"
 
     def test_relists_marks_available(self):
@@ -336,7 +337,7 @@ class TestComputeChanges:
             "sale_ended": False,
             "shipping_price": "250.00",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert changes["x_is_available"] is True
 
     def test_passed_listing_reverts_to_watching_on_price_drop(self):
@@ -353,7 +354,7 @@ class TestComputeChanges:
             "sale_ended": False,
             "shipping_price": "250.00",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert changes["x_status"] == "watching"
         assert changes["x_price"] == 4000.0
 
@@ -374,7 +375,7 @@ class TestComputeChanges:
             "sale_ended": False,
             "shipping_price": "250.00",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert "x_status" not in changes
 
     def test_passed_listing_stays_passed_when_price_same(self):
@@ -391,7 +392,7 @@ class TestComputeChanges:
             "sale_ended": False,
             "shipping_price": "250.00",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert "x_status" not in changes
 
     def test_passed_listing_stays_passed_when_price_rises(self):
@@ -408,7 +409,7 @@ class TestComputeChanges:
             "sale_ended": False,
             "shipping_price": "250.00",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert "x_status" not in changes
 
     def test_watching_listing_unaffected_by_price_drop(self):
@@ -425,7 +426,7 @@ class TestComputeChanges:
             "sale_ended": False,
             "shipping_price": "250.00",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert "x_status" not in changes
 
     def test_already_unavailable_stays_unchanged(self):
@@ -441,7 +442,7 @@ class TestComputeChanges:
             "sale_ended": True,
             "shipping_price": None,
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert "x_is_available" not in changes
 
     def test_description_sets_notes_when_changed(self):
@@ -459,7 +460,7 @@ class TestComputeChanges:
             "shipping_price": "250.00",
             "description": "new detailed description",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert changes["x_studio_notes"] == "new detailed description"
 
     def test_description_unchanged_no_notes_update(self):
@@ -477,7 +478,7 @@ class TestComputeChanges:
             "shipping_price": "250.00",
             "description": "same description",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert "x_studio_notes" not in changes
 
     def test_empty_description_does_not_clear_notes(self):
@@ -495,7 +496,7 @@ class TestComputeChanges:
             "shipping_price": "250.00",
             "description": "",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert "x_studio_notes" not in changes
 
     def test_odoo_false_notes_treated_as_empty(self):
@@ -514,7 +515,7 @@ class TestComputeChanges:
             "shipping_price": "250.00",
             "description": "some description",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert changes["x_studio_notes"] == "some description"
 
     def test_odoo_false_notes_with_same_description_no_update(self):
@@ -533,7 +534,7 @@ class TestComputeChanges:
             "shipping_price": "250.00",
             "description": "",
         }
-        changes = _compute_changes(entry, reverb)
+        changes = _compute_changes(ListingRecord.from_odoo(entry), reverb)
         assert "x_studio_notes" not in changes
 
 
@@ -662,8 +663,8 @@ class TestBuildReport:
         base.update(kwargs)
         return base
 
-    def _make_odoo(self, url="https://reverb.com/item/1-g", **kwargs):
-        """Build a mock x_listing record dict."""
+    def _make_odoo(self, url="https://reverb.com/item/1-g", **kwargs) -> ListingRecord:
+        """Build a mock x_listing record."""
         base = {
             "id": 100,
             "x_name": "Guitar",
@@ -675,7 +676,7 @@ class TestBuildReport:
             "x_published_at": "2025-06-20 00:00:00",
         }
         base.update(kwargs)
-        return base
+        return ListingRecord.from_odoo(base)
 
     def test_new_listing_creates(self):
         reverb_results = [
@@ -859,14 +860,14 @@ class TestPrintReport:
             {
                 "action": "ok",
                 "reverb": {"name": "A", "price_display": "$1"},
-                "entry": {"id": 1},
+                "entry": ListingRecord.from_odoo({"id": 1}),
                 "changes": {},
                 "warnings": [],
             },
             {
                 "action": "update",
                 "reverb": {"name": "B", "price_display": "$2"},
-                "entry": {"id": 2},
+                "entry": ListingRecord.from_odoo({"id": 2, "x_price": 99}),
                 "changes": {"x_price": 99},
                 "warnings": [],
             },
@@ -896,7 +897,7 @@ class TestPrintReport:
             {
                 "action": "ok",
                 "reverb": {"name": "A", "price_display": "$1"},
-                "entry": {"id": 1},
+                "entry": ListingRecord.from_odoo({"id": 1}),
                 "changes": {},
                 "warnings": [],
             },
@@ -1038,8 +1039,12 @@ class TestApplyUpdates:
     def test_writes_updates(self):
         conn, gear_mock = self._mock_conn()
         report = [
-            {"action": "update", "entry": {"id": 100}, "changes": {"x_price": 4000.0}},
-            {"action": "ok", "entry": {"id": 200}, "changes": {}},
+            {
+                "action": "update",
+                "entry": ListingRecord.from_odoo({"id": 100}),
+                "changes": {"x_price": 4000.0},
+            },
+            {"action": "ok", "entry": ListingRecord.from_odoo({"id": 200}), "changes": {}},
         ]
         upd, crt = _apply_updates(conn, report)
         assert upd == 1
@@ -1070,7 +1075,7 @@ class TestApplyUpdates:
     def test_skips_ok_entries(self):
         conn, gear_mock = self._mock_conn()
         report = [
-            {"action": "ok", "entry": {"id": 1}, "changes": {}},
+            {"action": "ok", "entry": ListingRecord.from_odoo({"id": 1}), "changes": {}},
             {"action": "skip", "entry": None, "changes": {}},
         ]
         upd, crt = _apply_updates(conn, report)
@@ -1088,9 +1093,13 @@ class TestApplyUpdates:
             "x_platform": "reverb",
         }
         report = [
-            {"action": "update", "entry": {"id": 50}, "changes": {"x_price": 1.0}},
+            {
+                "action": "update",
+                "entry": ListingRecord.from_odoo({"id": 50}),
+                "changes": {"x_price": 1.0},
+            },
             {"action": "create", "create_vals": gear_vals, "reverb": {"photo_url": ""}},
-            {"action": "ok", "entry": {"id": 200}, "changes": {}},
+            {"action": "ok", "entry": ListingRecord.from_odoo({"id": 200}), "changes": {}},
             {"action": "create", "create_vals": gear_vals, "reverb": {"photo_url": ""}},
         ]
         upd, crt = _apply_updates(conn, report)
@@ -1666,7 +1675,7 @@ class TestApplyUpdatesImages:
         report = [
             {
                 "action": "update",
-                "entry": {"id": 100},
+                "entry": ListingRecord.from_odoo({"id": 100}),
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
                 "changes": {"x_price": 4000.0},
             },
@@ -1687,7 +1696,7 @@ class TestApplyUpdatesImages:
         report = [
             {
                 "action": "update",
-                "entry": {"id": 100},
+                "entry": ListingRecord.from_odoo({"id": 100}),
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
                 "changes": {"x_price": 4000.0},
             },
@@ -1724,7 +1733,7 @@ class TestApplyUpdatesImages:
         report = [
             {
                 "action": "update",
-                "entry": {"id": 100},
+                "entry": ListingRecord.from_odoo({"id": 100}),
                 "reverb": {"photo_url": "https://img.reverb.com/photo.jpg"},
                 "changes": original_changes,
             },

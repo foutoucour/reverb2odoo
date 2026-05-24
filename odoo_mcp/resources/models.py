@@ -7,34 +7,30 @@ from collections import defaultdict
 import odoolib
 from loguru import logger
 
-from odoo_connector import MODEL_FIELDS_MCP
+from models import ModelsRecord
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
 
 
-def _label(value: list | bool | None) -> str:
-    """Extract display name from a many2one field value ([id, name] or False)."""
-    if isinstance(value, list) and len(value) == 2:
-        return str(value[1])
-    return ""
+def _label(value: tuple[int, str] | None) -> str:
+    return value[1] if value else ""
 
 
 def _scalar(value: object, fallback: str = "") -> str:
-    """Return str(value) unless it is False/None/empty, in which case return fallback."""
     if value is False or value is None or value == "":
         return fallback
     return str(value)
 
 
-def _build_spec_line(model: dict) -> str:
+def _build_spec_line(model: ModelsRecord) -> str:
     """Build the **Specs** line, omitting fields that are False/None/empty."""
     parts: list[str] = []
-    scale = _scalar(model.get("x_studio_scale"))
-    neck = _label(model.get("x_studio_guitar_neck_feel_id"))
-    fretboard = _label(model.get("x_studio_fretboard_1"))
-    finish = _label(model.get("x_studio_finish"))
+    scale = _scalar(model.x_studio_scale)
+    neck = _label(model.x_studio_guitar_neck_feel_id)
+    fretboard = _label(model.x_studio_fretboard_1)
+    finish = _label(model.x_studio_finish)
 
     if scale:
         parts.append(f"scale={scale}")
@@ -49,18 +45,18 @@ def _build_spec_line(model: dict) -> str:
 
 
 def _render_model_section(
-    model: dict,
+    model: ModelsRecord,
     gear_counts: dict[str, int],
     watching_count: int,
 ) -> str:
     """Render a single model block for the full catalog section."""
-    name = _scalar(model.get("x_name"), fallback="(unnamed)")
-    brand = _label(model.get("x_studio_partner_id"))
-    model_type = _scalar(model.get("x_studio_model_type"))
-    wanna = "yes" if model.get("x_studio_wanna") else "no"
-    p25 = _scalar(model.get("x_studio_p25"))
-    p50 = _scalar(model.get("x_studio_p50"))
-    p75 = _scalar(model.get("x_studio_p75"))
+    name = _scalar(model.x_name, fallback="(unnamed)")
+    brand = _label(model.x_studio_partner_id)
+    model_type = _scalar(model.x_studio_model_type)
+    wanna = "yes" if model.x_studio_wanna else "no"
+    p25 = _scalar(model.x_price_p25)
+    p50 = _scalar(model.x_price_p50)
+    p75 = _scalar(model.x_price_p75)
 
     owned = gear_counts.get("owned", 0)
     for_sale = gear_counts.get("for_sale", 0)
@@ -115,13 +111,14 @@ def render(conn: odoolib.main.Connection) -> str:
         Formatted markdown string.
     """
     models_proxy = conn.get_model("x_models")
-    all_models: list[dict] = models_proxy.search_read([], MODEL_FIELDS_MCP)
+    rows: list[dict] = models_proxy.search_read([], ModelsRecord.odoo_fields())
+    all_models = [ModelsRecord.from_odoo(r) for r in rows]
     logger.info("Models catalog: {} models fetched", len(all_models))
 
     if not all_models:
         return "# Models Catalog\n\nNo models found.\n"
 
-    model_ids: list[int] = [m["id"] for m in all_models]
+    model_ids: list[int] = [m.id for m in all_models]
 
     # Bulk fetch gear and listings — two queries total, counted in Python.
     gear_records: list[dict] = conn.get_model("x_gear").search_read(
@@ -152,8 +149,8 @@ def render(conn: odoolib.main.Connection) -> str:
             watching_by_model[model_ref[0]] += 1
 
     # Section 1: wanna=True models with zero watching listings.
-    wanted_no_listings: list[dict] = [
-        m for m in all_models if m.get("x_studio_wanna") and watching_by_model[m["id"]] == 0
+    wanted_no_listings: list[ModelsRecord] = [
+        m for m in all_models if m.x_studio_wanna and watching_by_model[m.id] == 0
     ]
 
     sections: list[str] = ["# Models Catalog", ""]
@@ -162,9 +159,9 @@ def render(conn: odoolib.main.Connection) -> str:
     sections.append("")
     if wanted_no_listings:
         for m in wanted_no_listings:
-            name = _scalar(m.get("x_name"), fallback="(unnamed)")
-            brand = _label(m.get("x_studio_partner_id"))
-            p50 = _scalar(m.get("x_studio_p50"))
+            name = _scalar(m.x_name, fallback="(unnamed)")
+            brand = _label(m.x_studio_partner_id)
+            p50 = _scalar(m.x_price_p50)
             sections.append(f"- {name} ({brand}) — p50={p50}")
     else:
         sections.append("*All wanted models have at least one watching listing.*")
@@ -174,9 +171,8 @@ def render(conn: odoolib.main.Connection) -> str:
     sections.append("")
 
     for model in all_models:
-        mid = model["id"]
-        gear_counts: dict[str, int] = dict(gear_by_model.get(mid, {}))
-        watching_count = watching_by_model[mid]
+        gear_counts: dict[str, int] = dict(gear_by_model.get(model.id, {}))
+        watching_count = watching_by_model[model.id]
         sections.append(_render_model_section(model, gear_counts, watching_count))
         sections.append("")
 

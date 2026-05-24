@@ -4,21 +4,25 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from models import ListingRecord
 from odoo_mcp.tools.search_listings import _render_card, run
 
 # ── _render_card ──────────────────────────────────────────────────────────────
 
 
 def test_render_card_includes_model_and_url() -> None:
-    listing = {
-        "x_model_id": [10, "Les Paul"],
-        "x_price": 1800.0,
-        "x_currency_id": [1, "CAD"],
-        "x_platform": "reverb",
-        "x_status": "watching",
-        "x_studio_listing_score": 85,
-        "x_url": "https://reverb.com/item/abc",
-    }
+    listing = ListingRecord.from_odoo(
+        {
+            "id": 1,
+            "x_model_id": [10, "Les Paul"],
+            "x_price": 1800.0,
+            "x_currency_id": [1, "CAD"],
+            "x_platform": "reverb",
+            "x_status": "watching",
+            "x_studio_listing_score": 85,
+            "x_url": "https://reverb.com/item/abc",
+        }
+    )
     result = _render_card(listing)
     assert "Les Paul" in result
     assert "[watching]" in result

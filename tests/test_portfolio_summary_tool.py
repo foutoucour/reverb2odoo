@@ -83,7 +83,7 @@ def test_run_aggregates_owned_spent_and_notional() -> None:
         "x_model_id": [10, "Les Paul"],
         "x_intent": "keeper",
         "x_studio_acquiring_price": 1800.0,
-        "x_listing_ids": [],
+        "x_studio_lsting_ids": [],
     }
     gear2 = {
         "id": 2,
@@ -92,19 +92,19 @@ def test_run_aggregates_owned_spent_and_notional() -> None:
         "x_model_id": [11, "SG"],
         "x_intent": "flip",
         "x_studio_acquiring_price": 1200.0,
-        "x_listing_ids": [],
+        "x_studio_lsting_ids": [],
     }
     model_lp = {
         "id": 10,
         "x_name": "Les Paul",
         "x_studio_partner_id": [38, "Gibson"],
-        "x_studio_p50": 2200.0,
+        "x_price_p50": 2200.0,
     }
     model_sg = {
         "id": 11,
         "x_name": "SG",
         "x_studio_partner_id": [38, "Gibson"],
-        "x_studio_p50": 1500.0,
+        "x_price_p50": 1500.0,
     }
     conn = _make_conn(owned=[gear1, gear2], models=[model_lp, model_sg])
     result = run(conn)
@@ -123,13 +123,13 @@ def test_run_pivots_by_brand() -> None:
         "x_model_id": [10, "Les Paul"],
         "x_intent": "keeper",
         "x_studio_acquiring_price": 1800.0,
-        "x_listing_ids": [],
+        "x_studio_lsting_ids": [],
     }
     model = {
         "id": 10,
         "x_name": "Les Paul",
         "x_studio_partner_id": [38, "Gibson"],
-        "x_studio_p50": 2200.0,
+        "x_price_p50": 2200.0,
     }
     conn = _make_conn(owned=[gear], models=[model])
     result = run(conn)
@@ -145,13 +145,13 @@ def test_run_pivots_by_intent() -> None:
         "x_model_id": [10, "Les Paul"],
         "x_intent": "flip",
         "x_studio_acquiring_price": 1800.0,
-        "x_listing_ids": [],
+        "x_studio_lsting_ids": [],
     }
     model = {
         "id": 10,
         "x_name": "Les Paul",
         "x_studio_partner_id": [38, "Gibson"],
-        "x_studio_p50": 2200.0,
+        "x_price_p50": 2200.0,
     }
     conn = _make_conn(owned=[gear], models=[model])
     result = run(conn)
@@ -167,7 +167,7 @@ def test_run_realized_pnl_uses_sold_listing_price() -> None:
         "x_model_id": [10, "Les Paul"],
         "x_intent": "flip",
         "x_studio_acquiring_price": 1500.0,
-        "x_listing_ids": [99],
+        "x_studio_lsting_ids": [99],
     }
     sold_listing = {
         "id": 99,
@@ -189,7 +189,7 @@ def test_run_flags_mixed_currencies() -> None:
         "x_model_id": [10, "Les Paul"],
         "x_intent": "flip",
         "x_studio_acquiring_price": 1500.0,
-        "x_listing_ids": [99, 100],
+        "x_studio_lsting_ids": [99, 100],
     }
     listing_cad = {
         "id": 99,

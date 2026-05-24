@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from models import ListingRecord, ModelsRecord
 from odoo_mcp.resources.watchlist import _label, _render_listing, _render_model, _scalar, render
 
 # ---------------------------------------------------------------------------
@@ -37,7 +38,7 @@ def _make_conn(
     return conn
 
 
-def _make_model(
+def _make_model_dict(
     mid: int = 1,
     name: str = "LP Standard",
     brand: list | bool | None = None,
@@ -48,6 +49,7 @@ def _make_model(
     p50: float = 1500.0,
     p75: float = 1800.0,
 ) -> dict:
+    """Raw dict that the mock Odoo connection would return."""
     if brand is None:
         brand = [38, "Gibson"]
     if neck_feel is None:
@@ -58,18 +60,22 @@ def _make_model(
         "x_studio_partner_id": brand,
         "x_studio_model_type": model_type,
         "x_studio_wanna": True,
-        "x_studio_guitar_familly_ids": [[1, "Set neck"]],
+        "x_studio_guitar_familly_ids": [1],
         "x_studio_guitar_neck_feel_id": neck_feel,
         "x_studio_scale": scale,
         "x_studio_finish": [3, "Gloss"],
         "x_studio_fretboard_1": [7, "Rosewood"],
-        "x_studio_p25": p25,
-        "x_studio_p50": p50,
-        "x_studio_p75": p75,
+        "x_price_p25": p25,
+        "x_price_p50": p50,
+        "x_price_p75": p75,
     }
 
 
-def _make_listing(
+def _make_model(**kwargs) -> ModelsRecord:
+    return ModelsRecord.from_odoo(_make_model_dict(**kwargs))
+
+
+def _make_listing_dict(
     lid: int = 10,
     model_id: int = 1,
     listing_score: float | bool = 88.5,
@@ -105,6 +111,10 @@ def _make_listing(
     }
 
 
+def _make_listing(**kwargs) -> ListingRecord:
+    return ListingRecord.from_odoo(_make_listing_dict(**kwargs))
+
+
 # ---------------------------------------------------------------------------
 # Unit tests: _label
 # ---------------------------------------------------------------------------
@@ -113,10 +123,8 @@ def _make_listing(
 @pytest.mark.parametrize(
     "value, expected",
     [
-        pytest.param([38, "Gibson"], "Gibson", id="many2one-list"),
-        pytest.param(False, "", id="false-returns-empty"),
+        pytest.param((38, "Gibson"), "Gibson", id="many2one-tuple"),
         pytest.param(None, "", id="none-returns-empty"),
-        pytest.param([1], "", id="single-element-list-returns-empty"),
     ],
 )
 def test_label(value: object, expected: str) -> None:
@@ -263,8 +271,8 @@ def test_render_does_not_query_listings_when_no_models() -> None:
 
 
 def test_render_queries_listings_for_correct_model_ids() -> None:
-    model_a = _make_model(mid=10)
-    model_b = _make_model(mid=20, name="SG Standard")
+    model_a = _make_model_dict(mid=10)
+    model_b = _make_model_dict(mid=20, name="SG Standard")
     conn = _make_conn(models=[model_a, model_b], listings=[])
 
     render(conn)
@@ -279,10 +287,10 @@ def test_render_queries_listings_for_correct_model_ids() -> None:
 
 
 def test_render_assigns_listings_to_correct_model() -> None:
-    model_a = _make_model(mid=1, name="LP Standard")
-    model_b = _make_model(mid=2, name="SG Standard")
-    listing_a = _make_listing(lid=10, model_id=1, listing_score=80.0)
-    listing_b = _make_listing(lid=20, model_id=2, listing_score=60.0)
+    model_a = _make_model_dict(mid=1, name="LP Standard")
+    model_b = _make_model_dict(mid=2, name="SG Standard")
+    listing_a = _make_listing_dict(lid=10, model_id=1, listing_score=80.0)
+    listing_b = _make_listing_dict(lid=20, model_id=2, listing_score=60.0)
 
     conn = _make_conn(models=[model_a, model_b], listings=[listing_a, listing_b])
     result = render(conn)
@@ -298,15 +306,15 @@ def test_render_assigns_listings_to_correct_model() -> None:
 
 
 def test_render_model_with_no_listings_shows_placeholder() -> None:
-    model = _make_model(mid=1, name="LP Standard")
+    model = _make_model_dict(mid=1, name="LP Standard")
     conn = _make_conn(models=[model], listings=[])
     result = render(conn)
     assert "No listings tracked" in result
 
 
 def test_render_listing_false_score_treated_as_zero() -> None:
-    model = _make_model(mid=1)
-    listing = _make_listing(lid=1, listing_score=False)
+    model = _make_model_dict(mid=1)
+    listing = _make_listing_dict(lid=1, listing_score=False)
     conn = _make_conn(models=[model], listings=[listing])
     result = render(conn)
     assert "score:0" in result

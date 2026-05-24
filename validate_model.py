@@ -31,6 +31,7 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
+from models import ListingRecord
 from reverb_scraper import ReverbScraper
 from sync_model import (
     DEFAULT_SHIPPING,
@@ -68,7 +69,7 @@ def _is_reverb_url(url: str) -> bool:
 
 
 async def _scrape_reverb_urls(
-    entries: list[dict],
+    entries: list[ListingRecord],
     *,
     default_shipping: float = DEFAULT_SHIPPING,
 ) -> dict[str, dict]:
@@ -80,7 +81,7 @@ async def _scrape_reverb_urls(
     """
     urls: list[str] = []
     for entry in entries:
-        url = entry.get("x_url", "")
+        url = entry.x_url or ""
         if _is_reverb_url(url):
             urls.append(url)
 
@@ -109,7 +110,7 @@ async def _scrape_reverb_urls(
 
 
 def _build_validation_report(
-    entries: list[dict],
+    entries: list[ListingRecord],
     reverb_data: dict[str, dict],
     *,
     include_sold: bool = False,
@@ -118,7 +119,7 @@ def _build_validation_report(
 
     Each item in the returned list has:
 
-    - ``entry``:    the Odoo record dict
+    - ``entry``:    the matching ``ListingRecord``
     - ``reverb``:   the scraped Reverb dict (or ``None``)
     - ``changes``:  field updates needed
     - ``warnings``: list of informational strings
@@ -127,7 +128,7 @@ def _build_validation_report(
     report: list[dict] = []
 
     for entry in entries:
-        url = entry.get("x_url", "")
+        url = entry.x_url or ""
         item: dict[str, Any] = {
             "entry": entry,
             "reverb": None,
@@ -158,7 +159,7 @@ def _build_validation_report(
         if sale_ended:
             item["warnings"].append(f"status: {reverb.get('status', 'ended/sold')}")
             # Always clear availability for ended listings regardless of include_sold
-            if entry.get("x_is_available") is True:
+            if entry.x_is_available is True:
                 item["changes"]["x_is_available"] = False
             if not include_sold:
                 item["action"] = "update" if item["changes"] else "ok"
@@ -192,9 +193,9 @@ def _print_validation_report(report: list[dict]) -> int:
 
     update_count = 0
     for item in report:
-        entry = item["entry"]
-        eid = str(entry["id"])
-        name = escape(entry.get("x_name", "")[:54])
+        entry: ListingRecord = item["entry"]
+        eid = str(entry.id)
+        name = escape((entry.x_name or "")[:54])
         reverb = item.get("reverb") or {}
         price = escape(reverb.get("price_display", "") or "")
         changes = item["changes"]
@@ -208,7 +209,7 @@ def _print_validation_report(report: list[dict]) -> int:
             warn_str = escape(f"  (⚠ {'; '.join(warnings)})") if warnings else ""
             table.add_row(eid, name, price, f"[bold yellow]~ NEEDS UPDATE[/bold yellow]{warn_str}")
             for field, new_val in changes.items():
-                old_val = entry.get(field, "—")
+                old_val = getattr(entry, field, "—")
                 diff = (
                     f"  [dim]{escape(field)}:[/dim]"
                     f" {escape(str(old_val))} [dim]→[/dim] [bold]{escape(str(new_val))}[/bold]"
@@ -248,7 +249,7 @@ def _apply_validation_updates(conn, report: list[dict]) -> list[dict]:
     listing = conn.get_model("x_listing")
 
     # Pre-check: which entries being updated lack an image?
-    update_ids = [item["entry"]["id"] for item in report if item["action"] == "update"]
+    update_ids = [item["entry"].id for item in report if item["action"] == "update"]
     ids_without_image = _find_entries_without_image(conn, update_ids)
 
     updated_items: list[dict] = []
@@ -260,7 +261,8 @@ def _apply_validation_updates(conn, report: list[dict]) -> list[dict]:
         if not changes:
             continue
 
-        eid = item["entry"]["id"]
+        entry: ListingRecord = item["entry"]
+        eid = entry.id
         changes = dict(changes)
 
         # Download image if the listing has no image yet
@@ -278,7 +280,7 @@ def _apply_validation_updates(conn, report: list[dict]) -> list[dict]:
         updated_items.append(
             {
                 "id": eid,
-                "name": item["entry"].get("x_name", ""),
+                "name": entry.x_name or "",
                 "fields": list(log_changes.keys()),
             }
         )
@@ -339,7 +341,7 @@ async def _collect_model_data(
             "update_count": 0,
         }
 
-    reverb_count = sum(1 for e in entries if _is_reverb_url(e.get("x_url", "")))
+    reverb_count = sum(1 for e in entries if _is_reverb_url(e.x_url or ""))
     logger.debug("[{}] Scraping {} Reverb URL(s)…", model_name, reverb_count)
     reverb_data = await _scrape_reverb_urls(entries, default_shipping=default_shipping)
     logger.debug("[{}] Scraped {} Reverb listing(s)", model_name, len(reverb_data))
@@ -391,8 +393,8 @@ def _validate_single_model(
 
     _console.print(f"\n  [bold]{escape(model_name)}[/bold] — {len(data['entries'])} listing(s):")
     for item in data["report"]:
-        entry = item["entry"]
-        name = escape(entry.get("x_name", "")[:70])
+        entry: ListingRecord = item["entry"]
+        name = escape((entry.x_name or "")[:70])
         action = item["action"]
         warnings = item.get("warnings", [])
         if action == "update":
@@ -579,8 +581,8 @@ def cli(
             # Show which guitars need updating
             for item in data["report"]:
                 if item["action"] == "update":
-                    entry = item["entry"]
-                    name = escape(entry.get("x_name", "")[:70])
+                    entry: ListingRecord = item["entry"]
+                    name = escape((entry.x_name or "")[:70])
                     fields = ", ".join(item["changes"].keys())
                     _console.print(f"    [yellow]~[/yellow] {name}  [dim]({fields})[/dim]")
 

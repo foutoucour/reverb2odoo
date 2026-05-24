@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from models import GearRecord
 from odoo_mcp.tools.search_gear import _label, _render_card, _scalar, run
 
 # ---------------------------------------------------------------------------
@@ -14,10 +15,8 @@ from odoo_mcp.tools.search_gear import _label, _render_card, _scalar, run
 @pytest.mark.parametrize(
     "field, expected",
     [
-        pytest.param([10, "Gibson"], "Gibson", id="valid-m2o"),
-        pytest.param(False, "", id="false-m2o"),
+        pytest.param((10, "Gibson"), "Gibson", id="valid-m2o"),
         pytest.param(None, "", id="none-m2o"),
-        pytest.param([], "", id="empty-list"),
     ],
 )
 def test_label(field: object, expected: str) -> None:
@@ -48,22 +47,25 @@ def test_scalar(value: object, fallback: str, expected: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_gear(**overrides: object) -> dict:
+def _gear_dict(**overrides: object) -> dict:
     base: dict = {
         "id": 1,
         "x_name": "2021 Gibson Les Paul Standard",
         "x_status": "owned",
         "x_model_id": [10, "Les Paul Standard"],
-        "x_condition": "excellent",
+        "x_studio_current_condition": "excellent",
         "x_intent": "keeper",
         "x_serial_number": "SN001",
-        "x_neck_profile": False,
         "x_studio_acquiring_price": False,
         "x_studio_notes": False,
-        "x_listing_ids": [],
+        "x_studio_lsting_ids": [],
     }
     base.update(overrides)
     return base
+
+
+def _make_gear(**overrides: object) -> GearRecord:
+    return GearRecord.from_odoo(_gear_dict(**overrides))
 
 
 def test_render_card_contains_name_and_status() -> None:
@@ -126,7 +128,7 @@ def _make_conn(
 
 
 def test_run_no_filters_returns_all_gear() -> None:
-    gear = _make_gear()
+    gear = _gear_dict()
     conn = _make_conn(gear_records=[gear])
     result = run(conn)
     assert "2021 Gibson Les Paul Standard" in result
@@ -224,14 +226,14 @@ def test_run_combined_status_and_intent() -> None:
 
 
 def test_run_multiple_results_shows_count_in_header() -> None:
-    records = [_make_gear(id=i, x_name=f"Gear {i}") for i in range(3)]
+    records = [_gear_dict(id=i, x_name=f"Gear {i}") for i in range(3)]
     conn = _make_conn(gear_records=records)
     result = run(conn)
     assert "3 found" in result
 
 
 def test_run_all_gear_names_present_in_output() -> None:
-    records = [_make_gear(id=1, x_name="Les Paul"), _make_gear(id=2, x_name="Telecaster")]
+    records = [_gear_dict(id=1, x_name="Les Paul"), _gear_dict(id=2, x_name="Telecaster")]
     conn = _make_conn(gear_records=records)
     result = run(conn)
     assert "Les Paul" in result

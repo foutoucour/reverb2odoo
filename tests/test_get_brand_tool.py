@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from models import ModelsRecord
 from odoo_mcp import brand_cache
 from odoo_mcp.tools.get_brand import _find_brand, _render_linked_models, run
 
@@ -67,8 +68,12 @@ def test_render_linked_models_empty_shows_no_records() -> None:
 
 def test_render_linked_models_groups_wanted_and_other() -> None:
     models = [
-        {"x_name": "Les Paul", "x_studio_wanna": True, "x_studio_p50": 2200.0},
-        {"x_name": "SG", "x_studio_wanna": False, "x_studio_p50": 1500.0},
+        ModelsRecord.from_odoo(
+            {"id": 1, "x_name": "Les Paul", "x_studio_wanna": True, "x_price_p50": 2200.0}
+        ),
+        ModelsRecord.from_odoo(
+            {"id": 2, "x_name": "SG", "x_studio_wanna": False, "x_price_p50": 1500.0}
+        ),
     ]
     result = _render_linked_models(models)
     assert "### Wanted" in result
@@ -78,7 +83,11 @@ def test_render_linked_models_groups_wanted_and_other() -> None:
 
 
 def test_render_linked_models_shows_p50() -> None:
-    models = [{"x_name": "Les Paul", "x_studio_wanna": True, "x_studio_p50": 2200.0}]
+    models = [
+        ModelsRecord.from_odoo(
+            {"id": 1, "x_name": "Les Paul", "x_studio_wanna": True, "x_price_p50": 2200.0}
+        )
+    ]
     result = _render_linked_models(models)
     assert "p50=2200.0" in result
 

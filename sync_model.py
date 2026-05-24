@@ -35,7 +35,7 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from odoo_connector import LISTING_FIELDS
+from models import ListingRecord
 from reverb_scraper import ReverbScraper
 
 _console = Console()
@@ -172,10 +172,11 @@ def _find_model(conn, model_name: str) -> dict[str, Any]:
     }
 
 
-def _fetch_listings(conn, model_id: int) -> list[dict]:
+def _fetch_listings(conn, model_id: int) -> list[ListingRecord]:
     """Return all ``x_listing`` records linked to *model_id*."""
     listing = conn.get_model("x_listing")
-    return listing.search_read([("x_model_id", "=", model_id)], LISTING_FIELDS)
+    rows = listing.search_read([("x_model_id", "=", model_id)], ListingRecord.odoo_fields())
+    return [ListingRecord.from_odoo(r) for r in rows]
 
 
 def _fetch_all_models(conn, *, wanna_only: bool = False) -> list[dict[str, Any]]:
@@ -303,7 +304,7 @@ def _search_reverb(
 # ---------------------------------------------------------------------------
 
 
-def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
+def _compute_changes(entry: ListingRecord, reverb: dict) -> dict[str, Any]:
     """Compare a single Odoo x_listing entry against scraped Reverb data.
 
     Returns a dict of ``{field_name: new_value}`` for every field that
@@ -318,52 +319,52 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
 
     # Name
     reverb_name = reverb.get("name", "")
-    if reverb_name and reverb_name != entry.get("x_name", ""):
+    if reverb_name and reverb_name != (entry.x_name or ""):
         changes["x_name"] = reverb_name
 
     # Price — compare rounded to absorb CAD/USD conversion noise
-    if price > 0 and _round_price(price) != _round_price(entry.get("x_price", 0)):
+    if price > 0 and _round_price(price) != _round_price(entry.x_price or 0):
         changes["x_price"] = _round_price(price)
 
     # Re-watch passed listings only when the price drops meaningfully.
     # A raw CAD/USD conversion swing is typically 1-3 %; require >= REWATCH_PRICE_DROP_THRESHOLD
     # so currency noise does not revert a deliberate "passed" decision.
-    existing_price = entry.get("x_price", 0)
+    existing_price = entry.x_price or 0
     if (
         price > 0
         and existing_price > 0
-        and entry.get("x_status") == "passed"
+        and entry.x_status == "passed"
         and price <= existing_price * (1 - REWATCH_PRICE_DROP_THRESHOLD)
     ):
         changes["x_status"] = "watching"
 
     # Offers
-    if offers != entry.get("x_can_accept_offers"):
+    if offers != entry.x_can_accept_offers:
         changes["x_can_accept_offers"] = offers
 
     # Published at — only set if not already stored
-    if published_at and not entry.get("x_published_at"):
+    if published_at and not entry.x_published_at:
         changes["x_published_at"] = published_at + " 00:00:00"
 
     # Notes (description from Reverb)
     description = reverb.get("description", "")
-    existing_notes = entry.get("x_studio_notes") or ""
+    existing_notes = entry.x_studio_notes or ""
     if description and description != existing_notes:
         changes["x_studio_notes"] = description
 
     # Availability
-    if sale_ended and entry.get("x_is_available") is True:
+    if sale_ended and entry.x_is_available is True:
         changes["x_is_available"] = False
 
     if not sale_ended:
-        if entry.get("x_is_available") is False:
+        if entry.x_is_available is False:
             changes["x_is_available"] = True
 
         # Only update shipping for live listings (Reverb returns None for ended)
         ship = reverb.get("shipping_price")
         if ship is not None:
             ship_f = float(ship)
-            if _round_price(ship_f) != _round_price(entry.get("x_shipping", 0)):
+            if _round_price(ship_f) != _round_price(entry.x_shipping or 0):
                 changes["x_shipping"] = _round_price(ship_f)
 
     return changes
@@ -413,7 +414,7 @@ def _is_brand_new(reverb: dict) -> bool:
 
 def _build_report(
     reverb_results: list[dict],
-    odoo_entries: list[dict],
+    odoo_entries: list[ListingRecord],
     model_id: int,
     default_shipping: float = DEFAULT_SHIPPING,
     *,
@@ -425,7 +426,7 @@ def _build_report(
 
     - ``action``:  ``"create"`` | ``"update"`` | ``"ok"`` | ``"skip"``
     - ``reverb``:  the scraped Reverb dict
-    - ``entry``:   the matching Odoo dict (or ``None`` for new)
+    - ``entry``:   the matching ``ListingRecord`` (or ``None`` for new)
     - ``changes``: field updates for ``"update"``
     - ``create_vals``: full values dict for ``"create"``
     - ``warnings``: list of informational strings
@@ -433,10 +434,10 @@ def _build_report(
     Brand-new listings that do not already exist in Odoo are skipped by
     default.  Pass ``include_brand_new=True`` to create them as well.
     """
-    odoo_by_url: dict[str, dict] = {}
-    odoo_by_item_id: dict[str, dict] = {}
+    odoo_by_url: dict[str, ListingRecord] = {}
+    odoo_by_item_id: dict[str, ListingRecord] = {}
     for e in odoo_entries:
-        clean = _clean_url(e.get("x_url", ""))
+        clean = _clean_url(e.x_url or "")
         odoo_by_url[clean] = e
         item_id = _reverb_item_id(clean)
         if item_id:
@@ -519,11 +520,12 @@ def _print_report(report: list[dict]) -> tuple[int, int]:
             table.add_row(str(i), "[bold green]+ NEW[/bold green]", price, name, warn_str)
         elif item["action"] == "update":
             update_count += 1
-            eid = item["entry"]["id"]
+            entry: ListingRecord = item["entry"]
+            eid = entry.id
             info = escape(f"id={eid}  {warn_str}".strip())
             table.add_row(str(i), "[bold yellow]~ UPD[/bold yellow]", price, name, info)
             for field, new_val in item["changes"].items():
-                old_val = item["entry"].get(field, "—")
+                old_val = getattr(entry, field, "—")
                 diff = (
                     f"  [dim]{escape(field)}:[/dim]"
                     f" {escape(str(old_val))} [dim]→[/dim] [bold]{escape(str(new_val))}[/bold]"
@@ -567,7 +569,7 @@ def _apply_updates(conn, report: list[dict]) -> tuple[int, int]:
     listing_model = conn.get_model("x_listing")
 
     # Pre-check: which listing entries being updated lack an image?
-    update_ids = [item["entry"]["id"] for item in report if item["action"] == "update"]
+    update_ids = [item["entry"].id for item in report if item["action"] == "update"]
     ids_without_image = _find_entries_without_image(conn, update_ids)
 
     updated = 0
@@ -575,7 +577,7 @@ def _apply_updates(conn, report: list[dict]) -> tuple[int, int]:
 
     for item in report:
         if item["action"] == "update":
-            eid = item["entry"]["id"]
+            eid = item["entry"].id
             changes = dict(item["changes"])
 
             # Download image if the listing has no image yet
