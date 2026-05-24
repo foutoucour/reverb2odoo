@@ -7,6 +7,7 @@ from click.testing import CliRunner
 
 from sync_model import (
     DEFAULT_SHIPPING,
+    REWATCH_PRICE_DROP_THRESHOLD,
     _apply_updates,
     _build_report,
     _clean_url,
@@ -338,6 +339,95 @@ class TestComputeChanges:
         changes = _compute_changes(entry, reverb)
         assert changes["x_is_available"] is True
 
+    def test_passed_listing_reverts_to_watching_on_price_drop(self):
+        entry = {
+            "x_price": 5000.0,
+            "x_status": "passed",
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+        }
+        reverb = {
+            "price": "4000.00",
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert changes["x_status"] == "watching"
+        assert changes["x_price"] == 4000.0
+
+    def test_passed_listing_stays_passed_on_currency_noise_drop(self):
+        # A < REWATCH_PRICE_DROP_THRESHOLD drop (e.g. 2 %) is treated as conversion noise
+        existing = 5000.0
+        noise_drop = existing * (1 - REWATCH_PRICE_DROP_THRESHOLD / 2)  # half the threshold
+        entry = {
+            "x_price": existing,
+            "x_status": "passed",
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+        }
+        reverb = {
+            "price": str(noise_drop),
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_status" not in changes
+
+    def test_passed_listing_stays_passed_when_price_same(self):
+        entry = {
+            "x_price": 5000.0,
+            "x_status": "passed",
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+        }
+        reverb = {
+            "price": "5000.00",
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_status" not in changes
+
+    def test_passed_listing_stays_passed_when_price_rises(self):
+        entry = {
+            "x_price": 5000.0,
+            "x_status": "passed",
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+        }
+        reverb = {
+            "price": "6000.00",
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_status" not in changes
+
+    def test_watching_listing_unaffected_by_price_drop(self):
+        entry = {
+            "x_price": 5000.0,
+            "x_status": "watching",
+            "x_can_accept_offers": True,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+        }
+        reverb = {
+            "price": "4000.00",
+            "offers_enabled": True,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_status" not in changes
+
     def test_already_unavailable_stays_unchanged(self):
         entry = {
             "x_price": 5000.0,
@@ -353,6 +443,98 @@ class TestComputeChanges:
         }
         changes = _compute_changes(entry, reverb)
         assert "x_is_available" not in changes
+
+    def test_description_sets_notes_when_changed(self):
+        entry = {
+            "x_price": 5000.0,
+            "x_can_accept_offers": False,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+            "x_studio_notes": "old description",
+        }
+        reverb = {
+            "price": "5000.00",
+            "offers_enabled": False,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+            "description": "new detailed description",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert changes["x_studio_notes"] == "new detailed description"
+
+    def test_description_unchanged_no_notes_update(self):
+        entry = {
+            "x_price": 5000.0,
+            "x_can_accept_offers": False,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+            "x_studio_notes": "same description",
+        }
+        reverb = {
+            "price": "5000.00",
+            "offers_enabled": False,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+            "description": "same description",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_studio_notes" not in changes
+
+    def test_empty_description_does_not_clear_notes(self):
+        entry = {
+            "x_price": 5000.0,
+            "x_can_accept_offers": False,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+            "x_studio_notes": "existing notes",
+        }
+        reverb = {
+            "price": "5000.00",
+            "offers_enabled": False,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+            "description": "",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_studio_notes" not in changes
+
+    def test_odoo_false_notes_treated_as_empty(self):
+        # Odoo XML-RPC returns False for unset fields, not "" or None
+        entry = {
+            "x_price": 5000.0,
+            "x_can_accept_offers": False,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+            "x_studio_notes": False,
+        }
+        reverb = {
+            "price": "5000.00",
+            "offers_enabled": False,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+            "description": "some description",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert changes["x_studio_notes"] == "some description"
+
+    def test_odoo_false_notes_with_same_description_no_update(self):
+        # If Odoo has False and Reverb has empty description, no update
+        entry = {
+            "x_price": 5000.0,
+            "x_can_accept_offers": False,
+            "x_is_available": True,
+            "x_shipping": 250.0,
+            "x_studio_notes": False,
+        }
+        reverb = {
+            "price": "5000.00",
+            "offers_enabled": False,
+            "sale_ended": False,
+            "shipping_price": "250.00",
+            "description": "",
+        }
+        changes = _compute_changes(entry, reverb)
+        assert "x_studio_notes" not in changes
 
 
 # ── _reverb_to_listing_vals ───────────────────────────────────────────────
@@ -429,6 +611,34 @@ class TestReverbToListingVals:
         }
         vals = _reverb_to_listing_vals(reverb, model_id=1)
         assert "x_published_at" not in vals
+
+    def test_description_included_in_vals(self):
+        reverb = {
+            "name": "Guitar",
+            "url": "https://reverb.com/item/789-g",
+            "price": "1000.00",
+            "shipping_price": "100.00",
+            "sale_ended": False,
+            "offers_enabled": False,
+            "published_at": "",
+            "description": "Great condition, minor wear.",
+        }
+        vals = _reverb_to_listing_vals(reverb, model_id=1)
+        assert vals["x_studio_notes"] == "Great condition, minor wear."
+
+    def test_empty_description_not_included(self):
+        reverb = {
+            "name": "Guitar",
+            "url": "https://reverb.com/item/789-g",
+            "price": "1000.00",
+            "shipping_price": "100.00",
+            "sale_ended": False,
+            "offers_enabled": False,
+            "published_at": "",
+            "description": "",
+        }
+        vals = _reverb_to_listing_vals(reverb, model_id=1)
+        assert "x_studio_notes" not in vals
 
 
 # ── _build_report ─────────────────────────────────────────────────────────

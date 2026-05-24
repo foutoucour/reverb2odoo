@@ -391,7 +391,7 @@ class ReverbScraper:
         data["seller"] = raw.get("shop_name", "")
         location = raw.get("location", {})
         data["location"] = location.get("display_location", "")
-        data["description"] = self._clean_html(raw.get("description", ""))
+        data["description"] = raw.get("description", "")
 
         stats = raw.get("stats", {})
         data["views"] = stats.get("views", 0)

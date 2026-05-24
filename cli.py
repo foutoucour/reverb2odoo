@@ -24,6 +24,7 @@ from gear_page import cli as gear_page_cmd
 from odoo_connector import get_connection
 from set_default_currency import cli as set_default_currency_cmd
 from sync_model import cli as sync_cmd
+from trigger_listing_compute import cli as trigger_listing_compute_cmd
 from trigger_weighted_score import cli as trigger_weighted_score_cmd
 from validate_model import cli as validate_cmd
 
@@ -80,6 +81,7 @@ main.add_command(gear_page_cmd)
 main.add_command(sync_cmd)
 main.add_command(validate_cmd)
 main.add_command(trigger_weighted_score_cmd)
+main.add_command(trigger_listing_compute_cmd)
 main.add_command(compute_price_brackets_cmd)
 main.add_command(set_default_currency_cmd)
 

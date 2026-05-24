@@ -96,7 +96,7 @@ class SpecGroup(BaseModel):
 
     title: str
     specs: list[tuple[str, str]]
-    style: str = "tiles"  # "tiles" | "rows"
+    style: str = "tiles"  # "tiles" | "tiles-wide" | "rows"
 
 
 class NeckProfile(BaseModel):
@@ -162,6 +162,9 @@ _GROUP_LABEL_STRIP: dict[str, str] = {
 #: Date fields that should display only the year (YYYY).
 _YEAR_FIELDS: frozenset[str] = frozenset({"x_studio_acquiring_date"})
 
+#: Sentinel "None" pickup record id — treat as if the field were empty.
+_PICKUP_NONE_ID: int = 1176
+
 #: Paired metric/imperial measurements rendered as "<mm> mm / <in> in".
 #: Each tuple: (label, metric_field, imperial_field)
 # Measurement entry types:
@@ -184,8 +187,9 @@ _GEAR_SPEC_FIELDS: list[str] = [
     "x_studio_acquiring_date",
     "x_studio_body_finish",
     "x_studio_body_material",
+    "x_studio_current_bridge_pickup_id",
     "x_studio_current_condition",
-    "x_studio_current_pickup_ids",
+    "x_studio_current_neck_pickup_id",
     "x_studio_fretboard_material",
     "x_studio_model_name",
     "x_studio_neck_finish",
@@ -401,16 +405,22 @@ def _build_spec_groups(
         style = "rows" if title == "Materials & Finish" else "tiles"
         groups.append(SpecGroup(title=title, specs=specs, style=style))
 
-    # Pickups: one tile per pickup name
-    pickup_names = m2m_resolved.get("x_studio_current_pickup_ids") or []
-    if pickup_names:
-        groups.append(
-            SpecGroup(
-                title="Pickups",
-                specs=[("", name) for name in pickup_names],
-            )
-        )
-    assigned.add("x_studio_current_pickup_ids")
+    # Pickups: one tile each for bridge and neck (m2o → display name).
+    # Pickup id 1176 is the catalog's "None" entry — treat it as absent.
+    pickup_fields: list[tuple[str, str]] = [
+        ("Bridge", "x_studio_current_bridge_pickup_id"),
+        ("Neck", "x_studio_current_neck_pickup_id"),
+    ]
+    pickup_specs: list[tuple[str, str]] = []
+    for label, fname in pickup_fields:
+        value = all_values.get(fname)
+        pickup_id = value[0] if isinstance(value, (list, tuple)) and value else None
+        name = _m2o_name(value)
+        if name and pickup_id != _PICKUP_NONE_ID:
+            pickup_specs.append((label, name))
+        assigned.add(fname)
+    if pickup_specs:
+        groups.append(SpecGroup(title="Pickups", specs=pickup_specs, style="tiles-wide"))
 
     # Measurements: collapse metric + imperial into single rows; grouped entries use newlines
     def _fmt_pair(m_field: str, m_unit: str, i_field: str, i_unit: str) -> str:

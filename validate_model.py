@@ -153,16 +153,20 @@ def _build_validation_report(
 
         item["reverb"] = reverb
 
-        # Skip ended / sold listings unless the caller opted in
-        if reverb.get("sale_ended") and not include_sold:
+        sale_ended = reverb.get("sale_ended", False)
+
+        if sale_ended:
             item["warnings"].append(f"status: {reverb.get('status', 'ended/sold')}")
-            report.append(item)
-            continue
+            # Always clear availability for ended listings regardless of include_sold
+            if entry.get("x_is_available") is True:
+                item["changes"]["x_is_available"] = False
+            if not include_sold:
+                item["action"] = "update" if item["changes"] else "ok"
+                report.append(item)
+                continue
 
         item["changes"] = _compute_changes(entry, reverb)
         item["action"] = "update" if item["changes"] else "ok"
-        if reverb.get("sale_ended"):
-            item["warnings"].append(f"status: {reverb.get('status', 'ended/sold')}")
 
         # Informational warnings
         if reverb.get("ships_to_canada") is False:
@@ -434,6 +438,11 @@ def _validate_single_model(
 @click.option("--dry-run", is_flag=True, help="Preview changes without writing to Odoo.")
 @click.option("--yes", "-y", "auto_yes", is_flag=True, help="Skip confirmation prompts.")
 @click.option(
+    "--wanna",
+    is_flag=True,
+    help="Only validate models flagged as 'wanna' (x_studio_wanna) in Odoo. Implies --all.",
+)
+@click.option(
     "--workers",
     type=int,
     default=DEFAULT_WORKERS,
@@ -448,6 +457,7 @@ def cli(
     include_sold: bool,
     dry_run: bool,
     auto_yes: bool,
+    wanna: bool,
     workers: int,
 ) -> None:
     """Validate existing Odoo entries against live Reverb data.
@@ -455,6 +465,10 @@ def cli(
     MODEL_NAME is the guitar model to validate (e.g. "Frank Brothers Arcane").
     Use --all to validate every model in the database at once.
     """
+    # --wanna implies --all
+    if wanna:
+        all_models = True
+
     if not all_models and not model_name:
         raise click.UsageError("Provide a MODEL_NAME or use --all.")
 
@@ -462,7 +476,7 @@ def cli(
 
     # --all: validate every model in the database (multi-threaded) -------------
     if all_models:
-        all_model_info = _fetch_all_models(conn)
+        all_model_info = _fetch_all_models(conn, wanna_only=wanna)
         if not all_model_info:
             logger.warning("No models found — nothing to do.")
             return

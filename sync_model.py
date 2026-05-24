@@ -43,6 +43,10 @@ _console = Console()
 #: Default shipping cost assumed when Reverb does not return one.
 DEFAULT_SHIPPING = 250.0
 
+#: Minimum fractional price drop required to revert a passed listing to watching.
+#: 5 % filters CAD/USD conversion noise (~1-3 %) while catching real seller drops.
+REWATCH_PRICE_DROP_THRESHOLD = 0.05
+
 #: Default number of worker threads for ``--all`` mode.
 DEFAULT_WORKERS = 4
 
@@ -321,6 +325,18 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
     if price > 0 and _round_price(price) != _round_price(entry.get("x_price", 0)):
         changes["x_price"] = _round_price(price)
 
+    # Re-watch passed listings only when the price drops meaningfully.
+    # A raw CAD/USD conversion swing is typically 1-3 %; require >= REWATCH_PRICE_DROP_THRESHOLD
+    # so currency noise does not revert a deliberate "passed" decision.
+    existing_price = entry.get("x_price", 0)
+    if (
+        price > 0
+        and existing_price > 0
+        and entry.get("x_status") == "passed"
+        and price <= existing_price * (1 - REWATCH_PRICE_DROP_THRESHOLD)
+    ):
+        changes["x_status"] = "watching"
+
     # Offers
     if offers != entry.get("x_can_accept_offers"):
         changes["x_can_accept_offers"] = offers
@@ -328,6 +344,12 @@ def _compute_changes(entry: dict, reverb: dict) -> dict[str, Any]:
     # Published at — only set if not already stored
     if published_at and not entry.get("x_published_at"):
         changes["x_published_at"] = published_at + " 00:00:00"
+
+    # Notes (description from Reverb)
+    description = reverb.get("description", "")
+    existing_notes = entry.get("x_studio_notes") or ""
+    if description and description != existing_notes:
+        changes["x_studio_notes"] = description
 
     # Availability
     if sale_ended and entry.get("x_is_available") is True:
@@ -370,6 +392,9 @@ def _reverb_to_listing_vals(
         "x_can_accept_offers": reverb.get("offers_enabled", False),
         "x_is_taxed": False,
     }
+    description = reverb.get("description", "")
+    if description:
+        vals["x_studio_notes"] = description
     if published:
         vals["x_published_at"] = published + " 00:00:00"
 

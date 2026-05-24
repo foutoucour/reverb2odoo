@@ -18,3 +18,7 @@ uv run reverb2odoo sync --include-sold --include-brand-new --yes "$MODEL"
 echo ""
 echo "==> Computing price brackets for: $MODEL"
 uv run reverb2odoo compute-price-brackets --model "$MODEL"
+
+echo ""
+echo "==> Triggering listing compute for: $MODEL"
+uv run reverb2odoo trigger-listing-compute --apply "$MODEL"
