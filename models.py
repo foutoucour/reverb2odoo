@@ -274,6 +274,7 @@ class WeightedTagRecord(OdooRecord):
     x_name: OdooStr = None
     x_active: OdooBool = None
     x_studio_score: OdooInt = None
+    x_studio_description: OdooStr = None
     x_studio_weighted_tag_group_id: OdooM2O = None
     x_studio_model_ids: OdooIds = []
 

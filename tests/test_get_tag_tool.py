@@ -15,6 +15,7 @@ def _tag_dict(**overrides: object) -> dict:
         "x_name": "Figured maple",
         "x_active": True,
         "x_studio_score": 5,
+        "x_studio_description": False,
         "x_studio_weighted_tag_group_id": [1, "Top Quality"],
         "x_studio_model_ids": [101, 102],
     }
@@ -117,6 +118,26 @@ def test_run_renders_effective_contribution() -> None:
     result = run(conn, "maple")
     assert "Effective contribution" in result
     assert "10" in result  # 5 * 2.0
+
+
+def test_run_renders_description_when_set() -> None:
+    conn = _make_conn(
+        tag_records=[_tag_dict(x_studio_description="Flamed top with strong figuring.")],
+        group_records=[_group_dict()],
+        model_records=[_model_dict()],
+    )
+    result = run(conn, "maple")
+    assert "Flamed top with strong figuring." in result
+
+
+def test_run_omits_description_when_blank() -> None:
+    conn = _make_conn(
+        tag_records=[_tag_dict()],
+        group_records=[_group_dict()],
+        model_records=[_model_dict()],
+    )
+    result = run(conn, "maple")
+    assert "False" not in result
 
 
 def test_run_handles_tag_without_group() -> None:

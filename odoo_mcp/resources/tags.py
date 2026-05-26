@@ -28,7 +28,11 @@ def _render_tag_line(tag: WeightedTagRecord) -> str:
     name = _scalar(tag.x_name, fallback="(unnamed)")
     score = _scalar(tag.x_studio_score, fallback="-")
     linked = len(tag.x_studio_model_ids)
-    return f"- **{name}** (id={tag.id}) | score={score} | linked models={linked}"
+    line = f"- **{name}** (id={tag.id}) | score={score} | linked models={linked}"
+    description = _scalar(tag.x_studio_description)
+    if description:
+        line += f" — {description}"
+    return line
 
 
 def _render_group_section(
