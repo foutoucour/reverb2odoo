@@ -39,6 +39,7 @@ from odoo_mcp.tools import portfolio_summary as portfolio_summary_mod
 from odoo_mcp.tools import recent_activity as recent_activity_mod
 from odoo_mcp.tools import search_gear as search_gear_mod
 from odoo_mcp.tools import search_listings as search_listings_mod
+from odoo_mcp.tools import search_models as search_models_mod
 
 mcp = FastMCP("odoo-collection")
 
@@ -192,6 +193,25 @@ def portfolio_summary() -> str:
 def pending_decisions() -> str:
     """List watching listings on wanna models that have not been triaged."""
     return pending_decisions_mod.run(get_connection_from_env())
+
+
+@mcp.tool()
+@cached
+def search_models(
+    query: str = "",
+    sort_by: str = "weighted_score",
+    limit: int = 20,
+) -> str:
+    """Search x_models by name and return them sorted by score/price/name.
+
+    ``sort_by`` accepts ``weighted_score`` (default, desc), ``p50`` (desc), ``name`` (asc).
+    """
+    return search_models_mod.run(
+        get_connection_from_env(),
+        query=query,
+        sort_by=sort_by,
+        limit=limit,
+    )
 
 
 @mcp.tool()

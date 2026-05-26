@@ -63,6 +63,7 @@ Fetch a single item by URI without invoking a tool:
 |---|---|---|
 | `search_gear` | `brand`, `model_type`, `status`, `intent` (all optional) | Filtered gear cards |
 | `search_listings` | `brand`, `model_type`, `max_price`, `platform`, `status` (all optional) | Filtered listing cards sorted by score |
+| `search_models` | `query`, `sort_by` (`weighted_score`/`p50`/`name`), `limit` (default 20) | Model cards sorted by the chosen key |
 | `get_model` | `name_or_id` | Full model spec with all linked gear and listings |
 | `get_gear` | `gear_id` | Single gear detail with scores, notes, and listing history |
 | `get_brand` | `name` | Brand card with description and linked x_models |
