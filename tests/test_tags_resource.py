@@ -26,6 +26,7 @@ def _tag_dict(**overrides: object) -> dict:
         "x_name": "Figured maple",
         "x_active": True,
         "x_studio_score": 5,
+        "x_studio_description": False,
         "x_studio_weighted_tag_group_id": [1, "Top Quality"],
         "x_studio_model_ids": [101, 102],
     }
@@ -74,6 +75,24 @@ def test_render_lists_tag_with_score_and_linked_count() -> None:
     assert "Figured maple" in result
     assert "score=5" in result
     assert "linked models=2" in result
+
+
+def test_render_appends_description_to_tag_line_when_set() -> None:
+    conn = _make_conn(
+        groups=[_group_dict()],
+        weighted_tags=[_tag_dict(x_studio_description="Flamed top with strong figuring.")],
+    )
+    result = tags.render(conn)
+    assert "— Flamed top with strong figuring." in result
+
+
+def test_render_omits_description_marker_when_blank() -> None:
+    conn = _make_conn(
+        groups=[_group_dict()],
+        weighted_tags=[_tag_dict()],
+    )
+    result = tags.render(conn)
+    assert "— " not in result
 
 
 def test_render_orders_tags_by_descending_score() -> None:

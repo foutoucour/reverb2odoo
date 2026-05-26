@@ -42,6 +42,10 @@ def _render_tag_header(
     ]
     if effective is not None:
         lines.append(f"**Effective contribution**: {effective}")
+    description = _scalar(tag.x_studio_description)
+    if description:
+        lines.append("")
+        lines.append(description)
     return "\n".join(lines)
 
 

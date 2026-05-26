@@ -238,6 +238,7 @@
     "write_uid",
     "x_active",
     "x_name",
+    "x_studio_description",
     "x_studio_model_ids",
     "x_studio_score",
     "x_studio_weighted_tag_group_id"
