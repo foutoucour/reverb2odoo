@@ -62,6 +62,8 @@ def _model_dict(**overrides: object) -> dict:
         "x_price_p25": 1800.0,
         "x_price_p50": 2200.0,
         "x_price_p75": 2700.0,
+        "x_studio_weighted_tag_ids": [],
+        "x_studio_weighted_score": False,
     }
     base.update(overrides)
     return base
@@ -115,6 +117,30 @@ def test_render_model_spec_shows_family_when_provided() -> None:
     model = _make_model()
     result = _render_model_spec(model, ["Set neck", "Carved top"])
     assert "**Construction**: Set neck, Carved top" in result
+
+
+def test_render_model_spec_shows_weighted_score_when_present() -> None:
+    model = _make_model(x_studio_weighted_score=42)
+    result = _render_model_spec(model, [])
+    assert "**Weighted score**: 42" in result
+
+
+def test_render_model_spec_omits_weighted_score_when_absent() -> None:
+    model = _make_model(x_studio_weighted_score=False)
+    result = _render_model_spec(model, [])
+    assert "**Weighted score**" not in result
+
+
+def test_render_model_spec_shows_tags_when_provided() -> None:
+    model = _make_model()
+    result = _render_model_spec(model, [], tag_labels=["Figured maple (score=5)", "Lightweight"])
+    assert "**Tags**: Figured maple (score=5), Lightweight" in result
+
+
+def test_render_model_spec_omits_tags_when_absent() -> None:
+    model = _make_model()
+    result = _render_model_spec(model, [], tag_labels=[])
+    assert "**Tags**" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -252,17 +278,20 @@ def _make_conn(
     gear_records: list[dict] | None = None,
     listing_records: list[dict] | None = None,
     family_records: list[dict] | None = None,
+    tag_records: list[dict] | None = None,
 ) -> MagicMock:
     conn = MagicMock()
     models_proxy = MagicMock()
     gear_proxy = MagicMock()
     listing_proxy = MagicMock()
     family_proxy = MagicMock()
+    tag_proxy = MagicMock()
 
     models_proxy.search_read.return_value = model_records or []
     gear_proxy.search_read.return_value = gear_records or []
     listing_proxy.search_read.return_value = listing_records or []
     family_proxy.search_read.return_value = family_records or []
+    tag_proxy.search_read.return_value = tag_records or []
 
     def get_model(name: str) -> MagicMock:
         if name == "x_models":
@@ -273,6 +302,8 @@ def _make_conn(
             return listing_proxy
         if name == "x_guitar_familly":
             return family_proxy
+        if name == "x_weighted_tags":
+            return tag_proxy
         raise ValueError(f"Unexpected model: {name}")
 
     conn.get_model.side_effect = get_model
@@ -343,6 +374,21 @@ def test_run_output_contains_listing_section() -> None:
     conn = _make_conn(model_records=[model], listing_records=[listing])
     result = run(conn, "Les Paul")
     assert "## Listings" in result
+
+
+def test_run_resolves_and_renders_linked_tags() -> None:
+    model = _model_dict(x_studio_weighted_tag_ids=[10])
+    tag = {
+        "id": 10,
+        "x_name": "Figured maple",
+        "x_studio_score": 5,
+        "x_studio_weighted_tag_group_id": [1, "Top Quality"],
+        "x_studio_model_ids": [10],
+    }
+    conn = _make_conn(model_records=[model], tag_records=[tag])
+    result = run(conn, "Les Paul")
+    assert "**Tags**" in result
+    assert "Figured maple (score=5)" in result
 
 
 def test_run_strips_whitespace_from_name_or_id() -> None:

@@ -23,7 +23,14 @@ from pathlib import Path
 
 import pytest
 
-from models import GearRecord, ListingRecord, ModelsRecord, OdooRecord
+from models import (
+    GearRecord,
+    ListingRecord,
+    ModelsRecord,
+    OdooRecord,
+    WeightedTagGroupRecord,
+    WeightedTagRecord,
+)
 
 _SNAPSHOT_PATH = Path(__file__).parent / "fixtures" / "odoo_fields_snapshot.json"
 
@@ -39,6 +46,12 @@ def _load_snapshot() -> dict[str, list[str]]:
         pytest.param(GearRecord, "x_gear", id="x_gear"),
         pytest.param(ListingRecord, "x_listing", id="x_listing"),
         pytest.param(ModelsRecord, "x_models", id="x_models"),
+        pytest.param(WeightedTagRecord, "x_weighted_tags", id="x_weighted_tags"),
+        pytest.param(
+            WeightedTagGroupRecord,
+            "x_weighted_tag_groups",
+            id="x_weighted_tag_groups",
+        ),
     ],
 )
 def test_pydantic_fields_exist_in_odoo(record_cls: type[OdooRecord], odoo_model: str) -> None:
@@ -59,6 +72,12 @@ def test_pydantic_fields_exist_in_odoo(record_cls: type[OdooRecord], odoo_model:
 def test_snapshot_covers_all_three_models() -> None:
     """Make sure the fixture covers every model the pydantic layer declares."""
     snapshot = _load_snapshot()
-    assert set(snapshot.keys()) == {"x_gear", "x_listing", "x_models"}
+    assert set(snapshot.keys()) == {
+        "x_gear",
+        "x_listing",
+        "x_models",
+        "x_weighted_tags",
+        "x_weighted_tag_groups",
+    }
     for model, fields in snapshot.items():
         assert fields, f"Snapshot for {model} is empty — regenerate"

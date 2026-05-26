@@ -26,11 +26,13 @@ from odoo_mcp.resources import brands as brands_mod
 from odoo_mcp.resources import collection as collection_mod
 from odoo_mcp.resources import models as models_mod
 from odoo_mcp.resources import sold as sold_mod
+from odoo_mcp.resources import tags as tags_mod
 from odoo_mcp.resources import watchlist as watchlist_mod
 from odoo_mcp.tools import clear_cache as clear_cache_mod
 from odoo_mcp.tools import get_brand as get_brand_mod
 from odoo_mcp.tools import get_gear as get_gear_mod
 from odoo_mcp.tools import get_model as get_model_mod
+from odoo_mcp.tools import get_tag as get_tag_mod
 from odoo_mcp.tools import missed_deals as missed_deals_mod
 from odoo_mcp.tools import pending_decisions as pending_decisions_mod
 from odoo_mcp.tools import portfolio_summary as portfolio_summary_mod
@@ -76,6 +78,12 @@ def resource_models() -> str:
     return models_mod.render(get_connection_from_env())
 
 
+@mcp.resource("odoo://tags")
+@cached
+def resource_tags() -> str:
+    return tags_mod.render(get_connection_from_env())
+
+
 # ---------------------------------------------------------------------------
 # Resource templates (parameterized)
 # ---------------------------------------------------------------------------
@@ -104,6 +112,13 @@ def resource_gear_by_id(gear_id: str) -> str:
     except ValueError:
         return f"Invalid gear id: **{gear_id}** (expected integer)"
     return get_gear_mod.run(get_connection_from_env(), gid)
+
+
+@mcp.resource("odoo://tag/{name}")
+@cached
+def resource_tag_by_name(name: str) -> str:
+    """Single x_weighted_tags record by name or numeric id (ilike search)."""
+    return get_tag_mod.run(get_connection_from_env(), name)
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +157,13 @@ def get_gear(gear_id: int) -> str:
 def get_brand(name: str) -> str:
     """Get full info for a brand by name, with linked models."""
     return get_brand_mod.run(get_connection_from_env(), name)
+
+
+@mcp.tool()
+@cached
+def get_tag(name_or_id: str) -> str:
+    """Get a weighted tag by name (partial match) or numeric id, with linked models."""
+    return get_tag_mod.run(get_connection_from_env(), name_or_id)
 
 
 @mcp.tool()

@@ -23,7 +23,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from odoo_connector import get_connection  # noqa: E402
 
 _OUTPUT = Path(__file__).parent / "odoo_fields_snapshot.json"
-_MODELS = ("x_gear", "x_listing", "x_models")
+_MODELS = (
+    "x_gear",
+    "x_listing",
+    "x_models",
+    "x_weighted_tags",
+    "x_weighted_tag_groups",
+)
 
 
 def main() -> None:

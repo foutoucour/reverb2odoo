@@ -256,3 +256,36 @@ class ModelsRecord(OdooRecord):
     x_price_updated_at: OdooStr = None
 
     x_studio_reverb_category_id: OdooM2O = None
+
+    # Weighted tagging — tags carry a score, grouped under tag groups that
+    # carry a multiply factor; x_studio_weighted_score is the computed result.
+    x_studio_weighted_tag_ids: OdooIds = []
+    x_studio_weighted_score: OdooInt = None
+
+
+# ---------------------------------------------------------------------------
+# x_weighted_tags — individual tag (score + group + linked models)
+# ---------------------------------------------------------------------------
+
+
+class WeightedTagRecord(OdooRecord):
+    """A single weighted tag applied to one or more ``x_models``."""
+
+    x_name: OdooStr = None
+    x_active: OdooBool = None
+    x_studio_score: OdooInt = None
+    x_studio_weighted_tag_group_id: OdooM2O = None
+    x_studio_model_ids: OdooIds = []
+
+
+# ---------------------------------------------------------------------------
+# x_weighted_tag_groups — group of tags with a shared multiply factor
+# ---------------------------------------------------------------------------
+
+
+class WeightedTagGroupRecord(OdooRecord):
+    """A group of weighted tags. ``x_studio_multiply`` scales all member tag scores."""
+
+    x_name: OdooStr = None
+    x_active: OdooBool = None
+    x_studio_multiply: OdooFloat = None
