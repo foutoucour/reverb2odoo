@@ -44,6 +44,7 @@ Claude Desktop, replacing static markdown knowledge-base files with real-time qu
 | `odoo://sold` | `x_gear` (sold) | Flip history with P&L per item |
 | `odoo://brands` | `res.partner` + GitHub README | Brand catalog by category, enriched with construction details |
 | `odoo://models` | `x_models` (all) | Full model catalog; highlights wanna=True models with no listings tracked |
+| `odoo://tags` | `x_weighted_tags` + `x_weighted_tag_groups` | Weighted tag catalog grouped by tag group, with scores and multiply factors |
 
 ### Resource templates (parameterized)
 
@@ -54,6 +55,7 @@ Fetch a single item by URI without invoking a tool:
 | `odoo://model/{name}` | One x_models record (name or numeric id), with linked gear and listings |
 | `odoo://brand/{name}` | One brand card with country, made_in, description, and linked models |
 | `odoo://gear/{gear_id}` | One x_gear record with full listing history |
+| `odoo://tag/{name}` | One x_weighted_tags record (name or numeric id) with its group and linked models |
 
 ### Tools
 
@@ -64,6 +66,7 @@ Fetch a single item by URI without invoking a tool:
 | `get_model` | `name_or_id` | Full model spec with all linked gear and listings |
 | `get_gear` | `gear_id` | Single gear detail with scores, notes, and listing history |
 | `get_brand` | `name` | Brand card with description and linked x_models |
+| `get_tag` | `name_or_id` | Weighted tag detail: score, group multiply, and linked x_models |
 | `missed_deals` | `days_lookback` (default 30) | Under-p25 active deals + closed/sold listings on wanna models you don't own |
 | `recent_activity` | `days` (default 7) | New listings, sold listings, and gear updates in the window |
 | `portfolio_summary` | — | Owned/sold totals, unrealized + realized P&L, by-brand and by-intent pivots |

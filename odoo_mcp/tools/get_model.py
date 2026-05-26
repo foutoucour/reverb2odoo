@@ -9,7 +9,7 @@ from __future__ import annotations
 import odoolib
 from loguru import logger
 
-from models import GearRecord, ListingRecord, ModelsRecord
+from models import GearRecord, ListingRecord, ModelsRecord, WeightedTagRecord
 
 # ---------------------------------------------------------------------------
 # Private helpers
@@ -28,7 +28,11 @@ def _scalar(value: object, fallback: str = "") -> str:
     return str(value)
 
 
-def _render_model_spec(model: ModelsRecord, family_names: list[str]) -> str:
+def _render_model_spec(
+    model: ModelsRecord,
+    family_names: list[str],
+    tag_labels: list[str] | None = None,
+) -> str:
     """Render the core x_models fields as a markdown spec block."""
     name = _scalar(model.x_name, fallback="(unnamed)")
     brand = _label(model.x_studio_partner_id)
@@ -41,6 +45,7 @@ def _render_model_spec(model: ModelsRecord, family_names: list[str]) -> str:
     p25 = _scalar(model.x_price_p25)
     p50 = _scalar(model.x_price_p50)
     p75 = _scalar(model.x_price_p75)
+    weighted_score = _scalar(model.x_studio_weighted_score)
 
     family = ", ".join(family_names) if family_names else ""
     wanna_str = "yes" if wanna else "no"
@@ -53,6 +58,10 @@ def _render_model_spec(model: ModelsRecord, family_names: list[str]) -> str:
     if family:
         lines.append(f"**Construction**: {family}")
     lines.append(f"**Price brackets**: p25={p25} | p50={p50} | p75={p75}")
+    if weighted_score:
+        lines.append(f"**Weighted score**: {weighted_score}")
+    if tag_labels:
+        lines.append(f"**Tags**: {', '.join(tag_labels)}")
 
     return "\n".join(lines)
 
@@ -123,6 +132,22 @@ def _resolve_family_names(conn: odoolib.main.Connection, family_ids: list[int]) 
     return [str(r.get("x_name") or "") for r in rows if r.get("x_name")]
 
 
+def _resolve_tag_labels(conn: odoolib.main.Connection, tag_ids: list[int]) -> list[str]:
+    """Resolve x_weighted_tags ids to ``name (score=N)`` labels."""
+    if not tag_ids:
+        return []
+    rows = conn.get_model("x_weighted_tags").search_read(
+        [("id", "in", tag_ids)], WeightedTagRecord.odoo_fields()
+    )
+    labels: list[str] = []
+    for row in rows:
+        tag = WeightedTagRecord.from_odoo(row)
+        name = _scalar(tag.x_name, fallback="(unnamed)")
+        score = _scalar(tag.x_studio_score)
+        labels.append(f"{name} (score={score})" if score else name)
+    return sorted(labels)
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -168,6 +193,7 @@ def run(conn: odoolib.main.Connection, name_or_id: str) -> str:
     logger.info("get_model: found model id={}", model.id)
 
     family_names = _resolve_family_names(conn, model.x_studio_guitar_familly_ids)
+    tag_labels = _resolve_tag_labels(conn, model.x_studio_weighted_tag_ids)
 
     gear_proxy = conn.get_model("x_gear")
     gear_rows: list[dict] = gear_proxy.search_read(
@@ -186,7 +212,7 @@ def run(conn: odoolib.main.Connection, name_or_id: str) -> str:
     logger.debug("get_model: {} listing record(s) linked", len(listing_records))
 
     sections: list[str] = [
-        _render_model_spec(model, family_names),
+        _render_model_spec(model, family_names, tag_labels),
         "",
         _render_gear_section(gear_records),
         "",

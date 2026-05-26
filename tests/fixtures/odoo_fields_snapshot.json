@@ -228,5 +228,31 @@
     "x_x_model_id_x_listing_count",
     "x_x_studio_many2one_field_1jm_1ifqkleme_x_brand_count",
     "x_x_studio_models_x_guitar_count"
+  ],
+  "x_weighted_tags": [
+    "create_date",
+    "create_uid",
+    "display_name",
+    "id",
+    "write_date",
+    "write_uid",
+    "x_active",
+    "x_name",
+    "x_studio_model_ids",
+    "x_studio_score",
+    "x_studio_weighted_tag_group_id"
+  ],
+  "x_weighted_tag_groups": [
+    "create_date",
+    "create_uid",
+    "display_name",
+    "id",
+    "write_date",
+    "write_uid",
+    "x_active",
+    "x_name",
+    "x_studio_multiply",
+    "x_studio_weight",
+    "x_studio_weight_tag_ids"
   ]
 }
