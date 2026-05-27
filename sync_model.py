@@ -559,7 +559,9 @@ def _print_report(report: list[dict]) -> tuple[int, int]:
             update_count += 1
             entry: ListingRecord = item["entry"]
             eid = entry.id
-            info = escape(f"id={eid}  {warn_str}".strip())
+            other_model_id = item.get("other_model_id")
+            cross = f"  → model: {other_model_id}" if other_model_id else ""
+            info = escape(f"id={eid}{cross}  {warn_str}".strip())
             table.add_row(str(i), "[bold yellow]~ UPD[/bold yellow]", price, name, info)
             for field, new_val in item["changes"].items():
                 old_val = getattr(entry, field, "—")

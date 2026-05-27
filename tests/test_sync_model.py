@@ -976,6 +976,39 @@ class TestPrintReport:
         assert upd == 0
         assert crt == 0
 
+    def test_cross_model_hint_shown_in_info_column(self, capsys):
+        report = [
+            {
+                "action": "update",
+                "reverb": {"name": "G", "price_display": "$1"},
+                "entry": ListingRecord.from_odoo(
+                    {"id": 200, "x_price": 99, "x_model_id": [1155, "Grez Mendocino Jr"]}
+                ),
+                "changes": {"x_price": 99},
+                "warnings": [],
+                "other_model_id": 1155,
+            },
+        ]
+        _print_report(report)
+        out = capsys.readouterr().out
+        # Hint must surface the other model id so the user can spot it.
+        assert "1155" in out
+
+    def test_no_hint_when_same_model(self, capsys):
+        report = [
+            {
+                "action": "update",
+                "reverb": {"name": "G", "price_display": "$1"},
+                "entry": ListingRecord.from_odoo({"id": 200, "x_price": 99}),
+                "changes": {"x_price": 99},
+                "warnings": [],
+                "other_model_id": None,
+            },
+        ]
+        _print_report(report)
+        out = capsys.readouterr().out
+        assert "model:" not in out.lower()
+
 
 # ── _find_model (mocked Odoo) ─────────────────────────────────────────────
 
