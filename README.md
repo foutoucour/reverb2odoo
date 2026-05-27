@@ -264,6 +264,8 @@ uv run reverb2odoo --help
 Search Reverb for a gear model, then create new `x_listing` entries and update existing ones in Odoo.
 Matching is done first by exact URL (query-string ignored), then by Reverb numeric item ID — so listings that were renamed on Reverb (slug changed) are updated in place rather than duplicated.
 
+URL matches span across models: if a Reverb URL already exists on any `x_listing` — even one attached to a different `x_models` record — the existing listing is updated in place and the report flags it with the other model's id. The listing's `x_model_id` is preserved untouched; if the listing actually belongs under the searched model, move it manually in Odoo.
+
 Sync **never creates `x_gear` records** — those are created manually in Odoo when a listing is acquired.
 
 By default only **live** listings are searched. Pass `--include-sold` to also include sold/ended listings.
