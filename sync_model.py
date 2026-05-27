@@ -172,10 +172,28 @@ def _find_model(conn, model_name: str) -> dict[str, Any]:
     }
 
 
-def _fetch_listings(conn, model_id: int) -> list[ListingRecord]:
-    """Return all ``x_listing`` records linked to *model_id*."""
+def _fetch_listings(
+    conn,
+    model_id: int,
+    extra_urls: list[str] | None = None,
+) -> list[ListingRecord]:
+    """Return ``x_listing`` records for *model_id* plus any rows whose
+    ``x_url`` matches *extra_urls* (cross-model lookup).
+
+    Cross-model rows are returned with their original ``x_model_id`` intact
+    so the caller can detect when a Reverb result already exists under a
+    different model.
+    """
     listing = conn.get_model("x_listing")
-    rows = listing.search_read([("x_model_id", "=", model_id)], ListingRecord.odoo_fields())
+    if extra_urls:
+        domain: list = [
+            "|",
+            ("x_model_id", "=", model_id),
+            ("x_url", "in", list(extra_urls)),
+        ]
+    else:
+        domain = [("x_model_id", "=", model_id)]
+    rows = listing.search_read(domain, ListingRecord.odoo_fields())
     return [ListingRecord.from_odoo(r) for r in rows]
 
 
@@ -438,9 +456,18 @@ def _build_report(
     odoo_by_item_id: dict[str, ListingRecord] = {}
     for e in odoo_entries:
         clean = _clean_url(e.x_url or "")
+        existing_url_match = odoo_by_url.get(clean)
+        if existing_url_match is not None and existing_url_match.id != e.id:
+            logger.warning(
+                "Duplicate x_url in Odoo: keeping listing id={}, ignoring id={} (url={})",
+                existing_url_match.id,
+                e.id,
+                clean,
+            )
+            continue
         odoo_by_url[clean] = e
         item_id = _reverb_item_id(clean)
-        if item_id:
+        if item_id and item_id not in odoo_by_item_id:
             odoo_by_item_id[item_id] = e
 
     report: list[dict] = []
@@ -454,6 +481,7 @@ def _build_report(
             "create_vals": {},
             "warnings": [],
             "action": "skip",
+            "other_model_id": None,
         }
 
         if "error" in r:
@@ -471,6 +499,15 @@ def _build_report(
             item["entry"] = existing
             item["changes"] = _compute_changes(existing, r)
             item["action"] = "update" if item["changes"] else "ok"
+            entry_model = existing.x_model_id
+            entry_model_id = entry_model[0] if entry_model else None
+            if entry_model_id is not None and entry_model_id != model_id:
+                item["other_model_id"] = entry_model_id
+                logger.info(
+                    "Cross-model match: listing id={} belongs to model id={}, updating in place",
+                    existing.id,
+                    entry_model_id,
+                )
         elif _is_brand_new(r) and not include_brand_new:
             item["action"] = "skip"
             item["warnings"].append("skipped: brand new")
@@ -522,7 +559,12 @@ def _print_report(report: list[dict]) -> tuple[int, int]:
             update_count += 1
             entry: ListingRecord = item["entry"]
             eid = entry.id
-            info = escape(f"id={eid}  {warn_str}".strip())
+            other_model_id = item.get("other_model_id")
+            cross = ""
+            if other_model_id:
+                other_model_name = entry.x_model_id[1] if entry.x_model_id else ""
+                cross = f"  → model: {other_model_name} ({other_model_id})"
+            info = escape(f"id={eid}{cross}  {warn_str}".strip())
             table.add_row(str(i), "[bold yellow]~ UPD[/bold yellow]", price, name, info)
             for field, new_val in item["changes"].items():
                 old_val = getattr(entry, field, "—")
@@ -670,7 +712,14 @@ def _collect_sync_data(
         }
 
     logger.debug("[{}] Fetching existing Odoo listing records…", model_name)
-    odoo_entries = _fetch_listings(conn, model_id)
+    url_candidates: set[str] = set()
+    for r in reverb_results:
+        raw = r.get("url", "")
+        if not raw:
+            continue
+        url_candidates.add(raw)
+        url_candidates.add(_clean_url(raw))
+    odoo_entries = _fetch_listings(conn, model_id, extra_urls=list(url_candidates))
     logger.debug("[{}] Found {} existing listing records", model_name, len(odoo_entries))
 
     report = _build_report(

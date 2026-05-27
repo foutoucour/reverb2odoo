@@ -16,6 +16,7 @@ from sync_model import (
     _compute_changes,
     _download_image_base64,
     _fetch_all_models,
+    _fetch_listings,
     _find_entries_without_image,
     _find_model,
     _is_brand_new,
@@ -848,6 +849,75 @@ class TestBuildReport:
         assert report[0]["action"] == "create"
         assert report[0]["create_vals"]["x_model_id"] == 42
 
+    def test_cross_model_match_flags_other_model_id(self):
+        """When the matched entry belongs to a different model, the report
+        item should expose other_model_id and never include x_model_id in
+        the change set."""
+        url = "https://reverb.com/item/1-g"
+        reverb_results = [self._make_reverb(url=url, price="4000.00")]
+        # Entry belongs to model 99, not the syncing model 42.
+        odoo_entries = [
+            self._make_odoo(url=url, x_model_id=[99, "Other Model"]),
+        ]
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42)
+
+        assert len(report) == 1
+        assert report[0]["action"] == "update"
+        assert report[0]["other_model_id"] == 99
+        assert "x_model_id" not in report[0]["changes"]
+
+    def test_same_model_match_other_model_id_is_none(self):
+        url = "https://reverb.com/item/1-g"
+        reverb_results = [self._make_reverb(url=url)]
+        odoo_entries = [self._make_odoo(url=url, x_model_id=[42, "Same"])]
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42)
+
+        assert report[0]["other_model_id"] is None
+
+    def test_new_listing_has_other_model_id_none(self):
+        reverb_results = [
+            self._make_reverb(url="https://reverb.com/item/999-new", condition="Excellent"),
+        ]
+        report = _build_report(reverb_results, [], model_id=42)
+
+        assert report[0]["action"] == "create"
+        assert report[0]["other_model_id"] is None
+
+    def test_cross_model_match_does_not_create(self):
+        """If the URL already exists under another model, no create entry
+        should be produced — the existing row is updated instead."""
+        url = "https://reverb.com/item/1-g"
+        reverb_results = [self._make_reverb(url=url, condition="Excellent")]
+        odoo_entries = [self._make_odoo(url=url, x_model_id=[99, "Other"])]
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42)
+
+        actions = [r["action"] for r in report]
+        assert "create" not in actions
+
+    def test_duplicate_url_first_wins_and_warns(self):
+        """If two existing entries share the same URL, the first one is
+        kept and a WARNING is logged so the user can dedupe manually.
+
+        We patch sync_model.logger.warning directly because the project
+        uses loguru, which does not propagate to caplog by default.
+        """
+        url = "https://reverb.com/item/1-g"
+        first = self._make_odoo(url=url, id=100)
+        second = self._make_odoo(url=url, id=200)
+        reverb_results = [self._make_reverb(url=url)]
+
+        with patch("sync_model.logger.warning") as warn:
+            report = _build_report(reverb_results, [first, second], model_id=42)
+
+        assert report[0]["entry"].id == 100
+        assert warn.called
+        warn_args = " ".join(str(a) for call in warn.call_args_list for a in call.args)
+        assert "100" in warn_args
+        assert "200" in warn_args
+
 
 # ── _print_report ─────────────────────────────────────────────────────────
 
@@ -905,6 +975,44 @@ class TestPrintReport:
         upd, crt = _print_report(report)
         assert upd == 0
         assert crt == 0
+
+    def test_cross_model_hint_shown_in_info_column(self, capsys):
+        report = [
+            {
+                "action": "update",
+                "reverb": {"name": "G", "price_display": "$1"},
+                "entry": ListingRecord.from_odoo(
+                    {"id": 200, "x_price": 99, "x_model_id": [1155, "Grez Mendocino Jr"]}
+                ),
+                "changes": {"x_price": 99},
+                "warnings": [],
+                "other_model_id": 1155,
+            },
+        ]
+        _print_report(report)
+        out = capsys.readouterr().out
+        # Hint must surface arrow prefix + model name + id.
+        # Rich wraps the Info column under capsys's narrow default width,
+        # so check the parts independently rather than as a contiguous
+        # substring.
+        assert "→ model:" in out
+        assert "Grez Mendocino Jr" in out
+        assert "1155" in out
+
+    def test_no_hint_when_same_model(self, capsys):
+        report = [
+            {
+                "action": "update",
+                "reverb": {"name": "G", "price_display": "$1"},
+                "entry": ListingRecord.from_odoo({"id": 200, "x_price": 99}),
+                "changes": {"x_price": 99},
+                "warnings": [],
+                "other_model_id": None,
+            },
+        ]
+        _print_report(report)
+        out = capsys.readouterr().out
+        assert "model:" not in out.lower()
 
 
 # ── _find_model (mocked Odoo) ─────────────────────────────────────────────
@@ -1476,6 +1584,109 @@ class TestCollectSyncData:
             include_sold=True,
         )
 
+    def test_passes_url_candidates_to_fetch_listings(self):
+        """URL candidates from Reverb results are forwarded to _fetch_listings
+        as both raw and cleaned forms so the DB lookup is lossless."""
+        reverb_results = [
+            {
+                "url": "https://reverb.com/item/1-g?show_sold=true",
+                "name": "G1",
+                "price": "100.00",
+                "price_display": "C$100",
+                "offers_enabled": False,
+                "sale_ended": False,
+                "published_at": "",
+                "shipping_price": "0.00",
+                "ships_to_canada": True,
+                "condition": "Excellent",
+            },
+            {
+                "url": "https://reverb.com/item/2-g",
+                "name": "G2",
+                "price": "200.00",
+                "price_display": "C$200",
+                "offers_enabled": False,
+                "sale_ended": False,
+                "published_at": "",
+                "shipping_price": "0.00",
+                "ships_to_canada": True,
+                "condition": "Excellent",
+            },
+        ]
+        captured: dict = {}
+
+        def fake_fetch_listings(conn, model_id, extra_urls=None):
+            captured["model_id"] = model_id
+            captured["extra_urls"] = list(extra_urls or [])
+            return []
+
+        with (
+            patch("sync_model._search_reverb", return_value=reverb_results),
+            patch("sync_model._fetch_listings", side_effect=fake_fetch_listings),
+        ):
+            _collect_sync_data(
+                MagicMock(),
+                model_id=42,
+                model_name="Test",
+                category_slug=None,
+                default_shipping=250.0,
+            )
+
+        assert captured["model_id"] == 42
+        # Both the raw URL (with query string) and the cleaned URL should be present
+        assert "https://reverb.com/item/1-g?show_sold=true" in captured["extra_urls"]
+        assert "https://reverb.com/item/1-g" in captured["extra_urls"]
+        assert "https://reverb.com/item/2-g" in captured["extra_urls"]
+
+    def test_empty_url_candidates_when_results_lack_urls(self):
+        """If Reverb results have empty/missing url fields, no URL candidates
+        are forwarded — _fetch_listings receives an empty extra_urls list."""
+        reverb_results = [
+            {
+                "url": "",  # empty string
+                "name": "G1",
+                "price": "100.00",
+                "price_display": "C$100",
+                "offers_enabled": False,
+                "sale_ended": False,
+                "published_at": "",
+                "shipping_price": "0.00",
+                "ships_to_canada": True,
+                "condition": "Excellent",
+            },
+            {
+                # url key entirely absent
+                "name": "G2",
+                "price": "200.00",
+                "price_display": "C$200",
+                "offers_enabled": False,
+                "sale_ended": False,
+                "published_at": "",
+                "shipping_price": "0.00",
+                "ships_to_canada": True,
+                "condition": "Excellent",
+            },
+        ]
+        captured: dict = {}
+
+        def fake_fetch_listings(conn, model_id, extra_urls=None):
+            captured["extra_urls"] = list(extra_urls or [])
+            return []
+
+        with (
+            patch("sync_model._search_reverb", return_value=reverb_results),
+            patch("sync_model._fetch_listings", side_effect=fake_fetch_listings),
+        ):
+            _collect_sync_data(
+                MagicMock(),
+                model_id=42,
+                model_name="Test",
+                category_slug=None,
+                default_shipping=250.0,
+            )
+
+        assert captured["extra_urls"] == []
+
 
 # ── _download_image_base64 ───────────────────────────────────────────────
 
@@ -1744,3 +1955,77 @@ class TestApplyUpdatesImages:
 
         # The original dict should not be mutated
         assert "x_studio_image" not in original_changes
+
+
+# ── _fetch_listings (mocked Odoo) ────────────────────────────────────────
+
+
+class TestFetchListings:
+    """Unit tests for _fetch_listings (cross-model URL lookup)."""
+
+    def _mock_conn(self, listing_rows=None):
+        conn = MagicMock()
+        listing = MagicMock()
+        listing.search_read.return_value = listing_rows or []
+        conn.get_model.return_value = listing
+        return conn, listing
+
+    def test_no_extra_urls_uses_model_only_domain(self):
+        conn, listing = self._mock_conn()
+        _fetch_listings(conn, model_id=42)
+
+        call_domain = listing.search_read.call_args[0][0]
+        # Old behaviour: a plain ('x_model_id', '=', 42) domain.
+        assert call_domain == [("x_model_id", "=", 42)]
+
+    def test_extra_urls_unions_with_model_domain(self):
+        conn, listing = self._mock_conn()
+        urls = ["https://reverb.com/item/1-g", "https://reverb.com/item/2-g"]
+        _fetch_listings(conn, model_id=42, extra_urls=urls)
+
+        call_domain = listing.search_read.call_args[0][0]
+        # OR(model_id=42, x_url in [...])  →  ['|', term1, term2]
+        assert call_domain[0] == "|"
+        assert ("x_model_id", "=", 42) in call_domain
+        url_clause = next(t for t in call_domain if isinstance(t, tuple) and t[0] == "x_url")
+        assert url_clause[1] == "in"
+        assert set(url_clause[2]) == set(urls)
+
+    def test_empty_extra_urls_still_uses_model_only_domain(self):
+        conn, listing = self._mock_conn()
+        _fetch_listings(conn, model_id=42, extra_urls=[])
+
+        call_domain = listing.search_read.call_args[0][0]
+        assert call_domain == [("x_model_id", "=", 42)]
+
+    def test_returns_listing_records(self):
+        conn, listing = self._mock_conn(
+            listing_rows=[
+                {"id": 1, "x_url": "https://reverb.com/item/1-g", "x_model_id": [42, "M"]},
+            ]
+        )
+        result = _fetch_listings(conn, model_id=42)
+        assert len(result) == 1
+        assert result[0].id == 1
+        assert result[0].x_url == "https://reverb.com/item/1-g"
+        assert result[0].x_model_id == (42, "M")
+
+    def test_returns_cross_model_listing_records(self):
+        conn, listing = self._mock_conn(
+            listing_rows=[
+                {"id": 1, "x_url": "https://reverb.com/item/1-g", "x_model_id": [42, "Mine"]},
+                {"id": 2, "x_url": "https://reverb.com/item/2-g", "x_model_id": [99, "Other"]},
+            ]
+        )
+        result = _fetch_listings(
+            conn,
+            model_id=42,
+            extra_urls=["https://reverb.com/item/2-g"],
+        )
+
+        # The cross-model row's x_model_id must survive round-trip so the
+        # caller can detect that the listing belongs to a different model.
+        assert len(result) == 2
+        by_id = {r.id: r for r in result}
+        assert by_id[1].x_model_id == (42, "Mine")
+        assert by_id[2].x_model_id == (99, "Other")
