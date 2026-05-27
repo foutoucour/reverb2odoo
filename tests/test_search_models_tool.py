@@ -123,11 +123,12 @@ def _make_model(**overrides: object) -> ModelsRecord:
 
 
 def test_render_card_includes_core_fields() -> None:
-    card = _render_card(_make_model())
+    card = _render_card(_make_model(x_studio_too_expensive=True))
     assert "**Les Paul Standard**" in card
     assert "(Gibson)" in card
     assert "type=solidbody" in card
     assert "wanna=yes" in card
+    assert "too_expensive=yes" in card
     assert "score=87" in card
     assert "p50=2500.0" in card
 
@@ -139,6 +140,7 @@ def test_render_card_handles_missing_optional_fields() -> None:
             x_studio_partner_id=False,
             x_studio_model_type=False,
             x_studio_wanna=False,
+            x_studio_too_expensive=False,
             x_studio_weighted_score=False,
             x_price_p50=False,
         )
@@ -147,6 +149,7 @@ def test_render_card_handles_missing_optional_fields() -> None:
     assert "(Gibson)" not in card
     assert "type=-" in card
     assert "wanna=no" in card
+    assert "too_expensive=no" in card
     assert "score=0" in card
     assert "p50=-" in card
 

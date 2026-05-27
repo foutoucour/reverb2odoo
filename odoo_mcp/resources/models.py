@@ -54,6 +54,7 @@ def _render_model_section(
     brand = _label(model.x_studio_partner_id)
     model_type = _scalar(model.x_studio_model_type)
     wanna = "yes" if model.x_studio_wanna else "no"
+    too_expensive = "yes" if model.x_studio_too_expensive else "no"
     p25 = _scalar(model.x_price_p25)
     p50 = _scalar(model.x_price_p50)
     p75 = _scalar(model.x_price_p75)
@@ -70,6 +71,7 @@ def _render_model_section(
     if model_type:
         meta_parts.append(f"**Type**: {model_type}")
     meta_parts.append(f"**Wanna**: {wanna}")
+    meta_parts.append(f"**Too expensive**: {too_expensive}")
     lines.append(" | ".join(meta_parts))
 
     spec_line = _build_spec_line(model)
@@ -148,9 +150,12 @@ def render(conn: odoolib.main.Connection) -> str:
         if isinstance(model_ref, list) and len(model_ref) == 2:
             watching_by_model[model_ref[0]] += 1
 
-    # Section 1: wanna=True models with zero watching listings.
+    # Section 1: candidate models (wanna AND NOT too_expensive) with zero
+    # watching listings.
     wanted_no_listings: list[ModelsRecord] = [
-        m for m in all_models if m.x_studio_wanna and watching_by_model[m.id] == 0
+        m
+        for m in all_models
+        if m.x_studio_wanna and not m.x_studio_too_expensive and watching_by_model[m.id] == 0
     ]
 
     sections: list[str] = ["# Models Catalog", ""]

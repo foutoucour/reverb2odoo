@@ -12,8 +12,8 @@ def daily_check() -> str:
     return (
         "Run a daily check on my guitar collection. In one combined report:\n"
         "\n"
-        "1. Read the `odoo://watchlist` resource — list any wanna=True model with a top-3 "
-        "watching listing (score-sorted).\n"
+        "1. Read the `odoo://watchlist` resource — list any candidate model (wanna=True AND "
+        "too_expensive=False) with a top-3 watching listing (score-sorted).\n"
         "2. Call the `missed_deals` tool (days_lookback=14) — surface anything that got away "
         "in the last two weeks and any sub-p25 active deal.\n"
         "3. Call the `pending_decisions` tool — list watching listings I haven't triaged.\n"

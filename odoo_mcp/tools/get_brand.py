@@ -54,7 +54,8 @@ def _render_linked_models(models: list[ModelsRecord]) -> str:
     wanted: list[ModelsRecord] = []
     others: list[ModelsRecord] = []
     for model in models:
-        (wanted if model.x_studio_wanna else others).append(model)
+        is_candidate = bool(model.x_studio_wanna) and not model.x_studio_too_expensive
+        (wanted if is_candidate else others).append(model)
 
     def _line(model: ModelsRecord) -> str:
         name = _scalar(model.x_name, fallback="(unnamed)")
@@ -65,6 +66,8 @@ def _render_linked_models(models: list[ModelsRecord]) -> str:
             parts.append(f"type={mtype}")
         if p50:
             parts.append(f"p50={p50}")
+        if model.x_studio_too_expensive:
+            parts.append("too_expensive=yes")
         return "- " + " | ".join(parts)
 
     if wanted:

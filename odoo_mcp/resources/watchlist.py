@@ -1,4 +1,5 @@
-"""MCP resource: watchlist — models with x_studio_wanna=True and their watching listings."""
+"""MCP resource: watchlist — candidate models (wanna=True AND too_expensive=False)
+and their watching listings."""
 
 from __future__ import annotations
 
@@ -74,7 +75,9 @@ def _render_model(model: ModelsRecord, listings: list[ListingRecord]) -> str:
 
 
 def render(conn: odoolib.main.Connection) -> str:
-    """Return a markdown string of all wanna=True models and their watching listings.
+    """Return a markdown string of all candidate models and their watching listings.
+
+    Candidate = ``x_studio_wanna=True`` AND ``x_studio_too_expensive=False``.
 
     Parameters
     ----------
@@ -88,11 +91,11 @@ def render(conn: odoolib.main.Connection) -> str:
     """
     models_proxy = conn.get_model("x_models")
     model_rows: list[dict] = models_proxy.search_read(
-        [("x_studio_wanna", "=", True)],
+        [("x_studio_wanna", "=", True), ("x_studio_too_expensive", "=", False)],
         ModelsRecord.odoo_fields(),
     )
     wanna_models = [ModelsRecord.from_odoo(r) for r in model_rows]
-    logger.info("Watchlist: {} wanna models found", len(wanna_models))
+    logger.info("Watchlist: {} candidate models (wanna & not too_expensive)", len(wanna_models))
 
     if not wanna_models:
         return "# Watchlist\n\nNo models on the watchlist.\n"

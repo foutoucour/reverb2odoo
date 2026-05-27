@@ -2,9 +2,10 @@
 
 Two buckets:
 
-- **A — Under-p25 active deals**: wanna=True models with a currently watching
-  listing priced below the model's p25 bracket.
-- **B — Got away**: closed or sold listings on wanna=True models where the
+- **A — Under-p25 active deals**: candidate models (wanna=True AND
+  too_expensive=False) with a currently watching listing priced below the
+  model's p25 bracket.
+- **B — Got away**: closed or sold listings on candidate models where the
   user owns no gear of that model. Filtered to the last *days_lookback* days
   (default 30) via ``write_date``.
 
@@ -111,16 +112,17 @@ def run(conn: Any, days_lookback: int = 30) -> str:
 
     models_proxy = conn.get_model("x_models")
     wanna_rows: list[dict] = models_proxy.search_read(
-        [("x_studio_wanna", "=", True)],
+        [("x_studio_wanna", "=", True), ("x_studio_too_expensive", "=", False)],
         ModelsRecord.odoo_fields(),
     )
     wanna_models = [ModelsRecord.from_odoo(r) for r in wanna_rows]
-    logger.info("missed_deals: {} wanna models", len(wanna_models))
+    logger.info("missed_deals: {} candidate models (wanna & not too_expensive)", len(wanna_models))
 
     if not wanna_models:
         return (
             "# Missed Deals\n\n"
-            "*No models marked as `wanna=True`. Mark models you want in Odoo to enable this tool.*"
+            "*No candidate models (wanna=True and too_expensive=False). "
+            "Mark candidates in Odoo to enable this tool.*"
         )
 
     model_by_id: dict[int, ModelsRecord] = {m.id: m for m in wanna_models}

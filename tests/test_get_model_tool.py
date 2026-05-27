@@ -91,6 +91,18 @@ def test_render_model_spec_wanna_no() -> None:
     assert "**Wanna**: no" in result
 
 
+def test_render_model_spec_too_expensive_yes() -> None:
+    model = _make_model(x_studio_too_expensive=True)
+    result = _render_model_spec(model, [])
+    assert "**Too expensive**: yes" in result
+
+
+def test_render_model_spec_too_expensive_no() -> None:
+    model = _make_model(x_studio_too_expensive=False)
+    result = _render_model_spec(model, [])
+    assert "**Too expensive**: no" in result
+
+
 def test_render_model_spec_price_brackets() -> None:
     model = _make_model()
     result = _render_model_spec(model, [])

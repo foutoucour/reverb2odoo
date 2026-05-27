@@ -66,7 +66,18 @@ def _make_conn(
 def test_run_no_wanna_models_returns_notice() -> None:
     conn = _make_conn(wanna_models=[])
     result = run(conn)
-    assert "No models marked `wanna=True`" in result
+    assert "No candidate models" in result
+    assert "too_expensive=False" in result
+
+
+def test_run_filters_candidate_domain() -> None:
+    """Models domain must require wanna=True AND too_expensive=False."""
+    conn = _make_conn(wanna_models=[])
+    run(conn)
+    models_proxy = conn.get_model("x_models")
+    domain = models_proxy.search_read.call_args[0][0]
+    assert ("x_studio_wanna", "=", True) in domain
+    assert ("x_studio_too_expensive", "=", False) in domain
 
 
 def test_run_inbox_zero_when_no_pending() -> None:

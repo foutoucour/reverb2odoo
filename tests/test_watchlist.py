@@ -252,12 +252,14 @@ def test_render_no_wanna_models() -> None:
     assert "No models on the watchlist." in result
 
 
-def test_render_queries_x_models_with_wanna_true() -> None:
+def test_render_queries_x_models_with_candidate_domain() -> None:
+    """Domain must require wanna=True AND too_expensive=False."""
     conn = _make_conn(models=[], listings=[])
     render(conn)
     models_proxy = conn.get_model("x_models")
     domain = models_proxy.search_read.call_args[0][0]
     assert ("x_studio_wanna", "=", True) in domain
+    assert ("x_studio_too_expensive", "=", False) in domain
 
 
 def test_render_does_not_query_listings_when_no_models() -> None:

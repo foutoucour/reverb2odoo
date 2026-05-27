@@ -138,6 +138,18 @@ def test_render_model_section_wanna_false() -> None:
     assert "**Wanna**: no" in result
 
 
+def test_render_model_section_too_expensive_true() -> None:
+    model = _make_model(x_studio_too_expensive=True)
+    result = _render_model_section(model, {}, 0)
+    assert "**Too expensive**: yes" in result
+
+
+def test_render_model_section_too_expensive_false() -> None:
+    model = _make_model(x_studio_too_expensive=False)
+    result = _render_model_section(model, {}, 0)
+    assert "**Too expensive**: no" in result
+
+
 def test_render_model_section_brackets() -> None:
     model = _make_model()
     result = _render_model_section(model, {}, 0)
@@ -262,6 +274,20 @@ def test_render_no_wanted_models_shows_placeholder() -> None:
     conn = _make_conn([model], [], [])
     result = render(conn)
     assert "All wanted models have at least one watching listing." in result
+
+
+def test_render_too_expensive_excluded_from_wanted_alert() -> None:
+    """A wanna=True model flagged too_expensive is not a candidate."""
+    model = _model_dict(
+        id=1,
+        x_name="Too-Pricey",
+        x_studio_wanna=True,
+        x_studio_too_expensive=True,
+    )
+    conn = _make_conn([model], [], [])
+    result = render(conn)
+    alert_section = result.split("## Wanted")[1].split("## Full Catalog")[0]
+    assert "Too-Pricey" not in alert_section
 
 
 def test_render_gear_counts_aggregated_correctly() -> None:
