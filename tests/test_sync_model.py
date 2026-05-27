@@ -991,7 +991,11 @@ class TestPrintReport:
         ]
         _print_report(report)
         out = capsys.readouterr().out
-        # Hint must surface the other model id so the user can spot it.
+        # Hint must surface both the arrow prefix and the other model id.
+        # Rich wraps the Info column under capsys's narrow default width,
+        # so check the two halves independently rather than as a contiguous
+        # substring.
+        assert "→ model:" in out
         assert "1155" in out
 
     def test_no_hint_when_same_model(self, capsys):
