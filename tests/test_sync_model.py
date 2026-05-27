@@ -1477,6 +1477,60 @@ class TestCollectSyncData:
             include_sold=True,
         )
 
+    def test_passes_url_candidates_to_fetch_listings(self):
+        """URL candidates from Reverb results are forwarded to _fetch_listings
+        as both raw and cleaned forms so the DB lookup is lossless."""
+        reverb_results = [
+            {
+                "url": "https://reverb.com/item/1-g?show_sold=true",
+                "name": "G1",
+                "price": "100.00",
+                "price_display": "C$100",
+                "offers_enabled": False,
+                "sale_ended": False,
+                "published_at": "",
+                "shipping_price": "0.00",
+                "ships_to_canada": True,
+                "condition": "Excellent",
+            },
+            {
+                "url": "https://reverb.com/item/2-g",
+                "name": "G2",
+                "price": "200.00",
+                "price_display": "C$200",
+                "offers_enabled": False,
+                "sale_ended": False,
+                "published_at": "",
+                "shipping_price": "0.00",
+                "ships_to_canada": True,
+                "condition": "Excellent",
+            },
+        ]
+        captured: dict = {}
+
+        def fake_fetch_listings(conn, model_id, extra_urls=None):
+            captured["model_id"] = model_id
+            captured["extra_urls"] = list(extra_urls or [])
+            return []
+
+        with (
+            patch("sync_model._search_reverb", return_value=reverb_results),
+            patch("sync_model._fetch_listings", side_effect=fake_fetch_listings),
+        ):
+            _collect_sync_data(
+                MagicMock(),
+                model_id=42,
+                model_name="Test",
+                category_slug=None,
+                default_shipping=250.0,
+            )
+
+        assert captured["model_id"] == 42
+        # Both the raw URL (with query string) and the cleaned URL should be present
+        assert "https://reverb.com/item/1-g?show_sold=true" in captured["extra_urls"]
+        assert "https://reverb.com/item/1-g" in captured["extra_urls"]
+        assert "https://reverb.com/item/2-g" in captured["extra_urls"]
+
 
 # ── _download_image_base64 ───────────────────────────────────────────────
 

@@ -688,7 +688,14 @@ def _collect_sync_data(
         }
 
     logger.debug("[{}] Fetching existing Odoo listing records…", model_name)
-    odoo_entries = _fetch_listings(conn, model_id)
+    url_candidates: set[str] = set()
+    for r in reverb_results:
+        raw = r.get("url", "")
+        if not raw:
+            continue
+        url_candidates.add(raw)
+        url_candidates.add(_clean_url(raw))
+    odoo_entries = _fetch_listings(conn, model_id, extra_urls=list(url_candidates))
     logger.debug("[{}] Found {} existing listing records", model_name, len(odoo_entries))
 
     report = _build_report(
