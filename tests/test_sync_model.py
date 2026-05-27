@@ -1744,3 +1744,67 @@ class TestApplyUpdatesImages:
 
         # The original dict should not be mutated
         assert "x_studio_image" not in original_changes
+
+
+# ── _fetch_listings (mocked Odoo) ────────────────────────────────────────
+
+
+class TestFetchListings:
+    """Unit tests for _fetch_listings (cross-model URL lookup)."""
+
+    def _mock_conn(self, listing_rows=None):
+        from unittest.mock import MagicMock
+
+        conn = MagicMock()
+        listing = MagicMock()
+        listing.search_read.return_value = listing_rows or []
+        conn.get_model.return_value = listing
+        return conn, listing
+
+    def test_no_extra_urls_uses_model_only_domain(self):
+        from sync_model import _fetch_listings
+
+        conn, listing = self._mock_conn()
+        _fetch_listings(conn, model_id=42)
+
+        call_domain = listing.search_read.call_args[0][0]
+        # Old behaviour: a plain ('x_model_id', '=', 42) domain.
+        assert call_domain == [("x_model_id", "=", 42)]
+
+    def test_extra_urls_unions_with_model_domain(self):
+        from sync_model import _fetch_listings
+
+        conn, listing = self._mock_conn()
+        urls = ["https://reverb.com/item/1-g", "https://reverb.com/item/2-g"]
+        _fetch_listings(conn, model_id=42, extra_urls=urls)
+
+        call_domain = listing.search_read.call_args[0][0]
+        # OR(model_id=42, x_url in [...])  →  ['|', term1, term2]
+        assert call_domain[0] == "|"
+        assert ("x_model_id", "=", 42) in call_domain
+        url_clause = next(t for t in call_domain if isinstance(t, tuple) and t[0] == "x_url")
+        assert url_clause[1] == "in"
+        assert set(url_clause[2]) == set(urls)
+
+    def test_empty_extra_urls_still_uses_model_only_domain(self):
+        from sync_model import _fetch_listings
+
+        conn, listing = self._mock_conn()
+        _fetch_listings(conn, model_id=42, extra_urls=[])
+
+        call_domain = listing.search_read.call_args[0][0]
+        assert call_domain == [("x_model_id", "=", 42)]
+
+    def test_returns_listing_records(self):
+        from sync_model import _fetch_listings
+
+        conn, listing = self._mock_conn(
+            listing_rows=[
+                {"id": 1, "x_url": "https://reverb.com/item/1-g", "x_model_id": [42, "M"]},
+            ]
+        )
+        result = _fetch_listings(conn, model_id=42)
+        assert len(result) == 1
+        assert result[0].id == 1
+        assert result[0].x_url == "https://reverb.com/item/1-g"
+        assert result[0].x_model_id == (42, "M")

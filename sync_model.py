@@ -172,10 +172,28 @@ def _find_model(conn, model_name: str) -> dict[str, Any]:
     }
 
 
-def _fetch_listings(conn, model_id: int) -> list[ListingRecord]:
-    """Return all ``x_listing`` records linked to *model_id*."""
+def _fetch_listings(
+    conn,
+    model_id: int,
+    extra_urls: list[str] | None = None,
+) -> list[ListingRecord]:
+    """Return ``x_listing`` records for *model_id* plus any rows whose
+    ``x_url`` matches *extra_urls* (cross-model lookup).
+
+    Cross-model rows are returned with their original ``x_model_id`` intact
+    so the caller can detect when a Reverb result already exists under a
+    different model.
+    """
     listing = conn.get_model("x_listing")
-    rows = listing.search_read([("x_model_id", "=", model_id)], ListingRecord.odoo_fields())
+    if extra_urls:
+        domain: list = [
+            "|",
+            ("x_model_id", "=", model_id),
+            ("x_url", "in", list(extra_urls)),
+        ]
+    else:
+        domain = [("x_model_id", "=", model_id)]
+    rows = listing.search_read(domain, ListingRecord.odoo_fields())
     return [ListingRecord.from_odoo(r) for r in rows]
 
 
