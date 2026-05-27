@@ -16,6 +16,7 @@ from sync_model import (
     _compute_changes,
     _download_image_base64,
     _fetch_all_models,
+    _fetch_listings,
     _find_entries_without_image,
     _find_model,
     _is_brand_new,
@@ -1753,8 +1754,6 @@ class TestFetchListings:
     """Unit tests for _fetch_listings (cross-model URL lookup)."""
 
     def _mock_conn(self, listing_rows=None):
-        from unittest.mock import MagicMock
-
         conn = MagicMock()
         listing = MagicMock()
         listing.search_read.return_value = listing_rows or []
@@ -1762,8 +1761,6 @@ class TestFetchListings:
         return conn, listing
 
     def test_no_extra_urls_uses_model_only_domain(self):
-        from sync_model import _fetch_listings
-
         conn, listing = self._mock_conn()
         _fetch_listings(conn, model_id=42)
 
@@ -1772,8 +1769,6 @@ class TestFetchListings:
         assert call_domain == [("x_model_id", "=", 42)]
 
     def test_extra_urls_unions_with_model_domain(self):
-        from sync_model import _fetch_listings
-
         conn, listing = self._mock_conn()
         urls = ["https://reverb.com/item/1-g", "https://reverb.com/item/2-g"]
         _fetch_listings(conn, model_id=42, extra_urls=urls)
@@ -1787,8 +1782,6 @@ class TestFetchListings:
         assert set(url_clause[2]) == set(urls)
 
     def test_empty_extra_urls_still_uses_model_only_domain(self):
-        from sync_model import _fetch_listings
-
         conn, listing = self._mock_conn()
         _fetch_listings(conn, model_id=42, extra_urls=[])
 
@@ -1796,8 +1789,6 @@ class TestFetchListings:
         assert call_domain == [("x_model_id", "=", 42)]
 
     def test_returns_listing_records(self):
-        from sync_model import _fetch_listings
-
         conn, listing = self._mock_conn(
             listing_rows=[
                 {"id": 1, "x_url": "https://reverb.com/item/1-g", "x_model_id": [42, "M"]},
@@ -1808,3 +1799,23 @@ class TestFetchListings:
         assert result[0].id == 1
         assert result[0].x_url == "https://reverb.com/item/1-g"
         assert result[0].x_model_id == (42, "M")
+
+    def test_returns_cross_model_listing_records(self):
+        conn, listing = self._mock_conn(
+            listing_rows=[
+                {"id": 1, "x_url": "https://reverb.com/item/1-g", "x_model_id": [42, "Mine"]},
+                {"id": 2, "x_url": "https://reverb.com/item/2-g", "x_model_id": [99, "Other"]},
+            ]
+        )
+        result = _fetch_listings(
+            conn,
+            model_id=42,
+            extra_urls=["https://reverb.com/item/2-g"],
+        )
+
+        # The cross-model row's x_model_id must survive round-trip so the
+        # caller can detect that the listing belongs to a different model.
+        assert len(result) == 2
+        by_id = {r.id: r for r in result}
+        assert by_id[1].x_model_id == (42, "Mine")
+        assert by_id[2].x_model_id == (99, "Other")
