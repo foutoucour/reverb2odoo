@@ -456,9 +456,18 @@ def _build_report(
     odoo_by_item_id: dict[str, ListingRecord] = {}
     for e in odoo_entries:
         clean = _clean_url(e.x_url or "")
+        existing_url_match = odoo_by_url.get(clean)
+        if existing_url_match is not None and existing_url_match.id != e.id:
+            logger.warning(
+                "Duplicate x_url in Odoo: keeping listing id={}, ignoring id={} (url={})",
+                existing_url_match.id,
+                e.id,
+                clean,
+            )
+            continue
         odoo_by_url[clean] = e
         item_id = _reverb_item_id(clean)
-        if item_id:
+        if item_id and item_id not in odoo_by_item_id:
             odoo_by_item_id[item_id] = e
 
     report: list[dict] = []
@@ -472,6 +481,7 @@ def _build_report(
             "create_vals": {},
             "warnings": [],
             "action": "skip",
+            "other_model_id": None,
         }
 
         if "error" in r:
@@ -489,6 +499,15 @@ def _build_report(
             item["entry"] = existing
             item["changes"] = _compute_changes(existing, r)
             item["action"] = "update" if item["changes"] else "ok"
+            entry_model = existing.x_model_id
+            entry_model_id = entry_model[0] if entry_model else None
+            if entry_model_id is not None and entry_model_id != model_id:
+                item["other_model_id"] = entry_model_id
+                logger.info(
+                    "Cross-model match: listing id={} belongs to model id={}, updating in place",
+                    existing.id,
+                    entry_model_id,
+                )
         elif _is_brand_new(r) and not include_brand_new:
             item["action"] = "skip"
             item["warnings"].append("skipped: brand new")

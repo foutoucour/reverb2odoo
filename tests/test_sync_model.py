@@ -849,6 +849,75 @@ class TestBuildReport:
         assert report[0]["action"] == "create"
         assert report[0]["create_vals"]["x_model_id"] == 42
 
+    def test_cross_model_match_flags_other_model_id(self):
+        """When the matched entry belongs to a different model, the report
+        item should expose other_model_id and never include x_model_id in
+        the change set."""
+        url = "https://reverb.com/item/1-g"
+        reverb_results = [self._make_reverb(url=url, price="4000.00")]
+        # Entry belongs to model 99, not the syncing model 42.
+        odoo_entries = [
+            self._make_odoo(url=url, x_model_id=[99, "Other Model"]),
+        ]
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42)
+
+        assert len(report) == 1
+        assert report[0]["action"] == "update"
+        assert report[0]["other_model_id"] == 99
+        assert "x_model_id" not in report[0]["changes"]
+
+    def test_same_model_match_other_model_id_is_none(self):
+        url = "https://reverb.com/item/1-g"
+        reverb_results = [self._make_reverb(url=url)]
+        odoo_entries = [self._make_odoo(url=url, x_model_id=[42, "Same"])]
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42)
+
+        assert report[0]["other_model_id"] is None
+
+    def test_new_listing_has_other_model_id_none(self):
+        reverb_results = [
+            self._make_reverb(url="https://reverb.com/item/999-new", condition="Excellent"),
+        ]
+        report = _build_report(reverb_results, [], model_id=42)
+
+        assert report[0]["action"] == "create"
+        assert report[0]["other_model_id"] is None
+
+    def test_cross_model_match_does_not_create(self):
+        """If the URL already exists under another model, no create entry
+        should be produced — the existing row is updated instead."""
+        url = "https://reverb.com/item/1-g"
+        reverb_results = [self._make_reverb(url=url, condition="Excellent")]
+        odoo_entries = [self._make_odoo(url=url, x_model_id=[99, "Other"])]
+
+        report = _build_report(reverb_results, odoo_entries, model_id=42)
+
+        actions = [r["action"] for r in report]
+        assert "create" not in actions
+
+    def test_duplicate_url_first_wins_and_warns(self):
+        """If two existing entries share the same URL, the first one is
+        kept and a WARNING is logged so the user can dedupe manually.
+
+        We patch sync_model.logger.warning directly because the project
+        uses loguru, which does not propagate to caplog by default.
+        """
+        url = "https://reverb.com/item/1-g"
+        first = self._make_odoo(url=url, id=100)
+        second = self._make_odoo(url=url, id=200)
+        reverb_results = [self._make_reverb(url=url)]
+
+        with patch("sync_model.logger.warning") as warn:
+            report = _build_report(reverb_results, [first, second], model_id=42)
+
+        assert report[0]["entry"].id == 100
+        assert warn.called
+        warn_args = " ".join(str(a) for call in warn.call_args_list for a in call.args)
+        assert "100" in warn_args
+        assert "200" in warn_args
+
 
 # ── _print_report ─────────────────────────────────────────────────────────
 
