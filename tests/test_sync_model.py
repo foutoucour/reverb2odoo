@@ -1531,6 +1531,55 @@ class TestCollectSyncData:
         assert "https://reverb.com/item/1-g" in captured["extra_urls"]
         assert "https://reverb.com/item/2-g" in captured["extra_urls"]
 
+    def test_empty_url_candidates_when_results_lack_urls(self):
+        """If Reverb results have empty/missing url fields, no URL candidates
+        are forwarded — _fetch_listings receives an empty extra_urls list."""
+        reverb_results = [
+            {
+                "url": "",  # empty string
+                "name": "G1",
+                "price": "100.00",
+                "price_display": "C$100",
+                "offers_enabled": False,
+                "sale_ended": False,
+                "published_at": "",
+                "shipping_price": "0.00",
+                "ships_to_canada": True,
+                "condition": "Excellent",
+            },
+            {
+                # url key entirely absent
+                "name": "G2",
+                "price": "200.00",
+                "price_display": "C$200",
+                "offers_enabled": False,
+                "sale_ended": False,
+                "published_at": "",
+                "shipping_price": "0.00",
+                "ships_to_canada": True,
+                "condition": "Excellent",
+            },
+        ]
+        captured: dict = {}
+
+        def fake_fetch_listings(conn, model_id, extra_urls=None):
+            captured["extra_urls"] = list(extra_urls or [])
+            return []
+
+        with (
+            patch("sync_model._search_reverb", return_value=reverb_results),
+            patch("sync_model._fetch_listings", side_effect=fake_fetch_listings),
+        ):
+            _collect_sync_data(
+                MagicMock(),
+                model_id=42,
+                model_name="Test",
+                category_slug=None,
+                default_shipping=250.0,
+            )
+
+        assert captured["extra_urls"] == []
+
 
 # ── _download_image_base64 ───────────────────────────────────────────────
 
