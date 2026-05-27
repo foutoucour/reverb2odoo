@@ -560,7 +560,10 @@ def _print_report(report: list[dict]) -> tuple[int, int]:
             entry: ListingRecord = item["entry"]
             eid = entry.id
             other_model_id = item.get("other_model_id")
-            cross = f"  → model: {other_model_id}" if other_model_id else ""
+            cross = ""
+            if other_model_id:
+                other_model_name = entry.x_model_id[1] if entry.x_model_id else ""
+                cross = f"  → model: {other_model_name} ({other_model_id})"
             info = escape(f"id={eid}{cross}  {warn_str}".strip())
             table.add_row(str(i), "[bold yellow]~ UPD[/bold yellow]", price, name, info)
             for field, new_val in item["changes"].items():
