@@ -38,6 +38,7 @@ def _render_model_spec(
     brand = _label(model.x_studio_partner_id)
     model_type = _scalar(model.x_studio_model_type)
     wanna = model.x_studio_wanna or False
+    too_expensive = model.x_studio_too_expensive or False
     scale = _scalar(model.x_studio_scale)
     neck_feel = _label(model.x_studio_guitar_neck_feel_id)
     finish = _label(model.x_studio_finish)
@@ -49,10 +50,14 @@ def _render_model_spec(
 
     family = ", ".join(family_names) if family_names else ""
     wanna_str = "yes" if wanna else "no"
+    too_expensive_str = "yes" if too_expensive else "no"
 
     lines: list[str] = [
         f"# {name} — {brand}",
-        f"**Type**: {model_type} | **Wanna**: {wanna_str} | **Scale**: {scale}",
+        (
+            f"**Type**: {model_type} | **Wanna**: {wanna_str} | "
+            f"**Too expensive**: {too_expensive_str} | **Scale**: {scale}"
+        ),
         f"**Neck**: {neck_feel} | **Finish**: {finish} | **Fretboard**: {fretboard}",
     ]
     if family:

@@ -237,6 +237,7 @@ class ModelsRecord(OdooRecord):
     x_studio_partner_id: OdooM2O = None
     x_studio_model_type: OdooStr = None
     x_studio_wanna: OdooBool = None
+    x_studio_too_expensive: OdooBool = None
     x_studio_notes: OdooStr = None
     x_studio_image: OdooStr = None
 

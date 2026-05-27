@@ -92,6 +92,68 @@ def test_render_linked_models_shows_p50() -> None:
     assert "p50=2200.0" in result
 
 
+def test_render_linked_models_flags_too_expensive() -> None:
+    models = [
+        ModelsRecord.from_odoo(
+            {
+                "id": 1,
+                "x_name": "Les Paul",
+                "x_studio_wanna": True,
+                "x_studio_too_expensive": True,
+                "x_price_p50": 2200.0,
+            }
+        )
+    ]
+    result = _render_linked_models(models)
+    assert "too_expensive=yes" in result
+
+
+def test_render_linked_models_omits_too_expensive_when_false() -> None:
+    models = [
+        ModelsRecord.from_odoo(
+            {
+                "id": 1,
+                "x_name": "Les Paul",
+                "x_studio_wanna": True,
+                "x_studio_too_expensive": False,
+                "x_price_p50": 2200.0,
+            }
+        )
+    ]
+    result = _render_linked_models(models)
+    assert "too_expensive" not in result
+
+
+def test_render_linked_models_too_expensive_demoted_to_other() -> None:
+    """wanna=True + too_expensive=True is not a candidate; group under Other."""
+    models = [
+        ModelsRecord.from_odoo(
+            {
+                "id": 1,
+                "x_name": "Pricey LP",
+                "x_studio_wanna": True,
+                "x_studio_too_expensive": True,
+                "x_price_p50": 5000.0,
+            }
+        ),
+        ModelsRecord.from_odoo(
+            {
+                "id": 2,
+                "x_name": "Cheap SG",
+                "x_studio_wanna": True,
+                "x_studio_too_expensive": False,
+                "x_price_p50": 1500.0,
+            }
+        ),
+    ]
+    result = _render_linked_models(models)
+    wanted_section = result.split("### Wanted")[1].split("### Other")[0]
+    other_section = result.split("### Other")[1]
+    assert "Cheap SG" in wanted_section
+    assert "Pricey LP" not in wanted_section
+    assert "Pricey LP" in other_section
+
+
 # ── run ───────────────────────────────────────────────────────────────────────
 
 

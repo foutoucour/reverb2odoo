@@ -1,10 +1,10 @@
 """MCP tool: surface listings that need a yes/no decision.
 
-Inbox-zero for deal triage. Returns active watching listings on wanna=True
-models that the user has not yet triaged:
+Inbox-zero for deal triage. Returns active watching listings on candidate
+models (wanna=True AND too_expensive=False) that the user has not yet triaged:
 
 - ``x_status = 'watching'``
-- linked model has ``x_studio_wanna = True``
+- linked model has ``x_studio_wanna = True`` AND ``x_studio_too_expensive = False``
 - ``x_studio_is_candidate`` is still True (proxy for "not triaged out")
 - no linked gear (``x_gear_id`` is empty)
 - no notes (``x_studio_notes`` is empty)
@@ -83,11 +83,14 @@ def run(conn: Any) -> str:
     logger.info("pending_decisions: scanning watching listings")
     models_proxy = conn.get_model("x_models")
     wanna_rows: list[dict] = models_proxy.search_read(
-        [("x_studio_wanna", "=", True)],
+        [("x_studio_wanna", "=", True), ("x_studio_too_expensive", "=", False)],
         ModelsRecord.odoo_fields(),
     )
     if not wanna_rows:
-        return "# Pending Decisions\n\n*No models marked `wanna=True`. Nothing to triage.*\n"
+        return (
+            "# Pending Decisions\n\n"
+            "*No candidate models (wanna=True and too_expensive=False). Nothing to triage.*\n"
+        )
 
     model_by_id: dict[int, ModelsRecord] = {r["id"]: ModelsRecord.from_odoo(r) for r in wanna_rows}
     model_ids = list(model_by_id.keys())

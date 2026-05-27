@@ -58,6 +58,7 @@ def _render_card(model: ModelsRecord) -> str:
     brand = _label(model.x_studio_partner_id)
     model_type = _scalar(model.x_studio_model_type)
     wanna = "yes" if model.x_studio_wanna else "no"
+    too_expensive = "yes" if model.x_studio_too_expensive else "no"
     score = _scalar(model.x_studio_weighted_score)
     p50 = _scalar(model.x_price_p50)
 
@@ -66,6 +67,7 @@ def _render_card(model: ModelsRecord) -> str:
         parts.append(f"({brand})")
     parts.append(f"| type={model_type or '-'}")
     parts.append(f"| wanna={wanna}")
+    parts.append(f"| too_expensive={too_expensive}")
     parts.append(f"| score={score or '0'}")
     parts.append(f"| p50={p50 or '-'}")
     return " ".join(parts)
