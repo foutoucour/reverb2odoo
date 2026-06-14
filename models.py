@@ -291,3 +291,40 @@ class WeightedTagGroupRecord(OdooRecord):
     x_name: OdooStr = None
     x_active: OdooBool = None
     x_studio_multiply: OdooFloat = None
+
+
+# ---------------------------------------------------------------------------
+# x_kit — build projects (one per kit build, idea through done)
+# ---------------------------------------------------------------------------
+
+
+class KitRecord(OdooRecord):
+    """A kit build project tracked from idea through completion.
+
+    Mirrors the x_listing → x_gear pattern: the kit is the build log;
+    x_gear_id points to the finished instrument when status reaches 'done'.
+    """
+
+    x_name: OdooStr = None
+    x_status: OdooStr = None
+    x_studio_notes: OdooStr = None
+    x_gear_id: OdooM2O = None
+    x_kit_part_ids: OdooIds = []
+
+
+# ---------------------------------------------------------------------------
+# x_kit_part — part line items joining a kit to a listing
+# ---------------------------------------------------------------------------
+
+
+class KitPartRecord(OdooRecord):
+    """A single part in a kit build.
+
+    Links an x_kit to an x_listing (platform = supplier slug, model_type = parts).
+    Quantity and order status live here; price, URL, and supplier come from the listing.
+    """
+
+    x_kit_id: OdooM2O = None
+    x_listing_id: OdooM2O = None
+    x_quantity: OdooInt = None
+    x_studio_status: OdooStr = None
