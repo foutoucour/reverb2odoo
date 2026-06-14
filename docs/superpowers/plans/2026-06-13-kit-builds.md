@@ -361,21 +361,7 @@ git commit -m "test(models): extend schema drift test to cover x_kit and x_kit_p
 
 In Odoo Studio → `x_models` → field `x_studio_model_type`: add selection value `parts`.
 
-- [ ] **Step 2: Extend x_listing.x_platform selection**
-
-In Odoo Studio → `x_listing` → field `x_platform`: add selection values:
-
-| Key | Label |
-|-----|-------|
-| `amazon` | Amazon |
-| `solomusicgear` | Solo Music Gear |
-| `pegcitypickups` | Pegcity Pickups |
-| `precisionguitarkits` | Precision Guitar Kits |
-| `oxfordguitarsupply` | Oxford Guitar Supply |
-| `nextgenguitars` | Next Gen Guitars |
-| `graphtech` | Graph Tech |
-
-- [ ] **Step 3: Create the x_kit model in Odoo Studio**
+- [ ] **Step 2: Create the x_kit model in Odoo Studio**
 
 Create a new custom model named `x_kit` with these fields:
 
@@ -387,7 +373,7 @@ Create a new custom model named `x_kit` with these fields:
 | `x_gear_id` | Many2one → `x_gear` | Set when done |
 | `x_kit_part_ids` | One2many → `x_kit_part` (inverse of `x_kit_id`) | Parts list |
 
-- [ ] **Step 4: Create the x_kit_part model in Odoo Studio**
+- [ ] **Step 3: Create the x_kit_part model in Odoo Studio**
 
 Create a new custom model named `x_kit_part` with these fields:
 
