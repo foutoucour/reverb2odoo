@@ -25,6 +25,8 @@ import pytest
 
 from models import (
     GearRecord,
+    KitPartRecord,
+    KitRecord,
     ListingRecord,
     ModelsRecord,
     OdooRecord,
@@ -52,6 +54,8 @@ def _load_snapshot() -> dict[str, list[str]]:
             "x_weighted_tag_groups",
             id="x_weighted_tag_groups",
         ),
+        pytest.param(KitRecord, "x_kit", id="x_kit"),
+        pytest.param(KitPartRecord, "x_kit_part", id="x_kit_part"),
     ],
 )
 def test_pydantic_fields_exist_in_odoo(record_cls: type[OdooRecord], odoo_model: str) -> None:
@@ -78,6 +82,8 @@ def test_snapshot_covers_all_three_models() -> None:
         "x_models",
         "x_weighted_tags",
         "x_weighted_tag_groups",
+        "x_kit",
+        "x_kit_part",
     }
     for model, fields in snapshot.items():
         assert fields, f"Snapshot for {model} is empty — regenerate"
