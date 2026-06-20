@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -75,6 +76,20 @@ def _reverb_item_id(url: str) -> str | None:
         if segment.isdigit():
             return segment
     return None
+
+
+_EBAY_ITEM_ID_RE = re.compile(r"/itm/(?:[^/]*/)?(\d{6,})")
+
+
+def _ebay_item_id(url: str) -> str | None:
+    """Extract the numeric eBay item ID from an item URL.
+
+    ``https://www.ebay.com/itm/123456789012`` → ``"123456789012"``
+
+    Returns ``None`` for non-eBay or non-item URLs.
+    """
+    match = _EBAY_ITEM_ID_RE.search(url or "")
+    return match.group(1) if match else None
 
 
 def _download_image_base64(photo_url: str) -> str | None:
@@ -514,6 +529,7 @@ def _build_report(
     """
     odoo_by_url: dict[str, ListingRecord] = {}
     odoo_by_item_id: dict[str, ListingRecord] = {}
+    odoo_by_ebay_id: dict[str, ListingRecord] = {}
     for e in odoo_entries:
         clean = _clean_url(e.x_url or "")
         existing_url_match = odoo_by_url.get(clean)
@@ -529,6 +545,9 @@ def _build_report(
         item_id = _reverb_item_id(clean)
         if item_id and item_id not in odoo_by_item_id:
             odoo_by_item_id[item_id] = e
+        ebay_id = _ebay_item_id(clean)
+        if ebay_id and ebay_id not in odoo_by_ebay_id:
+            odoo_by_ebay_id[ebay_id] = e
 
     report: list[dict] = []
 
@@ -554,6 +573,10 @@ def _build_report(
             item_id = _reverb_item_id(url)
             if item_id:
                 existing = odoo_by_item_id.get(item_id)
+        if not existing:
+            ebay_id = r.get("_ebay_item_id")
+            if ebay_id:
+                existing = odoo_by_ebay_id.get(ebay_id)
 
         if existing:
             item["entry"] = existing
@@ -770,7 +793,10 @@ def _collect_sync_data(
     logger.debug("[{}] Searching {} for '{}'…", model_name, "/".join(enabled), query)
     all_results: list[dict] = []
     for platform_name in enabled:
-        fn = PLATFORMS[platform_name]
+        fn = PLATFORMS.get(platform_name)
+        if fn is None:
+            logger.warning("Unknown platform '{}', skipping", platform_name)
+            continue
         results = fn(
             query,
             category=category_slug,

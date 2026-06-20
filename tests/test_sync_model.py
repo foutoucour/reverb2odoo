@@ -15,6 +15,7 @@ from sync_model import (
     _collect_sync_data,
     _compute_changes,
     _download_image_base64,
+    _ebay_item_id,
     _fetch_all_models,
     _fetch_listings,
     _find_entries_without_image,
@@ -88,6 +89,35 @@ def test_clean_url(url: str, expected: str):
 )
 def test_reverb_item_id(url: str, expected: str | None):
     assert _reverb_item_id(url) == expected
+
+
+# ── _ebay_item_id ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        pytest.param(
+            "https://www.ebay.com/itm/123456789012",
+            "123456789012",
+            id="standard-ebay-url",
+        ),
+        pytest.param(
+            "https://www.ebay.ca/itm/some-guitar/123456789012",
+            "123456789012",
+            id="with-slug",
+        ),
+        pytest.param(
+            "https://www.ebay.com/itm/123456789012?var=456",
+            "123456789012",
+            id="with-query-string",
+        ),
+        pytest.param("https://reverb.com/item/1-g", None, id="non-ebay-url"),
+        pytest.param("", None, id="empty-string"),
+    ],
+)
+def test_ebay_item_id(url: str, expected: str | None):
+    assert _ebay_item_id(url) == expected
 
 
 # ── CLI (Click) ───────────────────────────────────────────────────────────
@@ -542,7 +572,7 @@ class TestComputeChanges:
 # ── _listing_vals_from_scrape ─────────────────────────────────────────────
 
 
-class TestReverbToListingVals:
+class TestListingValsFromScrape:
     """Unit tests for _listing_vals_from_scrape (pure logic, no I/O)."""
 
     def test_basic_conversion(self):
@@ -917,6 +947,32 @@ class TestBuildReport:
         warn_args = " ".join(str(a) for call in warn.call_args_list for a in call.args)
         assert "100" in warn_args
         assert "200" in warn_args
+
+    def test_ebay_item_id_match_on_slug_change(self):
+        """An eBay listing whose URL slug changed is matched by numeric item id,
+        not URL, so no duplicate create is produced."""
+        old_url = "https://www.ebay.com/itm/old-slug/123456789012"
+        new_url = "https://www.ebay.com/itm/new-slug/123456789012"
+        odoo_entry = self._make_odoo(url=old_url, id=77)
+        scrape_result = {
+            "url": new_url,
+            "name": "eBay Guitar",
+            "price": "5000.00",
+            "price_display": "USD 5,000",
+            "offers_enabled": False,
+            "sale_ended": False,
+            "published_at": "2025-06-20",
+            "shipping_price": "50.00",
+            "ships_to_canada": True,
+            "_ebay_item_id": "123456789012",
+            "_platform": "ebay",
+        }
+
+        report = _build_report([scrape_result], [odoo_entry], model_id=42)
+
+        assert len(report) == 1
+        assert report[0]["action"] in ("ok", "update")
+        assert report[0]["entry"].id == 77
 
 
 # ── _print_report ─────────────────────────────────────────────────────────
@@ -1714,6 +1770,45 @@ class TestCollectSyncData:
             )
 
         assert captured["extra_urls"] == []
+
+    def test_unknown_platform_skipped_with_warning(self):
+        """An unknown platform name is skipped with a warning; valid
+        platforms still run and their results are returned."""
+        import sync_model
+
+        reverb_results = [
+            {
+                "url": "https://reverb.com/item/1-g",
+                "name": "Guitar",
+                "price": "100.00",
+                "price_display": "C$100",
+                "offers_enabled": False,
+                "sale_ended": False,
+                "published_at": "",
+                "shipping_price": "0.00",
+                "ships_to_canada": True,
+                "condition": "Excellent",
+            }
+        ]
+
+        with (
+            patch.object(sync_model, "PLATFORMS", self._fake_platforms(reverb_results)),
+            patch("sync_model._fetch_listings", return_value=[]),
+            patch("sync_model.logger.warning") as warn,
+        ):
+            result = _collect_sync_data(
+                MagicMock(),
+                model_id=42,
+                model_name="Test",
+                category_slug=None,
+                default_shipping=250.0,
+                platforms=["reverb", "nonexistent"],
+            )
+
+        assert len(result["reverb_results"]) == 1
+        assert warn.called
+        warn_args = " ".join(str(a) for call in warn.call_args_list for a in call.args)
+        assert "nonexistent" in warn_args
 
 
 # ── _download_image_base64 ───────────────────────────────────────────────

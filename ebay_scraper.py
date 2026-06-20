@@ -214,7 +214,7 @@ class EbayScraper:
         params: dict[str, Any] = {"q": query, "limit": self.page_size, "offset": 0}
         if category_id is not None:
             params["category_ids"] = str(category_id)
-        if self.delivery_country:
+        if self.delivery_country and marketplace == "EBAY_US":
             params["filter"] = f"deliveryCountry:{self.delivery_country}"
 
         async def _limited(p: dict[str, Any]) -> dict[str, Any] | None:
@@ -227,7 +227,8 @@ class EbayScraper:
 
         results: list[dict[str, Any]] = [
             self._parse_item_summary(
-                s, marketplace=marketplace, default_shipping=self.default_shipping
+                s, marketplace=marketplace, default_shipping=self.default_shipping,
+                delivery_country=self.delivery_country,
             )
             for s in first.get("itemSummaries", []) or []
         ]
@@ -244,7 +245,8 @@ class EbayScraper:
             for s in page.get("itemSummaries", []) or []:
                 results.append(
                     self._parse_item_summary(
-                        s, marketplace=marketplace, default_shipping=self.default_shipping
+                        s, marketplace=marketplace, default_shipping=self.default_shipping,
+                        delivery_country=self.delivery_country,
                     )
                 )
         return results
@@ -339,6 +341,7 @@ class EbayScraper:
         *,
         marketplace: str,
         default_shipping: str = DEFAULT_SHIPPING_FALLBACK,
+        delivery_country: str = "CA",
     ) -> dict[str, Any]:
         """Transform an ``itemSummary`` entry into the shared listing dict shape."""
         url = raw.get("itemWebUrl", "")
@@ -374,5 +377,7 @@ class EbayScraper:
             "_ebay_item_id": EbayScraper._extract_item_id(url),
             "_ebay_marketplace": marketplace,
         }
-        data.update(EbayScraper._resolve_shipping(raw, default_shipping=default_shipping))
+        data.update(        EbayScraper._resolve_shipping(
+            raw, delivery_country=delivery_country, default_shipping=default_shipping
+        ))
         return data

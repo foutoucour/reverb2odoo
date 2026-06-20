@@ -265,7 +265,7 @@ uv run reverb2odoo --help
 ### `sync` — Search marketplaces and sync into Odoo
 
 Search Reverb and eBay for a gear model, then create new `x_listing` entries and update existing ones in Odoo.
-Matching is done first by exact URL (query-string ignored), then by Reverb numeric item ID — so listings that were renamed on Reverb (slug changed) are updated in place rather than duplicated.
+Matching is done first by exact URL (query-string ignored), then by platform-specific item ID. For Reverb listings, the numeric item ID is used as a secondary key — so renamed slugs are updated in place rather than duplicated. For eBay listings, the numeric item ID embedded in the URL is likewise used, so slug changes are handled in the same way.
 
 URL matches span across models: if a Reverb URL already exists on any `x_listing` — even one attached to a different `x_models` record — the existing listing is updated in place and the report flags it with the other model's id. The listing's `x_model_id` is preserved untouched; if the listing actually belongs under the searched model, move it manually in Odoo.
 
