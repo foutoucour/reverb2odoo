@@ -259,9 +259,9 @@ All commands are exposed through a single CLI entry point:
 uv run reverb2odoo --help
 ```
 
-### `sync` — Search Reverb and sync into Odoo
+### `sync` — Search marketplaces and sync into Odoo
 
-Search Reverb for a gear model, then create new `x_listing` entries and update existing ones in Odoo.
+Search Reverb and eBay for a gear model, then create new `x_listing` entries and update existing ones in Odoo.
 Matching is done first by exact URL (query-string ignored), then by Reverb numeric item ID — so listings that were renamed on Reverb (slug changed) are updated in place rather than duplicated.
 
 URL matches span across models: if a Reverb URL already exists on any `x_listing` — even one attached to a different `x_models` record — the existing listing is updated in place and the report flags it with the other model's id. The listing's `x_model_id` is preserved untouched; if the listing actually belongs under the searched model, move it manually in Odoo.
@@ -281,9 +281,9 @@ uv run reverb2odoo sync --all --include-sold                     # all models, s
 By default `sync` queries both Reverb and eBay. Restrict with `--platform`:
 
 ```bash
-reverb2odoo sync "Frank Brothers Arcane" --platform reverb   # Reverb only
-reverb2odoo sync "Frank Brothers Arcane" --platform ebay     # eBay only
-reverb2odoo sync "Frank Brothers Arcane"                     # both (default)
+uv run reverb2odoo sync "Frank Brothers Arcane" --platform reverb   # Reverb only
+uv run reverb2odoo sync "Frank Brothers Arcane" --platform ebay     # eBay only
+uv run reverb2odoo sync "Frank Brothers Arcane"                     # both (default)
 ```
 
 eBay searches use the Browse API and require OAuth2 client credentials. Register an app at <https://developer.ebay.com/my/keys> and export:
