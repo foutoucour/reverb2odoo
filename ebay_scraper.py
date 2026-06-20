@@ -17,7 +17,9 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
+import re
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -132,7 +134,6 @@ DEFAULT_PAGE_SIZE = 50
 DEFAULT_SHIPPING_FALLBACK = "250.00"
 
 #: Regex for extracting the numeric eBay item id from a listing URL.
-import re  # noqa: E402  (kept near its single use site)
 
 _ITEM_ID_RE = re.compile(r"/itm/(?:[^/]*/)?(\d{6,})")
 
@@ -286,7 +287,6 @@ class EbayScraper:
     @staticmethod
     def _format_date(date_str: str) -> str:
         """Format an ISO date string to YYYY-MM-DD (UTC), or '' if blank."""
-        from datetime import UTC, datetime  # local import keeps top clean
 
         if not date_str:
             return ""
