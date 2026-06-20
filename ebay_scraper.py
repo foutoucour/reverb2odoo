@@ -227,7 +227,9 @@ class EbayScraper:
 
         results: list[dict[str, Any]] = [
             self._parse_item_summary(
-                s, marketplace=marketplace, default_shipping=self.default_shipping,
+                s,
+                marketplace=marketplace,
+                default_shipping=self.default_shipping,
                 delivery_country=self.delivery_country,
             )
             for s in first.get("itemSummaries", []) or []
@@ -245,7 +247,9 @@ class EbayScraper:
             for s in page.get("itemSummaries", []) or []:
                 results.append(
                     self._parse_item_summary(
-                        s, marketplace=marketplace, default_shipping=self.default_shipping,
+                        s,
+                        marketplace=marketplace,
+                        default_shipping=self.default_shipping,
                         delivery_country=self.delivery_country,
                     )
                 )
@@ -377,7 +381,9 @@ class EbayScraper:
             "_ebay_item_id": EbayScraper._extract_item_id(url),
             "_ebay_marketplace": marketplace,
         }
-        data.update(        EbayScraper._resolve_shipping(
-            raw, delivery_country=delivery_country, default_shipping=default_shipping
-        ))
+        data.update(
+            EbayScraper._resolve_shipping(
+                raw, delivery_country=delivery_country, default_shipping=default_shipping
+            )
+        )
         return data
