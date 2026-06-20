@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from models import GearRecord, ListingRecord
+from models import GearRecord, KitPartRecord, KitRecord, ListingRecord
 from odoo_mcp.tools.recent_activity import (
     _render_gear_update,
+    _render_kit_part_update,
+    _render_kit_update,
     _render_new_listing,
     _render_sold_listing,
     run,
@@ -75,10 +77,14 @@ def _make_conn(
     new_listings: list[dict] | None = None,
     sold_listings: list[dict] | None = None,
     gear_updates: list[dict] | None = None,
+    kit_updates: list[dict] | None = None,
+    kit_part_updates: list[dict] | None = None,
 ) -> MagicMock:
     conn = MagicMock()
     listing_proxy = MagicMock()
     gear_proxy = MagicMock()
+    kit_proxy = MagicMock()
+    kit_part_proxy = MagicMock()
 
     def listing_search_read(domain: list, fields: list) -> list[dict]:
         clauses = [c for c in domain if isinstance(c, tuple)]
@@ -90,11 +96,18 @@ def _make_conn(
 
     listing_proxy.search_read.side_effect = listing_search_read
     gear_proxy.search_read.return_value = gear_updates or []
+    kit_proxy.search_read.return_value = kit_updates or []
+    kit_part_proxy.search_read.return_value = kit_part_updates or []
+
+    proxies = {
+        "x_listing": listing_proxy,
+        "x_gear": gear_proxy,
+        "x_kit": kit_proxy,
+        "x_kit_part": kit_part_proxy,
+    }
 
     def get_model(name: str) -> MagicMock:
-        if name == "x_listing":
-            return listing_proxy
-        return gear_proxy
+        return proxies[name]
 
     conn.get_model.side_effect = get_model
     return conn
@@ -133,3 +146,88 @@ def test_run_includes_window_in_header() -> None:
     conn = _make_conn()
     result = run(conn, days=30)
     assert "last 30 days" in result
+
+
+# ── kit renderers ─────────────────────────────────────────────────────────────
+
+
+def test_render_kit_update_includes_id_status_name() -> None:
+    kit = KitRecord.from_odoo(
+        {
+            "id": 7,
+            "x_name": "TV Yellow Korina Explorer",
+            "x_studio_status": "building",
+            "x_studio_notes": False,
+            "x_studio_gear_id": False,
+            "x_studio_kit_part_ids": False,
+            "x_studio_price": False,
+            "x_studio_currency_id": False,
+            "x_studio_finishing": False,
+        }
+    )
+    line = _render_kit_update(kit)
+    assert "id=7" in line
+    assert "[building]" in line
+    assert "TV Yellow Korina Explorer" in line
+
+
+def test_render_kit_part_update_includes_kit_listing_status() -> None:
+    part = KitPartRecord.from_odoo(
+        {
+            "id": 100,
+            "x_studio_kit_id": [7, "TV Yellow Korina Explorer"],
+            "x_studio_listing_id": [500, "Gotoh SD91 Tuners"],
+            "x_studio_quantity": 1,
+            "x_studio_status": "ordered",
+        }
+    )
+    line = _render_kit_part_update(part)
+    assert "TV Yellow Korina Explorer" in line
+    assert "Gotoh SD91 Tuners" in line
+    assert "[ordered]" in line
+
+
+# ── kit section in run() ──────────────────────────────────────────────────────
+
+
+def test_run_includes_kit_activity_section_with_counts() -> None:
+    conn = _make_conn(
+        kit_updates=[
+            {
+                "id": 1,
+                "x_name": "Kit A",
+                "x_studio_status": "idea",
+                "x_studio_notes": False,
+                "x_studio_gear_id": False,
+                "x_studio_kit_part_ids": False,
+                "x_studio_price": False,
+                "x_studio_currency_id": False,
+                "x_studio_finishing": False,
+            }
+        ],
+        kit_part_updates=[
+            {
+                "id": 10,
+                "x_studio_kit_id": [1, "Kit A"],
+                "x_studio_listing_id": [500, "p"],
+                "x_studio_quantity": 1,
+                "x_studio_status": "wanted",
+            }
+        ],
+    )
+    result = run(conn, days=7)
+    assert "## Kit Activity (2)" in result
+    assert "Kit A" in result
+
+
+def test_run_no_kit_activity_shows_placeholder() -> None:
+    conn = _make_conn()
+    result = run(conn, days=7)
+    assert "*No kit activity in window.*" in result
+
+
+def test_run_queries_kits_with_write_date_filter() -> None:
+    conn = _make_conn()
+    run(conn, days=7)
+    domain = conn.get_model("x_kit").search_read.call_args[0][0]
+    assert any(c[0] == "write_date" and c[1] == ">=" for c in domain)

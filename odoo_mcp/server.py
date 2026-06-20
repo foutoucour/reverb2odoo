@@ -24,6 +24,7 @@ from odoo_mcp.cache import cached
 from odoo_mcp.config import get_connection_from_env
 from odoo_mcp.resources import brands as brands_mod
 from odoo_mcp.resources import collection as collection_mod
+from odoo_mcp.resources import kits as kits_mod
 from odoo_mcp.resources import models as models_mod
 from odoo_mcp.resources import sold as sold_mod
 from odoo_mcp.resources import tags as tags_mod
@@ -31,6 +32,7 @@ from odoo_mcp.resources import watchlist as watchlist_mod
 from odoo_mcp.tools import clear_cache as clear_cache_mod
 from odoo_mcp.tools import get_brand as get_brand_mod
 from odoo_mcp.tools import get_gear as get_gear_mod
+from odoo_mcp.tools import get_kit as get_kit_mod
 from odoo_mcp.tools import get_model as get_model_mod
 from odoo_mcp.tools import get_tag as get_tag_mod
 from odoo_mcp.tools import missed_deals as missed_deals_mod
@@ -85,6 +87,12 @@ def resource_tags() -> str:
     return tags_mod.render(get_connection_from_env())
 
 
+@mcp.resource("odoo://kits")
+@cached
+def resource_kits() -> str:
+    return kits_mod.render(get_connection_from_env())
+
+
 # ---------------------------------------------------------------------------
 # Resource templates (parameterized)
 # ---------------------------------------------------------------------------
@@ -122,6 +130,17 @@ def resource_tag_by_name(name: str) -> str:
     return get_tag_mod.run(get_connection_from_env(), name)
 
 
+@mcp.resource("odoo://kit/{kit_id}")
+@cached
+def resource_kit_by_id(kit_id: str) -> str:
+    """Single x_kit record by id with parts grouped by supplier."""
+    try:
+        kid = int(kit_id)
+    except ValueError:
+        return f"Invalid kit id: **{kit_id}** (expected integer)"
+    return get_kit_mod.run(get_connection_from_env(), kid)
+
+
 # ---------------------------------------------------------------------------
 # Tools
 # ---------------------------------------------------------------------------
@@ -151,6 +170,13 @@ def get_model(name_or_id: str) -> str:
 def get_gear(gear_id: int) -> str:
     """Get detailed info for a single gear item by its Odoo id."""
     return get_gear_mod.run(get_connection_from_env(), gear_id)
+
+
+@mcp.tool()
+@cached
+def get_kit(kit_id: int) -> str:
+    """Get a kit build with parts grouped by supplier and per-supplier subtotals."""
+    return get_kit_mod.run(get_connection_from_env(), kit_id)
 
 
 @mcp.tool()
