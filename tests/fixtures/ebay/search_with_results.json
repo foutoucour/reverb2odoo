@@ -1,0 +1,40 @@
+{
+  "href": "https://api.ebay.com/buy/browse/v1/item_summary/search?q=Frank+Brothers+Arcane&limit=50&offset=0",
+  "total": 2,
+  "limit": 50,
+  "offset": 0,
+  "itemSummaries": [
+    {
+      "itemId": "v1|256123456789|0",
+      "title": "Frank Brothers Arcane TV Yellow 2023",
+      "itemWebUrl": "https://www.ebay.com/itm/256123456789",
+      "price": {"value": "4200.00", "currency": "USD"},
+      "condition": "Used",
+      "conditionId": "3000",
+      "seller": {"username": "guitarshop_la"},
+      "itemLocation": {"country": "US", "city": "Los Angeles", "stateOrProvince": "CA"},
+      "shippingOptions": [
+        {"shippingCost": {"value": "120.00", "currency": "USD"}, "shippingCostType": "FIXED"}
+      ],
+      "image": {"imageUrl": "https://i.ebayimg.com/images/g/abc/s-l500.jpg"},
+      "categories": [{"categoryId": "33034", "categoryName": "Electric Guitars"}],
+      "itemCreationDate": "2026-06-15T12:00:00.000Z"
+    },
+    {
+      "itemId": "v1|256987654321|0",
+      "title": "Frank Brothers Arcane Trans Red — Mint",
+      "itemWebUrl": "https://www.ebay.com/itm/256987654321",
+      "price": {"value": "5100.00", "currency": "USD"},
+      "condition": "Used",
+      "conditionId": "3000",
+      "seller": {"username": "vintage_axes"},
+      "itemLocation": {"country": "CA", "city": "Toronto", "stateOrProvince": "ON"},
+      "shippingOptions": [
+        {"shippingCost": {"value": "0.00", "currency": "USD"}, "shippingCostType": "CALCULATED"}
+      ],
+      "image": {"imageUrl": "https://i.ebayimg.com/images/g/def/s-l500.jpg"},
+      "categories": [{"categoryId": "33034", "categoryName": "Electric Guitars"}],
+      "itemCreationDate": "2026-06-10T08:30:00.000Z"
+    }
+  ]
+}
