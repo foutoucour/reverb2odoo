@@ -152,6 +152,7 @@ class EbayScraper:
         delivery_country: str = "CA",
         default_shipping: str = DEFAULT_SHIPPING_FALLBACK,
         page_size: int = DEFAULT_PAGE_SIZE,
+        max_concurrent: int = 10,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.auth = auth
@@ -160,6 +161,7 @@ class EbayScraper:
         self.default_shipping = default_shipping
         self.page_size = min(page_size, 200)
         self.client = httpx.AsyncClient(transport=transport, timeout=15.0)
+        self._page_sem = asyncio.Semaphore(max_concurrent)
 
     async def __aenter__(self) -> EbayScraper:
         return self
@@ -211,10 +213,14 @@ class EbayScraper:
         params: dict[str, Any] = {"q": query, "limit": self.page_size, "offset": 0}
         if category_id is not None:
             params["category_ids"] = str(category_id)
-        if marketplace == "EBAY_US" and self.delivery_country:
+        if self.delivery_country:
             params["filter"] = f"deliveryCountry:{self.delivery_country}"
 
-        first = await self._fetch_search_page(params, marketplace=marketplace)
+        async def _limited(p: dict[str, Any]) -> dict[str, Any] | None:
+            async with self._page_sem:
+                return await self._fetch_search_page(p, marketplace=marketplace)
+
+        first = await _limited(params)
         if first is None:
             return []
 
@@ -228,12 +234,9 @@ class EbayScraper:
         if total <= self.page_size:
             return results
 
-        # Fan out remaining pages concurrently.
+        # Fan out remaining pages concurrently, but capped by the semaphore.
         offsets = list(range(self.page_size, total, self.page_size))
-        page_tasks = [
-            self._fetch_search_page({**params, "offset": off}, marketplace=marketplace)
-            for off in offsets
-        ]
+        page_tasks = [_limited({**params, "offset": off}) for off in offsets]
         for page in await asyncio.gather(*page_tasks):
             if page is None:
                 continue

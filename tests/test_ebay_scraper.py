@@ -251,3 +251,28 @@ async def test_search_us_marketplace_filters_delivery_country():
 
     assert "deliveryCountry:CA" in captured["filter"]
     assert captured["marketplace"] == "EBAY_US"
+
+
+@pytest.mark.asyncio
+async def test_search_retries_once_on_401():
+    """A 401 should trigger token invalidation + a single retry."""
+    token_calls = {"n": 0}
+    search_calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "oauth2/token" in str(request.url):
+            token_calls["n"] += 1
+            return httpx.Response(200, json=_ok_token_response(f"TOK_{token_calls['n']}", 7200))
+        search_calls["n"] += 1
+        if search_calls["n"] == 1:
+            return httpx.Response(401, json={"error": "expired"})
+        return httpx.Response(200, json=_load("search_empty.json"))
+
+    transport = httpx.MockTransport(handler)
+    auth = EbayAuth(client_id="CID", client_secret="SEC", transport=transport)
+    async with EbayScraper(auth=auth, marketplaces=("EBAY_US",), transport=transport) as scraper:
+        results = await scraper.search("test")
+
+    assert results == []
+    assert search_calls["n"] == 2  # initial + 1 retry
+    assert token_calls["n"] == 2  # initial fetch + post-invalidate refetch
