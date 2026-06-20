@@ -205,6 +205,21 @@ def test_render_part_line_includes_listing_notes_when_present() -> None:
     assert "black, schaller bushing" in result
 
 
+def test_render_part_line_includes_part_notes_when_present() -> None:
+    part = _make_part(x_studio_notes="use black buttons")
+    listing = _make_listing()
+    result = _render_part_line(part, listing)
+    assert "use black buttons" in result
+
+
+def test_render_part_line_includes_part_and_listing_notes_when_present() -> None:
+    part = _make_part(x_studio_notes="bridge pickup only")
+    listing = _make_listing(x_studio_notes="includes mounting screws")
+    result = _render_part_line(part, listing)
+    assert "Part notes: bridge pickup only" in result
+    assert "Listing notes: includes mounting screws" in result
+
+
 # ---------------------------------------------------------------------------
 # _render_supplier_section
 # ---------------------------------------------------------------------------
@@ -327,6 +342,12 @@ def test_render_parts_section_skips_parts_with_missing_listing() -> None:
     assert "1 parts" in result
 
 
+def test_render_parts_section_distinguishes_missing_listing_details() -> None:
+    parts = [_make_part(id=100, x_studio_listing_id=[999, "missing"])]
+    result = _render_parts_section(parts, {})
+    assert "*Parts recorded, but listing details are unavailable*" in result
+
+
 # ---------------------------------------------------------------------------
 # run — integration
 # ---------------------------------------------------------------------------
@@ -389,6 +410,18 @@ def test_run_fetches_listings_by_ids() -> None:
     domain = conn.get_model("x_listing").search_read.call_args[0][0]
     # one of the conditions must constrain id ∈ [500]
     assert any(c[0] == "id" and c[1] == "in" and 500 in c[2] for c in domain)
+
+
+def test_run_dedupes_listing_ids_before_fetching() -> None:
+    kit = _kit_dict(id=42)
+    parts = [
+        _kit_part_dict(id=100, x_studio_listing_id=[500, "Tuners"]),
+        _kit_part_dict(id=101, x_studio_listing_id=[500, "Tuners"]),
+    ]
+    conn = _make_conn(kit_records=[kit], kit_part_records=parts)
+    run(conn, 42)
+    domain = conn.get_model("x_listing").search_read.call_args[0][0]
+    assert any(c == ("id", "in", [500]) for c in domain)
 
 
 def test_run_skips_listing_fetch_when_no_parts() -> None:

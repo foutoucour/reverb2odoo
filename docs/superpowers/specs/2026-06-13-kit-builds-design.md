@@ -68,10 +68,10 @@ multiple listings (one per supplier), enabling informal price comparison.
 | Field | Type | Notes |
 |---|---|---|
 | `x_name` | char | e.g. "TV Yellow Korina Explorer" |
-| `x_status` | selection | `idea`, `planning`, `sourcing`, `building`, `done` |
+| `x_studio_status` | selection | `idea`, `planning`, `sourcing`, `building`, `done` |
 | `x_studio_notes` | html | Vision, spec decisions, build log |
-| `x_gear_id` | many2one → `x_gear` | Set when status reaches `done` |
-| `x_kit_part_ids` | one2many → `x_kit_part` | Parts list |
+| `x_studio_gear_id` | many2one → `x_gear` | Set when status reaches `done` |
+| `x_studio_kit_part_ids` | one2many → `x_kit_part` | Parts list |
 
 **Status lifecycle:**
 
@@ -83,15 +83,15 @@ idea → planning → sourcing → building → done
 - **planning**: parts identified, shopping list being built
 - **sourcing**: parts being ordered
 - **building**: all parts received, active assembly
-- **done**: guitar complete; `x_gear_id` is set
+- **done**: guitar complete; `x_studio_gear_id` is set
 
 #### `x_kit_part` — Part line item
 
 | Field | Type | Notes |
 |---|---|---|
-| `x_kit_id` | many2one → `x_kit` | Parent build |
-| `x_listing_id` | many2one → `x_listing` | The part offer (supplier + price + URL) |
-| `x_quantity` | integer | Default 1 |
+| `x_studio_kit_id` | many2one → `x_kit` | Parent build |
+| `x_studio_listing_id` | many2one → `x_listing` | The part offer (supplier + price + URL) |
+| `x_studio_quantity` | integer | Default 1 |
 | `x_studio_status` | selection | `wanted`, `ordered`, `received` |
 
 **Part status lifecycle:**
@@ -109,10 +109,10 @@ shopping lists currently kept in notes (see gear #13 as the reference build).
 
 Follows project CLAUDE.md rules:
 
-- Many2one: `x_<model>_id` → `x_gear_id`, `x_kit_id`, `x_listing_id`
-- One2many: `x_<model>_ids` → `x_kit_part_ids`
+- Many2one: `x_<model>_id` → `x_studio_gear_id`, `x_studio_kit_id`, `x_studio_listing_id`
+- One2many: `x_<model>_ids` → `x_studio_kit_part_ids`
 - Boolean flags: `x_is_*` / `x_has_*` — none needed here
-- Selection with lifecycle semantics: plain `x_status` or `x_studio_status`
+- Selection with lifecycle semantics: `x_studio_status`
 
 ---
 
@@ -120,11 +120,12 @@ Follows project CLAUDE.md rules:
 
 Two new classes follow the `OdooRecord` base pattern:
 
-**`KitRecord`** — fields: `x_name`, `x_status`, `x_studio_notes`, `x_gear_id` (OdooM2O),
-`x_kit_part_ids` (OdooIds)
+**`KitRecord`** — fields: `x_name`, `x_studio_status`, `x_studio_notes`,
+`x_studio_gear_id` (OdooM2O), `x_studio_kit_part_ids` (OdooIds)
 
-**`KitPartRecord`** — fields: `x_kit_id` (OdooM2O), `x_listing_id` (OdooM2O), `x_quantity`
-(OdooInt), `x_studio_status` (OdooStr)
+**`KitPartRecord`** — fields: `x_studio_kit_id` (OdooM2O),
+`x_studio_listing_id` (OdooM2O), `x_studio_quantity` (OdooInt),
+`x_studio_status` (OdooStr)
 
 ---
 

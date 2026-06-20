@@ -3,7 +3,7 @@
 Output shape:
 
     # {kit name} [{status}]
-    **Linked gear**: {gear name} (id={id})        (only when x_gear_id is set)
+    **Linked gear**: {gear name} (id={id})        (only when x_studio_gear_id is set)
     **Notes**: {kit notes}                        (only when present)
 
     ## Parts
@@ -107,13 +107,16 @@ def _render_part_line(part: KitPartRecord, listing: ListingRecord) -> str:
     price = _format_price(listing.x_price)
     currency = _label(listing.x_currency_id)
     url = _scalar(listing.x_url)
-    notes = _scalar(listing.x_studio_notes)
+    part_notes = _scalar(part.x_studio_notes)
+    listing_notes = _scalar(listing.x_studio_notes)
 
     line = f"- [{status}] {qty}× {part_name} — {price} {currency}"
     if url:
         line += f" — {url}"
-    if notes:
-        line += f"\n  Notes: {notes}"
+    if part_notes:
+        line += f"\n  Part notes: {part_notes}"
+    if listing_notes:
+        line += f"\n  Listing notes: {listing_notes}"
     return line
 
 
@@ -163,7 +166,7 @@ def _render_parts_section(
         matched += 1
 
     if matched == 0:
-        return "## Parts\n\n*No parts recorded*"
+        return "## Parts\n\n*Parts recorded, but listing details are unavailable*"
 
     lines: list[str] = ["## Parts", ""]
     for platform in sorted(grouped.keys()):
@@ -221,7 +224,9 @@ def run(conn: odoolib.main.Connection, kit_id: int) -> str:
     logger.debug("get_kit: {} part(s) found", len(parts))
 
     listings_by_id: dict[int, ListingRecord] = {}
-    listing_ids = [p.x_studio_listing_id[0] for p in parts if p.x_studio_listing_id is not None]
+    listing_ids = sorted(
+        {p.x_studio_listing_id[0] for p in parts if p.x_studio_listing_id is not None}
+    )
     if listing_ids:
         listing_proxy = conn.get_model("x_listing")
         listing_rows: list[dict] = listing_proxy.search_read(
