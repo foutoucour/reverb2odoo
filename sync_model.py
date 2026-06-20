@@ -313,8 +313,66 @@ def _search_reverb(
             seen.add(url)
             unique.append(r)
 
+    for r in unique:
+        r["_platform"] = "reverb"
+
     logger.debug("Reverb search '{}': {} unique listing(s)", query, len(unique))
     return unique
+
+
+def _search_ebay(
+    query: str,
+    *,
+    category: str | None = None,
+    default_shipping: float = DEFAULT_SHIPPING,
+    include_sold: bool = False,
+) -> list[dict]:
+    """Search eBay for *query* across EBAY_US (ships-to-CA) + EBAY_CA.
+
+    *category* is the Reverb category **slug** (e.g. ``"electric-guitars"``);
+    it is mapped to an eBay numeric category id via
+    :data:`ebay_categories.REVERB_SLUG_TO_EBAY_CATEGORY`.  Unknown slugs
+    fall back to no category filter.
+
+    *include_sold* is accepted for signature compatibility with
+    :func:`_search_reverb` but is a no-op (eBay's Browse API does not
+    return sold listings); a one-time warning is emitted.
+    """
+    from ebay_categories import ebay_category_for_reverb_slug
+    from ebay_scraper import EbayAuth, EbayAuthError, EbayScraper
+
+    if include_sold:
+        logger.warning("eBay: --include-sold is a no-op (Browse API returns live listings only)")
+
+    try:
+        auth = EbayAuth.from_env()
+    except EbayAuthError as exc:
+        logger.warning("eBay search skipped: {}", exc)
+        return []
+
+    category_id = ebay_category_for_reverb_slug(category)
+    shipping_str = f"{default_shipping:.2f}"
+
+    async def _fetch() -> list[dict]:
+        async with EbayScraper(
+            auth=auth,
+            marketplaces=("EBAY_US", "EBAY_CA"),
+            delivery_country="CA",
+            default_shipping=shipping_str,
+        ) as scraper:
+            return await scraper.search(query, category_id=category_id)
+
+    try:
+        results = asyncio.run(_fetch())
+    except Exception as exc:  # noqa: BLE001 — surface as warning, keep Reverb leg alive
+        logger.warning("eBay search failed for '{}': {}", query, exc)
+        return []
+
+    for r in results:
+        r["_platform"] = "ebay"
+
+    logger.debug("eBay search '{}': {} unique listing(s)", query, len(results))
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -388,30 +446,32 @@ def _compute_changes(entry: ListingRecord, reverb: dict) -> dict[str, Any]:
     return changes
 
 
-def _reverb_to_listing_vals(
-    reverb: dict,
+def _listing_vals_from_scrape(
+    scrape: dict,
     model_id: int,
     default_shipping: float = DEFAULT_SHIPPING,
+    *,
+    platform: str = "reverb",
 ) -> dict[str, Any]:
-    """Build x_listing creation values from a scraped Reverb listing."""
-    price = float(reverb.get("price", 0) or 0)
-    ship = reverb.get("shipping_price")
+    """Build x_listing creation values from a scraped marketplace listing."""
+    price = float(scrape.get("price", 0) or 0)
+    ship = scrape.get("shipping_price")
     ship_f = float(ship) if ship is not None else default_shipping
-    published = reverb.get("published_at", "")
+    published = scrape.get("published_at", "")
 
     vals: dict[str, Any] = {
-        "x_name": reverb.get("name", ""),
+        "x_name": scrape.get("name", ""),
         "x_model_id": model_id,
         "x_status": "watching",
-        "x_url": reverb.get("url", ""),
-        "x_platform": "reverb",
+        "x_url": scrape.get("url", ""),
+        "x_platform": platform,
         "x_price": _round_price(price),
         "x_shipping": _round_price(ship_f),
-        "x_is_available": not reverb.get("sale_ended", False),
-        "x_can_accept_offers": reverb.get("offers_enabled", False),
+        "x_is_available": not scrape.get("sale_ended", False),
+        "x_can_accept_offers": scrape.get("offers_enabled", False),
         "x_is_taxed": False,
     }
-    description = reverb.get("description", "")
+    description = scrape.get("description", "")
     if description:
         vals["x_studio_notes"] = description
     if published:
@@ -512,7 +572,9 @@ def _build_report(
             item["action"] = "skip"
             item["warnings"].append("skipped: brand new")
         else:
-            item["create_vals"] = _reverb_to_listing_vals(r, model_id, default_shipping)
+            item["create_vals"] = _listing_vals_from_scrape(
+                r, model_id, default_shipping, platform=r.get("_platform", "reverb")
+            )
             item["action"] = "create"
 
         # Informational warnings
@@ -655,6 +717,18 @@ def _apply_updates(conn, report: list[dict]) -> tuple[int, int]:
 
     return updated, created
 
+
+# ---------------------------------------------------------------------------
+# Platform registry
+# ---------------------------------------------------------------------------
+
+#: Registry of available marketplace search functions.
+#: Each callable has the signature:
+#:   (query, *, category, default_shipping, include_sold) -> list[dict]
+PLATFORMS: dict[str, Any] = {
+    "reverb": _search_reverb,
+    "ebay": _search_ebay,
+}
 
 # ---------------------------------------------------------------------------
 # CLI

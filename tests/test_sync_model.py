@@ -20,9 +20,9 @@ from sync_model import (
     _find_entries_without_image,
     _find_model,
     _is_brand_new,
+    _listing_vals_from_scrape,
     _print_report,
     _reverb_item_id,
-    _reverb_to_listing_vals,
     _round_price,
     _search_reverb,
     cli,
@@ -539,11 +539,11 @@ class TestComputeChanges:
         assert "x_studio_notes" not in changes
 
 
-# ── _reverb_to_listing_vals ───────────────────────────────────────────────
+# ── _listing_vals_from_scrape ─────────────────────────────────────────────
 
 
 class TestReverbToListingVals:
-    """Unit tests for _reverb_to_listing_vals (pure logic, no I/O)."""
+    """Unit tests for _listing_vals_from_scrape (pure logic, no I/O)."""
 
     def test_basic_conversion(self):
         reverb = {
@@ -555,7 +555,7 @@ class TestReverbToListingVals:
             "offers_enabled": True,
             "published_at": "2025-06-20",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=42)
+        vals = _listing_vals_from_scrape(reverb, model_id=42)
 
         assert vals["x_name"] == "Cool Guitar"
         assert vals["x_model_id"] == 42
@@ -581,7 +581,7 @@ class TestReverbToListingVals:
             "offers_enabled": False,
             "published_at": "2025-01-01",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=1)
+        vals = _listing_vals_from_scrape(reverb, model_id=1)
 
         assert vals["x_is_available"] is False
         assert vals["x_shipping"] == DEFAULT_SHIPPING
@@ -597,7 +597,7 @@ class TestReverbToListingVals:
             "offers_enabled": False,
             "published_at": "2025-03-10",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=1, default_shipping=35.0)
+        vals = _listing_vals_from_scrape(reverb, model_id=1, default_shipping=35.0)
 
         assert vals["x_shipping"] == 40.0  # _round_price(35) = 40
 
@@ -611,7 +611,7 @@ class TestReverbToListingVals:
             "offers_enabled": False,
             "published_at": "",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=1)
+        vals = _listing_vals_from_scrape(reverb, model_id=1)
         assert "x_published_at" not in vals
 
     def test_description_included_in_vals(self):
@@ -625,7 +625,7 @@ class TestReverbToListingVals:
             "published_at": "",
             "description": "Great condition, minor wear.",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=1)
+        vals = _listing_vals_from_scrape(reverb, model_id=1)
         assert vals["x_studio_notes"] == "Great condition, minor wear."
 
     def test_empty_description_not_included(self):
@@ -639,7 +639,7 @@ class TestReverbToListingVals:
             "published_at": "",
             "description": "",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=1)
+        vals = _listing_vals_from_scrape(reverb, model_id=1)
         assert "x_studio_notes" not in vals
 
 
@@ -2029,3 +2029,51 @@ class TestFetchListings:
         by_id = {r.id: r for r in result}
         assert by_id[1].x_model_id == (42, "Mine")
         assert by_id[2].x_model_id == (99, "Other")
+
+
+# ── PLATFORMS registry ────────────────────────────────────────────────────
+
+
+def test_platforms_registry_has_reverb_and_ebay():
+    from sync_model import PLATFORMS
+
+    assert set(PLATFORMS.keys()) == {"reverb", "ebay"}
+    assert callable(PLATFORMS["reverb"])
+    assert callable(PLATFORMS["ebay"])
+
+
+def test_listing_vals_from_scrape_tags_platform():
+    from sync_model import _listing_vals_from_scrape
+
+    scrape = {
+        "url": "https://www.ebay.com/itm/123",
+        "name": "Test eBay Listing",
+        "price": "100.00",
+        "shipping_price": "20.00",
+        "sale_ended": False,
+        "offers_enabled": False,
+        "description": "",
+        "published_at": "",
+    }
+    vals = _listing_vals_from_scrape(scrape, model_id=42, default_shipping=250.0, platform="ebay")
+    assert vals["x_platform"] == "ebay"
+    assert vals["x_url"] == "https://www.ebay.com/itm/123"
+    assert vals["x_model_id"] == 42
+
+
+def test_listing_vals_from_scrape_reverb_unchanged():
+    from sync_model import _listing_vals_from_scrape
+
+    scrape = {
+        "url": "https://reverb.com/item/123-foo",
+        "name": "Reverb Listing",
+        "price": "100.00",
+        "shipping_price": "20.00",
+        "sale_ended": False,
+        "offers_enabled": True,
+        "description": "",
+        "published_at": "2026-06-01",
+    }
+    vals = _listing_vals_from_scrape(scrape, model_id=42, default_shipping=250.0, platform="reverb")
+    assert vals["x_platform"] == "reverb"
+    assert vals["x_can_accept_offers"] is True
