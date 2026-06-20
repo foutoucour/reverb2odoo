@@ -276,6 +276,29 @@ uv run reverb2odoo sync "Frank Brothers Arcane" --include-sold   # also include 
 uv run reverb2odoo sync --all --include-sold                     # all models, sold included
 ```
 
+### Multi-platform search
+
+By default `sync` queries both Reverb and eBay. Restrict with `--platform`:
+
+```bash
+reverb2odoo sync "Frank Brothers Arcane" --platform reverb   # Reverb only
+reverb2odoo sync "Frank Brothers Arcane" --platform ebay     # eBay only
+reverb2odoo sync "Frank Brothers Arcane"                     # both (default)
+```
+
+eBay searches use the Browse API and require OAuth2 client credentials. Register an app at <https://developer.ebay.com/my/keys> and export:
+
+```bash
+export EBAY_CLIENT_ID="..."
+export EBAY_CLIENT_SECRET="..."
+```
+
+eBay coverage:
+
+- Searches `EBAY_US` (filtered to ships-to-Canada) AND `EBAY_CA`, deduped by item id.
+- Returns LIVE listings only — `--include-sold` is a no-op for eBay (the Browse API does not expose sold/ended items).
+- Categories are mapped from the model's Reverb category via a static map in `ebay_categories.py`. Unknown slugs search without a category filter.
+
 ### `validate` — Refresh existing listings from Reverb
 
 Starting from existing `x_listing` records that have a Reverb URL, fetch the current listing data and update fields
