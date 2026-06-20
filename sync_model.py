@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -75,6 +76,20 @@ def _reverb_item_id(url: str) -> str | None:
         if segment.isdigit():
             return segment
     return None
+
+
+_EBAY_ITEM_ID_RE = re.compile(r"/itm/(?:[^/]*/)?(\d{6,})")
+
+
+def _ebay_item_id(url: str) -> str | None:
+    """Extract the numeric eBay item ID from an item URL.
+
+    ``https://www.ebay.com/itm/123456789012`` → ``"123456789012"``
+
+    Returns ``None`` for non-eBay or non-item URLs.
+    """
+    match = _EBAY_ITEM_ID_RE.search(url or "")
+    return match.group(1) if match else None
 
 
 def _download_image_base64(photo_url: str) -> str | None:
@@ -313,8 +328,66 @@ def _search_reverb(
             seen.add(url)
             unique.append(r)
 
+    for r in unique:
+        r["_platform"] = "reverb"
+
     logger.debug("Reverb search '{}': {} unique listing(s)", query, len(unique))
     return unique
+
+
+def _search_ebay(
+    query: str,
+    *,
+    category: str | None = None,
+    default_shipping: float = DEFAULT_SHIPPING,
+    include_sold: bool = False,
+) -> list[dict]:
+    """Search eBay for *query* across EBAY_US (ships-to-CA) + EBAY_CA.
+
+    *category* is the Reverb category **slug** (e.g. ``"electric-guitars"``);
+    it is mapped to an eBay numeric category id via
+    :data:`ebay_categories.REVERB_SLUG_TO_EBAY_CATEGORY`.  Unknown slugs
+    fall back to no category filter.
+
+    *include_sold* is accepted for signature compatibility with
+    :func:`_search_reverb` but is a no-op (eBay's Browse API does not
+    return sold listings); a one-time warning is emitted.
+    """
+    from ebay_categories import ebay_category_for_reverb_slug
+    from ebay_scraper import EbayAuth, EbayAuthError, EbayScraper
+
+    if include_sold:
+        logger.warning("eBay: --include-sold is a no-op (Browse API returns live listings only)")
+
+    try:
+        auth = EbayAuth.from_env()
+    except EbayAuthError as exc:
+        logger.warning("eBay search skipped: {}", exc)
+        return []
+
+    category_id = ebay_category_for_reverb_slug(category)
+    shipping_str = f"{default_shipping:.2f}"
+
+    async def _fetch() -> list[dict]:
+        async with EbayScraper(
+            auth=auth,
+            marketplaces=("EBAY_US", "EBAY_CA"),
+            delivery_country="CA",
+            default_shipping=shipping_str,
+        ) as scraper:
+            return await scraper.search(query, category_id=category_id)
+
+    try:
+        results = asyncio.run(_fetch())
+    except Exception as exc:  # noqa: BLE001 — surface as warning, keep Reverb leg alive
+        logger.warning("eBay search failed for '{}': {}", query, exc)
+        return []
+
+    for r in results:
+        r["_platform"] = "ebay"
+
+    logger.debug("eBay search '{}': {} unique listing(s)", query, len(results))
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -388,30 +461,32 @@ def _compute_changes(entry: ListingRecord, reverb: dict) -> dict[str, Any]:
     return changes
 
 
-def _reverb_to_listing_vals(
-    reverb: dict,
+def _listing_vals_from_scrape(
+    scrape: dict,
     model_id: int,
     default_shipping: float = DEFAULT_SHIPPING,
+    *,
+    platform: str = "reverb",
 ) -> dict[str, Any]:
-    """Build x_listing creation values from a scraped Reverb listing."""
-    price = float(reverb.get("price", 0) or 0)
-    ship = reverb.get("shipping_price")
+    """Build x_listing creation values from a scraped marketplace listing."""
+    price = float(scrape.get("price", 0) or 0)
+    ship = scrape.get("shipping_price")
     ship_f = float(ship) if ship is not None else default_shipping
-    published = reverb.get("published_at", "")
+    published = scrape.get("published_at", "")
 
     vals: dict[str, Any] = {
-        "x_name": reverb.get("name", ""),
+        "x_name": scrape.get("name", ""),
         "x_model_id": model_id,
         "x_status": "watching",
-        "x_url": reverb.get("url", ""),
-        "x_platform": "reverb",
+        "x_url": scrape.get("url", ""),
+        "x_platform": platform,
         "x_price": _round_price(price),
         "x_shipping": _round_price(ship_f),
-        "x_is_available": not reverb.get("sale_ended", False),
-        "x_can_accept_offers": reverb.get("offers_enabled", False),
+        "x_is_available": not scrape.get("sale_ended", False),
+        "x_can_accept_offers": scrape.get("offers_enabled", False),
         "x_is_taxed": False,
     }
-    description = reverb.get("description", "")
+    description = scrape.get("description", "")
     if description:
         vals["x_studio_notes"] = description
     if published:
@@ -454,6 +529,7 @@ def _build_report(
     """
     odoo_by_url: dict[str, ListingRecord] = {}
     odoo_by_item_id: dict[str, ListingRecord] = {}
+    odoo_by_ebay_id: dict[str, ListingRecord] = {}
     for e in odoo_entries:
         clean = _clean_url(e.x_url or "")
         existing_url_match = odoo_by_url.get(clean)
@@ -469,6 +545,9 @@ def _build_report(
         item_id = _reverb_item_id(clean)
         if item_id and item_id not in odoo_by_item_id:
             odoo_by_item_id[item_id] = e
+        ebay_id = _ebay_item_id(clean)
+        if ebay_id and ebay_id not in odoo_by_ebay_id:
+            odoo_by_ebay_id[ebay_id] = e
 
     report: list[dict] = []
 
@@ -494,6 +573,10 @@ def _build_report(
             item_id = _reverb_item_id(url)
             if item_id:
                 existing = odoo_by_item_id.get(item_id)
+        if not existing:
+            ebay_id = r.get("_ebay_item_id")
+            if ebay_id:
+                existing = odoo_by_ebay_id.get(ebay_id)
 
         if existing:
             item["entry"] = existing
@@ -512,7 +595,9 @@ def _build_report(
             item["action"] = "skip"
             item["warnings"].append("skipped: brand new")
         else:
-            item["create_vals"] = _reverb_to_listing_vals(r, model_id, default_shipping)
+            item["create_vals"] = _listing_vals_from_scrape(
+                r, model_id, default_shipping, platform=r.get("_platform", "reverb")
+            )
             item["action"] = "create"
 
         # Informational warnings
@@ -657,6 +742,18 @@ def _apply_updates(conn, report: list[dict]) -> tuple[int, int]:
 
 
 # ---------------------------------------------------------------------------
+# Platform registry
+# ---------------------------------------------------------------------------
+
+#: Registry of available marketplace search functions.
+#: Each callable has the signature:
+#:   (query, *, category, default_shipping, include_sold) -> list[dict]
+PLATFORMS: dict[str, Any] = {
+    "reverb": _search_reverb,
+    "ebay": _search_ebay,
+}
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -676,30 +773,40 @@ def _collect_sync_data(
     search_query: str | None = None,
     include_brand_new: bool = False,
     include_sold: bool = False,
+    platforms: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Search Reverb and fetch Odoo entries for a single model.
+    """Search marketplaces and fetch Odoo entries for a single model.
 
     This is the **I/O-heavy** phase and is safe to run inside a thread.
 
     Returns a dict with keys:
 
     - ``model_id``, ``model_name``, ``default_shipping`` – echo back inputs
-    - ``reverb_results`` – deduplicated Reverb search results
+    - ``reverb_results`` – combined search results from all enabled platforms
     - ``odoo_entries`` – existing Odoo guitar records
     - ``report`` – cross-reference report list
     - ``update_count``, ``create_count`` – action tallies
     """
     query = search_query or model_name
-    logger.debug("[{}] Searching Reverb for '{}'…", model_name, query)
-    reverb_results = _search_reverb(
-        query,
-        category=category_slug,
-        default_shipping=default_shipping,
-        include_sold=include_sold,
-    )
+    enabled = platforms if platforms is not None else list(PLATFORMS.keys())
 
-    if not reverb_results:
-        logger.warning("[{}] No Reverb results for '{}'", model_name, query)
+    logger.debug("[{}] Searching {} for '{}'…", model_name, "/".join(enabled), query)
+    all_results: list[dict] = []
+    for platform_name in enabled:
+        fn = PLATFORMS.get(platform_name)
+        if fn is None:
+            logger.warning("Unknown platform '{}', skipping", platform_name)
+            continue
+        results = fn(
+            query,
+            category=category_slug,
+            default_shipping=default_shipping,
+            include_sold=include_sold,
+        )
+        all_results.extend(results)
+
+    if not all_results:
+        logger.warning("[{}] No results for '{}'", model_name, query)
         return {
             "model_id": model_id,
             "model_name": model_name,
@@ -713,7 +820,7 @@ def _collect_sync_data(
 
     logger.debug("[{}] Fetching existing Odoo listing records…", model_name)
     url_candidates: set[str] = set()
-    for r in reverb_results:
+    for r in all_results:
         raw = r.get("url", "")
         if not raw:
             continue
@@ -723,7 +830,7 @@ def _collect_sync_data(
     logger.debug("[{}] Found {} existing listing records", model_name, len(odoo_entries))
 
     report = _build_report(
-        reverb_results,
+        all_results,
         odoo_entries,
         model_id,
         default_shipping,
@@ -736,7 +843,7 @@ def _collect_sync_data(
         "model_id": model_id,
         "model_name": model_name,
         "default_shipping": default_shipping,
-        "reverb_results": reverb_results,
+        "reverb_results": all_results,
         "odoo_entries": odoo_entries,
         "report": report,
         "update_count": update_count,
@@ -785,6 +892,14 @@ def _collect_sync_data(
     show_default=True,
     help="Number of worker threads for --all mode.",
 )
+@click.option(
+    "--platform",
+    "platform_filter",
+    type=click.Choice(["reverb", "ebay", "all"], case_sensitive=False),
+    default="all",
+    show_default=True,
+    help="Restrict search to a single marketplace (default: search all).",
+)
 @click.pass_context
 def cli(
     ctx: click.Context,
@@ -799,6 +914,7 @@ def cli(
     auto_yes: bool,
     wanna: bool,
     workers: int,
+    platform_filter: str,
 ) -> None:
     """Search Reverb for MODEL_NAME, then update/create entries in Odoo.
 
@@ -811,6 +927,19 @@ def cli(
 
     if not all_models and not model_name:
         raise click.UsageError("Provide a MODEL_NAME or use --all.")
+
+    # Resolve the platform filter
+    if platform_filter == "all":
+        selected_platforms = list(PLATFORMS.keys())
+    else:
+        selected_platforms = [platform_filter]
+        if platform_filter == "ebay":
+            from ebay_scraper import EbayAuth, EbayAuthError
+
+            try:
+                EbayAuth.from_env()
+            except EbayAuthError as exc:
+                raise click.UsageError(str(exc)) from None
 
     # Resolve category: --no-category → None, --category X → X, else → from DB
     if no_category:
@@ -862,6 +991,7 @@ def cli(
                         search_query=search_query,
                         include_brand_new=include_brand_new,
                         include_sold=include_sold,
+                        platforms=selected_platforms,
                     ): idx
                     for idx, mi in enumerate(all_model_info)
                 }
@@ -963,7 +1093,7 @@ def cli(
 
     logger.info("Default shipping: C${:.2f}", default_shipping)
 
-    # 3. Collect data (search Reverb + fetch Odoo) ------------------------------
+    # 3. Collect data (search marketplaces + fetch Odoo) -----------------------
     data = _collect_sync_data(
         conn,
         model_id=model_id,
@@ -973,10 +1103,11 @@ def cli(
         search_query=search_query,
         include_brand_new=include_brand_new,
         include_sold=include_sold,
+        platforms=selected_platforms,
     )
 
     if not data["reverb_results"]:
-        logger.warning("No Reverb results for '{}' — nothing to do.", search_query or model_name)
+        logger.warning("No results for '{}' — nothing to do.", search_query or model_name)
         return
 
     # 4. Compare ----------------------------------------------------------------
