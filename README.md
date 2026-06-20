@@ -17,12 +17,18 @@ needed. It also ships an **MCP server** that exposes the collection as live reso
 | `x_gear` | Physical item — one per guitar/pedal/amp. Owns the item lifecycle. |
 | `x_models` | Gear model catalogue (brand, specs, Reverb category, price brackets p25/p50/p75). |
 | `x_reverb_category` | Reverb category slugs and default shipping costs. |
+| `x_kit` | Kit build project — tracks a build from idea through completion. |
+| `x_kit_part` | Individual part in a kit build, linked to an `x_listing` as the supplier entry. |
 
 `x_listing` drives the sync workflow. `x_gear` records are created manually in Odoo when a listing is acquired.
 
 ### x_gear status lifecycle
 
-`owned` → `for_sale` → `sold`
+**Buy side**: `watching` → `owned`
+
+**Sell side**: `owned` → `for_sale` → `sold`
+
+`closed` — no longer tracking (not acquired, not sold)
 
 ### x_listing status lifecycle
 
@@ -262,10 +268,10 @@ All commands are exposed through a single CLI entry point:
 uv run reverb2odoo --help
 ```
 
-### `sync` — Search Reverb and sync into Odoo
+### `sync` — Search marketplaces and sync into Odoo
 
-Search Reverb for a gear model, then create new `x_listing` entries and update existing ones in Odoo.
-Matching is done first by exact URL (query-string ignored), then by Reverb numeric item ID — so listings that were renamed on Reverb (slug changed) are updated in place rather than duplicated.
+Search Reverb and eBay for a gear model, then create new `x_listing` entries and update existing ones in Odoo.
+Matching is done first by exact URL (query-string ignored), then by platform-specific item ID (Reverb numeric ID or eBay numeric item ID) — so listings whose slugs changed are updated in place rather than duplicated.
 
 URL matches span across models: if a Reverb URL already exists on any `x_listing` — even one attached to a different `x_models` record — the existing listing is updated in place and the report flags it with the other model's id. The listing's `x_model_id` is preserved untouched; if the listing actually belongs under the searched model, move it manually in Odoo.
 
