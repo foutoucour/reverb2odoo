@@ -92,9 +92,14 @@ dependencies = [
 
 ## Odoo Custom Field Naming
 
-All custom fields on Odoo Studio models must follow these conventions:
+### Studio auto-prefix
 
-### Relation fields
+Odoo Studio automatically prefixes every field it creates with `x_studio_`. **Do not guess field names from convention — always verify against the live schema** by checking `models.py` (the pydantic source of truth) or running `regenerate_snapshot.py`.
+
+Example: a many2one to `x_gear` created in Studio is named `x_studio_gear_id`, not `x_gear_id`.
+
+### Relation fields on non-Studio models
+For fields added directly via code (not Studio), follow these conventions:
 - **many2one** and **one2many**: `x_<related_model_name>_id`
   - e.g. many2one to `x_gear` → `x_gear_id`
   - e.g. many2one to `x_models` → `x_models_id`

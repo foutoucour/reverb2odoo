@@ -17,12 +17,18 @@ needed. It also ships an **MCP server** that exposes the collection as live reso
 | `x_gear` | Physical item — one per guitar/pedal/amp. Owns the item lifecycle. |
 | `x_models` | Gear model catalogue (brand, specs, Reverb category, price brackets p25/p50/p75). |
 | `x_reverb_category` | Reverb category slugs and default shipping costs. |
+| `x_kit` | Kit build project — tracks a build from idea through completion. |
+| `x_kit_part` | Individual part in a kit build, linked to an `x_listing` as the supplier entry. |
 
 `x_listing` drives the sync workflow. `x_gear` records are created manually in Odoo when a listing is acquired.
 
 ### x_gear status lifecycle
 
-`owned` → `for_sale` → `sold`
+**Buy side**: `watching` → `owned`
+
+**Sell side**: `owned` → `for_sale` → `sold`
+
+`closed` — no longer tracking (not acquired, not sold)
 
 ### x_listing status lifecycle
 
