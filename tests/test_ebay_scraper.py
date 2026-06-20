@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 import pytest
 
+from ebay_categories import REVERB_SLUG_TO_EBAY_CATEGORY, ebay_category_for_reverb_slug
 from ebay_scraper import EbayAuth, EbayAuthError, EbayScraper
 
 FIXTURES = Path(__file__).parent / "fixtures" / "ebay"
@@ -346,3 +347,21 @@ async def test_search_paginates_when_total_exceeds_page_size():
     # Dedup is by item id — all are distinct in this synthetic data.
     assert call_count["n"] == 3
     assert len(results) == 6
+
+
+def test_ebay_category_for_known_slug():
+    assert ebay_category_for_reverb_slug("electric-guitars") == 33034
+
+
+def test_ebay_category_for_unknown_slug_is_none():
+    assert ebay_category_for_reverb_slug("not-a-real-slug") is None
+
+
+def test_ebay_category_for_none_slug_is_none():
+    assert ebay_category_for_reverb_slug(None) is None
+
+
+def test_category_map_has_seed_entries():
+    assert "electric-guitars" in REVERB_SLUG_TO_EBAY_CATEGORY
+    assert "acoustic-guitars" in REVERB_SLUG_TO_EBAY_CATEGORY
+    assert "effects-and-pedals" in REVERB_SLUG_TO_EBAY_CATEGORY
