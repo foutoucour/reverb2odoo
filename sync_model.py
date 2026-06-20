@@ -750,30 +750,37 @@ def _collect_sync_data(
     search_query: str | None = None,
     include_brand_new: bool = False,
     include_sold: bool = False,
+    platforms: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Search Reverb and fetch Odoo entries for a single model.
+    """Search marketplaces and fetch Odoo entries for a single model.
 
     This is the **I/O-heavy** phase and is safe to run inside a thread.
 
     Returns a dict with keys:
 
     - ``model_id``, ``model_name``, ``default_shipping`` – echo back inputs
-    - ``reverb_results`` – deduplicated Reverb search results
+    - ``reverb_results`` – combined search results from all enabled platforms
     - ``odoo_entries`` – existing Odoo guitar records
     - ``report`` – cross-reference report list
     - ``update_count``, ``create_count`` – action tallies
     """
     query = search_query or model_name
-    logger.debug("[{}] Searching Reverb for '{}'…", model_name, query)
-    reverb_results = _search_reverb(
-        query,
-        category=category_slug,
-        default_shipping=default_shipping,
-        include_sold=include_sold,
-    )
+    enabled = platforms if platforms is not None else list(PLATFORMS.keys())
 
-    if not reverb_results:
-        logger.warning("[{}] No Reverb results for '{}'", model_name, query)
+    logger.debug("[{}] Searching {} for '{}'…", model_name, "/".join(enabled), query)
+    all_results: list[dict] = []
+    for platform_name in enabled:
+        fn = PLATFORMS[platform_name]
+        results = fn(
+            query,
+            category=category_slug,
+            default_shipping=default_shipping,
+            include_sold=include_sold,
+        )
+        all_results.extend(results)
+
+    if not all_results:
+        logger.warning("[{}] No results for '{}'", model_name, query)
         return {
             "model_id": model_id,
             "model_name": model_name,
@@ -787,7 +794,7 @@ def _collect_sync_data(
 
     logger.debug("[{}] Fetching existing Odoo listing records…", model_name)
     url_candidates: set[str] = set()
-    for r in reverb_results:
+    for r in all_results:
         raw = r.get("url", "")
         if not raw:
             continue
@@ -797,7 +804,7 @@ def _collect_sync_data(
     logger.debug("[{}] Found {} existing listing records", model_name, len(odoo_entries))
 
     report = _build_report(
-        reverb_results,
+        all_results,
         odoo_entries,
         model_id,
         default_shipping,
@@ -810,7 +817,7 @@ def _collect_sync_data(
         "model_id": model_id,
         "model_name": model_name,
         "default_shipping": default_shipping,
-        "reverb_results": reverb_results,
+        "reverb_results": all_results,
         "odoo_entries": odoo_entries,
         "report": report,
         "update_count": update_count,
@@ -859,6 +866,14 @@ def _collect_sync_data(
     show_default=True,
     help="Number of worker threads for --all mode.",
 )
+@click.option(
+    "--platform",
+    "platform_filter",
+    type=click.Choice(["reverb", "ebay", "all"], case_sensitive=False),
+    default="all",
+    show_default=True,
+    help="Restrict search to a single marketplace (default: search all).",
+)
 @click.pass_context
 def cli(
     ctx: click.Context,
@@ -873,6 +888,7 @@ def cli(
     auto_yes: bool,
     wanna: bool,
     workers: int,
+    platform_filter: str,
 ) -> None:
     """Search Reverb for MODEL_NAME, then update/create entries in Odoo.
 
@@ -885,6 +901,19 @@ def cli(
 
     if not all_models and not model_name:
         raise click.UsageError("Provide a MODEL_NAME or use --all.")
+
+    # Resolve the platform filter
+    if platform_filter == "all":
+        selected_platforms = list(PLATFORMS.keys())
+    else:
+        selected_platforms = [platform_filter]
+        if platform_filter == "ebay":
+            from ebay_scraper import EbayAuth, EbayAuthError
+
+            try:
+                EbayAuth.from_env()
+            except EbayAuthError as exc:
+                raise click.UsageError(str(exc)) from None
 
     # Resolve category: --no-category → None, --category X → X, else → from DB
     if no_category:
@@ -936,6 +965,7 @@ def cli(
                         search_query=search_query,
                         include_brand_new=include_brand_new,
                         include_sold=include_sold,
+                        platforms=selected_platforms,
                     ): idx
                     for idx, mi in enumerate(all_model_info)
                 }
@@ -1037,7 +1067,7 @@ def cli(
 
     logger.info("Default shipping: C${:.2f}", default_shipping)
 
-    # 3. Collect data (search Reverb + fetch Odoo) ------------------------------
+    # 3. Collect data (search marketplaces + fetch Odoo) -----------------------
     data = _collect_sync_data(
         conn,
         model_id=model_id,
@@ -1047,10 +1077,11 @@ def cli(
         search_query=search_query,
         include_brand_new=include_brand_new,
         include_sold=include_sold,
+        platforms=selected_platforms,
     )
 
     if not data["reverb_results"]:
-        logger.warning("No Reverb results for '{}' — nothing to do.", search_query or model_name)
+        logger.warning("No results for '{}' — nothing to do.", search_query or model_name)
         return
 
     # 4. Compare ----------------------------------------------------------------
