@@ -16,7 +16,7 @@ from typing import Any
 
 from loguru import logger
 
-from models import GearRecord, ListingRecord
+from models import GearRecord, KitPartRecord, KitRecord, ListingRecord
 
 
 def _label(value: tuple[int, str] | None) -> str:
@@ -67,6 +67,19 @@ def _render_gear_update(gear: GearRecord) -> str:
     return f"- **{name}** (id={gear.id}) [{status}] | model: {model} | intent: {intent}"
 
 
+def _render_kit_update(kit: KitRecord) -> str:
+    name = _scalar(kit.x_name, fallback="(unnamed)")
+    status = _scalar(kit.x_studio_status)
+    return f"- **{name}** (id={kit.id}) [{status}]"
+
+
+def _render_kit_part_update(part: KitPartRecord) -> str:
+    kit_name = _label(part.x_studio_kit_id) or "(unknown kit)"
+    listing_name = _label(part.x_studio_listing_id) or "(unknown part)"
+    status = _scalar(part.x_studio_status)
+    return f"- **{kit_name}** ← {listing_name} [{status}]"
+
+
 def run(conn: Any, days: int = 7) -> str:
     """Return a markdown report of activity in the last *days* days.
 
@@ -113,6 +126,22 @@ def run(conn: Any, days: int = 7) -> str:
     gear_updates = [GearRecord.from_odoo(r) for r in gear_rows]
     logger.debug("recent_activity: {} gear updates", len(gear_updates))
 
+    kit_proxy = conn.get_model("x_kit")
+    kit_rows: list[dict] = kit_proxy.search_read(
+        [("write_date", ">=", cutoff)],
+        KitRecord.odoo_fields(),
+    )
+    kit_updates = [KitRecord.from_odoo(r) for r in kit_rows]
+    logger.debug("recent_activity: {} kit updates", len(kit_updates))
+
+    kit_part_proxy = conn.get_model("x_kit_part")
+    kit_part_rows: list[dict] = kit_part_proxy.search_read(
+        [("write_date", ">=", cutoff)],
+        KitPartRecord.odoo_fields(),
+    )
+    kit_part_updates = [KitPartRecord.from_odoo(r) for r in kit_part_rows]
+    logger.debug("recent_activity: {} kit_part updates", len(kit_part_updates))
+
     sections: list[str] = [
         f"# Recent Activity (last {days} days)",
         "",
@@ -142,5 +171,17 @@ def run(conn: Any, days: int = 7) -> str:
             sections.append(_render_gear_update(gear))
     else:
         sections.append("*No gear records updated.*")
+
+    kit_activity_total = len(kit_updates) + len(kit_part_updates)
+    sections.append("")
+    sections.append(f"## Kit Activity ({kit_activity_total})")
+    sections.append("")
+    if kit_activity_total == 0:
+        sections.append("*No kit activity in window.*")
+    else:
+        for kit in kit_updates:
+            sections.append(_render_kit_update(kit))
+        for part in kit_part_updates:
+            sections.append(_render_kit_part_update(part))
 
     return "\n".join(sections).rstrip() + "\n"

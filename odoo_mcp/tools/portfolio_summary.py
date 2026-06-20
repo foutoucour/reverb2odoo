@@ -20,7 +20,9 @@ from typing import Any
 
 from loguru import logger
 
-from models import GearRecord, ListingRecord, ModelsRecord
+from models import GearRecord, KitRecord, ListingRecord, ModelsRecord
+
+_KIT_STATUSES: list[str] = ["idea", "planning", "sourcing", "building", "done"]
 
 
 def _label(value: tuple[int, str] | None) -> str:
@@ -177,6 +179,23 @@ def run(conn: Any) -> str:
             f"- *Note: mixed currencies across sold listings ({', '.join(sorted(currencies_seen))})"
             " — totals are not currency-normalized.*"
         )
+
+    # Kits in flight and done.
+    kit_proxy = conn.get_model("x_kit")
+    kit_rows: list[dict] = kit_proxy.search_read([], KitRecord.odoo_fields())
+    kits = [KitRecord.from_odoo(r) for r in kit_rows]
+    logger.info("portfolio_summary: {} kit record(s)", len(kits))
+
+    if kits:
+        kit_counts: dict[str, int] = {status: 0 for status in _KIT_STATUSES}
+        for kit in kits:
+            status = (kit.x_studio_status or "").lower()
+            if status in kit_counts:
+                kit_counts[status] += 1
+        sections.append("")
+        sections.append("## Kits")
+        for status in _KIT_STATUSES:
+            sections.append(f"- **{status.capitalize()}**: {kit_counts[status]}")
 
     sections.append("")
     sections.append("## Pivots")

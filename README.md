@@ -45,6 +45,7 @@ Claude Desktop, replacing static markdown knowledge-base files with real-time qu
 | `odoo://brands` | `res.partner` + GitHub README | Brand catalog by category, enriched with construction details |
 | `odoo://models` | `x_models` (all) | Full model catalog; highlights wanna=True models with no listings tracked |
 | `odoo://tags` | `x_weighted_tags` + `x_weighted_tag_groups` | Weighted tag catalog grouped by tag group, with scores and multiply factors |
+| `odoo://kits` | `x_kit` + `x_kit_part` (status != done) | In-flight kit builds ordered by lifecycle, each with a wanted/ordered/received part rollup |
 
 ### Resource templates (parameterized)
 
@@ -56,6 +57,7 @@ Fetch a single item by URI without invoking a tool:
 | `odoo://brand/{name}` | One brand card with country, made_in, description, and linked models |
 | `odoo://gear/{gear_id}` | One x_gear record with full listing history |
 | `odoo://tag/{name}` | One x_weighted_tags record (name or numeric id) with its group and linked models |
+| `odoo://kit/{kit_id}` | One x_kit build with parts grouped by supplier, per-supplier subtotals, and a grand total |
 
 ### Tools
 
@@ -65,12 +67,13 @@ Fetch a single item by URI without invoking a tool:
 | `search_listings` | `brand`, `model_type`, `max_price`, `platform`, `status` (all optional) | Filtered listing cards sorted by score |
 | `search_models` | `query`, `sort_by` (`weighted_score`/`p50`/`name`), `limit` (default 20) | Model cards sorted by the chosen key |
 | `get_model` | `name_or_id` | Full model spec with all linked gear and listings |
-| `get_gear` | `gear_id` | Single gear detail with scores, notes, and listing history |
+| `get_gear` | `gear_id` | Single gear detail with scores, notes, and listing history (plus reverse-link to its source kit if any) |
+| `get_kit` | `kit_id` | Single kit build with parts grouped by supplier, status badges, and a grand total |
 | `get_brand` | `name` | Brand card with description and linked x_models |
 | `get_tag` | `name_or_id` | Weighted tag detail: score, group multiply, and linked x_models |
 | `missed_deals` | `days_lookback` (default 30) | Under-p25 active deals + closed/sold listings on wanna models you don't own |
-| `recent_activity` | `days` (default 7) | New listings, sold listings, and gear updates in the window |
-| `portfolio_summary` | — | Owned/sold totals, unrealized + realized P&L, by-brand and by-intent pivots |
+| `recent_activity` | `days` (default 7) | New listings, sold listings, gear updates, and kit/kit_part activity in the window |
+| `portfolio_summary` | — | Owned/sold totals, unrealized + realized P&L, by-brand and by-intent pivots, plus kit counts by lifecycle stage |
 | `pending_decisions` | — | Watching listings on wanna models that have not been triaged |
 | `clear_cache` | — | Drop server-side caches (result, brand, connection) for fresh data |
 
