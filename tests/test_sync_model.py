@@ -15,14 +15,15 @@ from sync_model import (
     _collect_sync_data,
     _compute_changes,
     _download_image_base64,
+    _ebay_item_id,
     _fetch_all_models,
     _fetch_listings,
     _find_entries_without_image,
     _find_model,
     _is_brand_new,
+    _listing_vals_from_scrape,
     _print_report,
     _reverb_item_id,
-    _reverb_to_listing_vals,
     _round_price,
     _search_reverb,
     cli,
@@ -88,6 +89,35 @@ def test_clean_url(url: str, expected: str):
 )
 def test_reverb_item_id(url: str, expected: str | None):
     assert _reverb_item_id(url) == expected
+
+
+# ── _ebay_item_id ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        pytest.param(
+            "https://www.ebay.com/itm/123456789012",
+            "123456789012",
+            id="standard-ebay-url",
+        ),
+        pytest.param(
+            "https://www.ebay.ca/itm/some-guitar/123456789012",
+            "123456789012",
+            id="with-slug",
+        ),
+        pytest.param(
+            "https://www.ebay.com/itm/123456789012?var=456",
+            "123456789012",
+            id="with-query-string",
+        ),
+        pytest.param("https://reverb.com/item/1-g", None, id="non-ebay-url"),
+        pytest.param("", None, id="empty-string"),
+    ],
+)
+def test_ebay_item_id(url: str, expected: str | None):
+    assert _ebay_item_id(url) == expected
 
 
 # ── CLI (Click) ───────────────────────────────────────────────────────────
@@ -539,11 +569,11 @@ class TestComputeChanges:
         assert "x_studio_notes" not in changes
 
 
-# ── _reverb_to_listing_vals ───────────────────────────────────────────────
+# ── _listing_vals_from_scrape ─────────────────────────────────────────────
 
 
-class TestReverbToListingVals:
-    """Unit tests for _reverb_to_listing_vals (pure logic, no I/O)."""
+class TestListingValsFromScrape:
+    """Unit tests for _listing_vals_from_scrape (pure logic, no I/O)."""
 
     def test_basic_conversion(self):
         reverb = {
@@ -555,7 +585,7 @@ class TestReverbToListingVals:
             "offers_enabled": True,
             "published_at": "2025-06-20",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=42)
+        vals = _listing_vals_from_scrape(reverb, model_id=42)
 
         assert vals["x_name"] == "Cool Guitar"
         assert vals["x_model_id"] == 42
@@ -581,7 +611,7 @@ class TestReverbToListingVals:
             "offers_enabled": False,
             "published_at": "2025-01-01",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=1)
+        vals = _listing_vals_from_scrape(reverb, model_id=1)
 
         assert vals["x_is_available"] is False
         assert vals["x_shipping"] == DEFAULT_SHIPPING
@@ -597,7 +627,7 @@ class TestReverbToListingVals:
             "offers_enabled": False,
             "published_at": "2025-03-10",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=1, default_shipping=35.0)
+        vals = _listing_vals_from_scrape(reverb, model_id=1, default_shipping=35.0)
 
         assert vals["x_shipping"] == 40.0  # _round_price(35) = 40
 
@@ -611,7 +641,7 @@ class TestReverbToListingVals:
             "offers_enabled": False,
             "published_at": "",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=1)
+        vals = _listing_vals_from_scrape(reverb, model_id=1)
         assert "x_published_at" not in vals
 
     def test_description_included_in_vals(self):
@@ -625,7 +655,7 @@ class TestReverbToListingVals:
             "published_at": "",
             "description": "Great condition, minor wear.",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=1)
+        vals = _listing_vals_from_scrape(reverb, model_id=1)
         assert vals["x_studio_notes"] == "Great condition, minor wear."
 
     def test_empty_description_not_included(self):
@@ -639,7 +669,7 @@ class TestReverbToListingVals:
             "published_at": "",
             "description": "",
         }
-        vals = _reverb_to_listing_vals(reverb, model_id=1)
+        vals = _listing_vals_from_scrape(reverb, model_id=1)
         assert "x_studio_notes" not in vals
 
 
@@ -917,6 +947,32 @@ class TestBuildReport:
         warn_args = " ".join(str(a) for call in warn.call_args_list for a in call.args)
         assert "100" in warn_args
         assert "200" in warn_args
+
+    def test_ebay_item_id_match_on_slug_change(self):
+        """An eBay listing whose URL slug changed is matched by numeric item id,
+        not URL, so no duplicate create is produced."""
+        old_url = "https://www.ebay.com/itm/old-slug/123456789012"
+        new_url = "https://www.ebay.com/itm/new-slug/123456789012"
+        odoo_entry = self._make_odoo(url=old_url, id=77)
+        scrape_result = {
+            "url": new_url,
+            "name": "eBay Guitar",
+            "price": "5000.00",
+            "price_display": "USD 5,000",
+            "offers_enabled": False,
+            "sale_ended": False,
+            "published_at": "2025-06-20",
+            "shipping_price": "50.00",
+            "ships_to_canada": True,
+            "_ebay_item_id": "123456789012",
+            "_platform": "ebay",
+        }
+
+        report = _build_report([scrape_result], [odoo_entry], model_id=42)
+
+        assert len(report) == 1
+        assert report[0]["action"] in ("ok", "update")
+        assert report[0]["entry"].id == 77
 
 
 # ── _print_report ─────────────────────────────────────────────────────────
@@ -1460,10 +1516,18 @@ class TestCollectSyncData:
         conn.get_model.return_value = guitar
         return conn
 
+    def _fake_platforms(self, reverb_return=None):
+        """Build a PLATFORMS dict with a mock reverb function and a no-op ebay function."""
+        fake_reverb = MagicMock(return_value=reverb_return or [])
+        fake_ebay = MagicMock(return_value=[])
+        return {"reverb": fake_reverb, "ebay": fake_ebay}
+
     def test_no_reverb_results_returns_empty(self):
+        import sync_model
+
         conn = self._mock_conn()
 
-        with patch("sync_model._search_reverb", return_value=[]):
+        with patch.object(sync_model, "PLATFORMS", self._fake_platforms([])):
             result = _collect_sync_data(
                 conn,
                 model_id=1,
@@ -1481,6 +1545,8 @@ class TestCollectSyncData:
         assert result["create_count"] == 0
 
     def test_collects_results_and_builds_report(self):
+        import sync_model
+
         url = "https://reverb.com/item/1-guitar"
         reverb_results = [
             {
@@ -1498,7 +1564,7 @@ class TestCollectSyncData:
 
         conn = self._mock_conn(guitar_entries=[])
 
-        with patch("sync_model._search_reverb", return_value=reverb_results):
+        with patch.object(sync_model, "PLATFORMS", self._fake_platforms(reverb_results)):
             result = _collect_sync_data(
                 conn,
                 model_id=42,
@@ -1512,7 +1578,9 @@ class TestCollectSyncData:
         assert result["create_count"] == 1  # new listing → create
 
     def test_echoes_back_model_metadata(self):
-        with patch("sync_model._search_reverb", return_value=[]):
+        import sync_model
+
+        with patch.object(sync_model, "PLATFORMS", self._fake_platforms([])):
             result = _collect_sync_data(
                 MagicMock(),
                 model_id=42,
@@ -1526,9 +1594,12 @@ class TestCollectSyncData:
         assert result["default_shipping"] == 99.0
 
     def test_uses_search_query_override(self):
-        conn = self._mock_conn()
+        import sync_model
 
-        with patch("sync_model._search_reverb", return_value=[]) as mock_search:
+        conn = self._mock_conn()
+        platforms = self._fake_platforms([])
+
+        with patch.object(sync_model, "PLATFORMS", platforms):
             _collect_sync_data(
                 conn,
                 model_id=1,
@@ -1536,9 +1607,10 @@ class TestCollectSyncData:
                 category_slug="electric-guitars",
                 default_shipping=250.0,
                 search_query="Custom Query",
+                platforms=["reverb"],
             )
 
-        mock_search.assert_called_once_with(
+        platforms["reverb"].assert_called_once_with(
             "Custom Query",
             category="electric-guitars",
             default_shipping=250.0,
@@ -1546,18 +1618,22 @@ class TestCollectSyncData:
         )
 
     def test_falls_back_to_model_name_for_query(self):
-        conn = self._mock_conn()
+        import sync_model
 
-        with patch("sync_model._search_reverb", return_value=[]) as mock_search:
+        conn = self._mock_conn()
+        platforms = self._fake_platforms([])
+
+        with patch.object(sync_model, "PLATFORMS", platforms):
             _collect_sync_data(
                 conn,
                 model_id=1,
                 model_name="Model A",
                 category_slug=None,
                 default_shipping=250.0,
+                platforms=["reverb"],
             )
 
-        mock_search.assert_called_once_with(
+        platforms["reverb"].assert_called_once_with(
             "Model A",
             category=None,
             default_shipping=250.0,
@@ -1565,9 +1641,12 @@ class TestCollectSyncData:
         )
 
     def test_passes_include_sold_to_search_reverb(self):
-        conn = self._mock_conn()
+        import sync_model
 
-        with patch("sync_model._search_reverb", return_value=[]) as mock_search:
+        conn = self._mock_conn()
+        platforms = self._fake_platforms([])
+
+        with patch.object(sync_model, "PLATFORMS", platforms):
             _collect_sync_data(
                 conn,
                 model_id=1,
@@ -1575,9 +1654,10 @@ class TestCollectSyncData:
                 category_slug=None,
                 default_shipping=250.0,
                 include_sold=True,
+                platforms=["reverb"],
             )
 
-        mock_search.assert_called_once_with(
+        platforms["reverb"].assert_called_once_with(
             "Model A",
             category=None,
             default_shipping=250.0,
@@ -1585,8 +1665,10 @@ class TestCollectSyncData:
         )
 
     def test_passes_url_candidates_to_fetch_listings(self):
-        """URL candidates from Reverb results are forwarded to _fetch_listings
+        """URL candidates from results are forwarded to _fetch_listings
         as both raw and cleaned forms so the DB lookup is lossless."""
+        import sync_model
+
         reverb_results = [
             {
                 "url": "https://reverb.com/item/1-g?show_sold=true",
@@ -1621,7 +1703,7 @@ class TestCollectSyncData:
             return []
 
         with (
-            patch("sync_model._search_reverb", return_value=reverb_results),
+            patch.object(sync_model, "PLATFORMS", self._fake_platforms(reverb_results)),
             patch("sync_model._fetch_listings", side_effect=fake_fetch_listings),
         ):
             _collect_sync_data(
@@ -1639,8 +1721,10 @@ class TestCollectSyncData:
         assert "https://reverb.com/item/2-g" in captured["extra_urls"]
 
     def test_empty_url_candidates_when_results_lack_urls(self):
-        """If Reverb results have empty/missing url fields, no URL candidates
+        """If results have empty/missing url fields, no URL candidates
         are forwarded — _fetch_listings receives an empty extra_urls list."""
+        import sync_model
+
         reverb_results = [
             {
                 "url": "",  # empty string
@@ -1674,7 +1758,7 @@ class TestCollectSyncData:
             return []
 
         with (
-            patch("sync_model._search_reverb", return_value=reverb_results),
+            patch.object(sync_model, "PLATFORMS", self._fake_platforms(reverb_results)),
             patch("sync_model._fetch_listings", side_effect=fake_fetch_listings),
         ):
             _collect_sync_data(
@@ -1686,6 +1770,45 @@ class TestCollectSyncData:
             )
 
         assert captured["extra_urls"] == []
+
+    def test_unknown_platform_skipped_with_warning(self):
+        """An unknown platform name is skipped with a warning; valid
+        platforms still run and their results are returned."""
+        import sync_model
+
+        reverb_results = [
+            {
+                "url": "https://reverb.com/item/1-g",
+                "name": "Guitar",
+                "price": "100.00",
+                "price_display": "C$100",
+                "offers_enabled": False,
+                "sale_ended": False,
+                "published_at": "",
+                "shipping_price": "0.00",
+                "ships_to_canada": True,
+                "condition": "Excellent",
+            }
+        ]
+
+        with (
+            patch.object(sync_model, "PLATFORMS", self._fake_platforms(reverb_results)),
+            patch("sync_model._fetch_listings", return_value=[]),
+            patch("sync_model.logger.warning") as warn,
+        ):
+            result = _collect_sync_data(
+                MagicMock(),
+                model_id=42,
+                model_name="Test",
+                category_slug=None,
+                default_shipping=250.0,
+                platforms=["reverb", "nonexistent"],
+            )
+
+        assert len(result["reverb_results"]) == 1
+        assert warn.called
+        warn_args = " ".join(str(a) for call in warn.call_args_list for a in call.args)
+        assert "nonexistent" in warn_args
 
 
 # ── _download_image_base64 ───────────────────────────────────────────────
@@ -2029,3 +2152,133 @@ class TestFetchListings:
         by_id = {r.id: r for r in result}
         assert by_id[1].x_model_id == (42, "Mine")
         assert by_id[2].x_model_id == (99, "Other")
+
+
+# ── PLATFORMS registry ────────────────────────────────────────────────────
+
+
+def test_platforms_registry_has_reverb_and_ebay():
+    from sync_model import PLATFORMS
+
+    assert set(PLATFORMS.keys()) == {"reverb", "ebay"}
+    assert callable(PLATFORMS["reverb"])
+    assert callable(PLATFORMS["ebay"])
+
+
+def test_listing_vals_from_scrape_tags_platform():
+    from sync_model import _listing_vals_from_scrape
+
+    scrape = {
+        "url": "https://www.ebay.com/itm/123",
+        "name": "Test eBay Listing",
+        "price": "100.00",
+        "shipping_price": "20.00",
+        "sale_ended": False,
+        "offers_enabled": False,
+        "description": "",
+        "published_at": "",
+    }
+    vals = _listing_vals_from_scrape(scrape, model_id=42, default_shipping=250.0, platform="ebay")
+    assert vals["x_platform"] == "ebay"
+    assert vals["x_url"] == "https://www.ebay.com/itm/123"
+    assert vals["x_model_id"] == 42
+
+
+def test_listing_vals_from_scrape_reverb_unchanged():
+    from sync_model import _listing_vals_from_scrape
+
+    scrape = {
+        "url": "https://reverb.com/item/123-foo",
+        "name": "Reverb Listing",
+        "price": "100.00",
+        "shipping_price": "20.00",
+        "sale_ended": False,
+        "offers_enabled": True,
+        "description": "",
+        "published_at": "2026-06-01",
+    }
+    vals = _listing_vals_from_scrape(scrape, model_id=42, default_shipping=250.0, platform="reverb")
+    assert vals["x_platform"] == "reverb"
+    assert vals["x_can_accept_offers"] is True
+
+
+# ── _collect_sync_data platform routing ──────────────────────────────────
+
+
+def test_collect_sync_data_runs_only_selected_platforms(monkeypatch):
+    """`platforms=["reverb"]` must NOT invoke the eBay search at all."""
+    from unittest.mock import MagicMock
+
+    import sync_model
+
+    fake_reverb = MagicMock(
+        return_value=[
+            {
+                "url": "https://reverb.com/item/1-foo",
+                "name": "Reverb 1",
+                "price": "100",
+                "sale_ended": False,
+                "shipping_price": "10",
+                "_platform": "reverb",
+            }
+        ]
+    )
+    fake_ebay = MagicMock(return_value=[])
+
+    monkeypatch.setattr(sync_model, "PLATFORMS", {"reverb": fake_reverb, "ebay": fake_ebay})
+
+    fake_conn = MagicMock()
+    fake_listing = MagicMock()
+    fake_listing.search_read.return_value = []
+    fake_conn.get_model.return_value = fake_listing
+
+    data = sync_model._collect_sync_data(
+        fake_conn,
+        model_id=1,
+        model_name="Test",
+        category_slug=None,
+        default_shipping=250.0,
+        platforms=["reverb"],
+    )
+
+    fake_reverb.assert_called_once()
+    fake_ebay.assert_not_called()
+    assert len(data["reverb_results"]) == 1
+
+
+def test_collect_sync_data_runs_all_platforms_by_default(monkeypatch):
+    from unittest.mock import MagicMock
+
+    import sync_model
+
+    fake_reverb = MagicMock(return_value=[])
+    fake_ebay = MagicMock(return_value=[])
+    monkeypatch.setattr(sync_model, "PLATFORMS", {"reverb": fake_reverb, "ebay": fake_ebay})
+
+    fake_conn = MagicMock()
+    fake_listing = MagicMock()
+    fake_listing.search_read.return_value = []
+    fake_conn.get_model.return_value = fake_listing
+
+    sync_model._collect_sync_data(
+        fake_conn,
+        model_id=1,
+        model_name="Test",
+        category_slug=None,
+        default_shipping=250.0,
+        platforms=["reverb", "ebay"],
+    )
+
+    fake_reverb.assert_called_once()
+    fake_ebay.assert_called_once()
+
+
+def test_resolve_platforms_ebay_without_credentials_raises(monkeypatch):
+    """Direct check: the platform filter resolution raises when ebay creds missing."""
+    monkeypatch.delenv("EBAY_CLIENT_ID", raising=False)
+    monkeypatch.delenv("EBAY_CLIENT_SECRET", raising=False)
+
+    from ebay_scraper import EbayAuth, EbayAuthError
+
+    with pytest.raises(EbayAuthError, match="EBAY_CLIENT_ID"):
+        EbayAuth.from_env()

@@ -4,3 +4,7 @@ odoo:
   database: "my_db"
   login: "my_user"
   password: "xxx"
+
+ebay:
+  client_id: ""        # https://developer.ebay.com/my/keys — production keyset
+  client_secret: ""
