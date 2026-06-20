@@ -38,11 +38,13 @@ def _make_conn(
     sold: list[dict] | None = None,
     models: list[dict] | None = None,
     sold_listings: list[dict] | None = None,
+    kits: list[dict] | None = None,
 ) -> MagicMock:
     conn = MagicMock()
     gear_proxy = MagicMock()
     models_proxy = MagicMock()
     listing_proxy = MagicMock()
+    kit_proxy = MagicMock()
 
     def gear_search_read(domain: list, fields: list) -> list[dict]:
         for clause in domain:
@@ -56,12 +58,15 @@ def _make_conn(
     gear_proxy.search_read.side_effect = gear_search_read
     models_proxy.search_read.return_value = models or []
     listing_proxy.search_read.return_value = sold_listings or []
+    kit_proxy.search_read.return_value = kits or []
 
     def get_model(name: str) -> MagicMock:
         if name == "x_gear":
             return gear_proxy
         if name == "x_models":
             return models_proxy
+        if name == "x_kit":
+            return kit_proxy
         return listing_proxy
 
     conn.get_model.side_effect = get_model
@@ -179,6 +184,59 @@ def test_run_realized_pnl_uses_sold_listing_price() -> None:
     result = run(conn)
     # realized = 2000 - 1500 = 500
     assert "500.00" in result
+
+
+# ---------------------------------------------------------------------------
+# Kit aggregation
+# ---------------------------------------------------------------------------
+
+
+def _kit(**overrides: object) -> dict:
+    base: dict = {
+        "id": 1,
+        "x_name": "Some Kit",
+        "x_studio_status": "idea",
+        "x_studio_notes": False,
+        "x_studio_gear_id": False,
+        "x_studio_kit_part_ids": False,
+        "x_studio_price": False,
+        "x_studio_currency_id": False,
+        "x_studio_finishing": False,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_run_includes_kits_section() -> None:
+    conn = _make_conn(kits=[_kit(x_studio_status="idea")])
+    result = run(conn)
+    assert "## Kits" in result
+
+
+def test_run_kits_section_omitted_when_no_kits() -> None:
+    conn = _make_conn(kits=[])
+    result = run(conn)
+    assert "## Kits" not in result
+
+
+def test_run_kits_counts_in_flight_per_status() -> None:
+    kits = [
+        _kit(id=1, x_studio_status="idea"),
+        _kit(id=2, x_studio_status="idea"),
+        _kit(id=3, x_studio_status="planning"),
+        _kit(id=4, x_studio_status="sourcing"),
+        _kit(id=5, x_studio_status="building"),
+        _kit(id=6, x_studio_status="building"),
+        _kit(id=7, x_studio_status="done"),
+    ]
+    conn = _make_conn(kits=kits)
+    result = run(conn)
+    # In-flight per status
+    assert "**Idea**: 2" in result
+    assert "**Planning**: 1" in result
+    assert "**Sourcing**: 1" in result
+    assert "**Building**: 2" in result
+    assert "**Done**: 1" in result
 
 
 def test_run_flags_mixed_currencies() -> None:

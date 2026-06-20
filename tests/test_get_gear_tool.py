@@ -231,16 +231,21 @@ def _make_conn(
     *,
     gear_records: list[dict] | None = None,
     listing_records: list[dict] | None = None,
+    kit_records: list[dict] | None = None,
 ) -> MagicMock:
     conn = MagicMock()
     gear_proxy = MagicMock()
     listing_proxy = MagicMock()
+    kit_proxy = MagicMock()
 
     gear_proxy.search_read.return_value = gear_records or []
     listing_proxy.search_read.return_value = listing_records or []
+    kit_proxy.search_read.return_value = kit_records or []
+
+    proxies = {"x_gear": gear_proxy, "x_listing": listing_proxy, "x_kit": kit_proxy}
 
     def get_model(name: str) -> MagicMock:
-        return gear_proxy if name == "x_gear" else listing_proxy
+        return proxies[name]
 
     conn.get_model.side_effect = get_model
     return conn
@@ -305,3 +310,55 @@ def test_run_listing_not_queried_when_gear_not_found() -> None:
     run(conn, 999)
     listing_proxy = conn.get_model("x_listing")
     listing_proxy.search_read.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Reverse kit link
+# ---------------------------------------------------------------------------
+
+
+def _kit_dict_for(gear_id: int, **overrides: object) -> dict:
+    base: dict = {
+        "id": 7,
+        "x_name": "TV Yellow Korina Explorer",
+        "x_studio_status": "done",
+        "x_studio_notes": False,
+        "x_studio_gear_id": [gear_id, "Linked gear"],
+        "x_studio_kit_part_ids": False,
+        "x_studio_price": False,
+        "x_studio_currency_id": False,
+        "x_studio_finishing": False,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_run_queries_x_kit_for_reverse_link() -> None:
+    gear = _gear_dict(id=42)
+    conn = _make_conn(gear_records=[gear])
+    run(conn, 42)
+    domain = conn.get_model("x_kit").search_read.call_args[0][0]
+    assert ("x_studio_gear_id", "=", 42) in domain
+
+
+def test_run_output_contains_built_from_kit_when_linked() -> None:
+    gear = _gear_dict(id=42)
+    kit = _kit_dict_for(gear_id=42, x_name="TV Yellow Korina Explorer", x_studio_status="done")
+    conn = _make_conn(gear_records=[gear], kit_records=[kit])
+    result = run(conn, 42)
+    assert "Built from kit" in result
+    assert "TV Yellow Korina Explorer" in result
+    assert "[done]" in result
+
+
+def test_run_omits_built_from_kit_when_no_linked_kit() -> None:
+    gear = _gear_dict(id=42)
+    conn = _make_conn(gear_records=[gear], kit_records=[])
+    result = run(conn, 42)
+    assert "Built from kit" not in result
+
+
+def test_run_does_not_query_kit_when_gear_not_found() -> None:
+    conn = _make_conn(gear_records=[])
+    run(conn, 999)
+    conn.get_model("x_kit").search_read.assert_not_called()

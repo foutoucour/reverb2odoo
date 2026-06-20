@@ -291,3 +291,49 @@ class WeightedTagGroupRecord(OdooRecord):
     x_name: OdooStr = None
     x_active: OdooBool = None
     x_studio_multiply: OdooFloat = None
+
+
+# ---------------------------------------------------------------------------
+# x_kit — build projects (one per kit build, idea through done)
+# ---------------------------------------------------------------------------
+
+
+class KitRecord(OdooRecord):
+    """A kit build project tracked from idea through completion.
+
+    Mirrors the x_listing → x_gear pattern: the kit is the build log;
+    x_studio_gear_id points to the finished instrument when status reaches
+    'done'. Field names carry the Studio ``x_studio_`` prefix because the
+    model was created in Odoo Studio (auto-prefixed).
+    """
+
+    x_name: OdooStr = None
+    x_studio_status: OdooStr = None
+    x_studio_notes: OdooStr = None
+    x_studio_gear_id: OdooM2O = None
+    x_studio_kit_part_ids: OdooIds = []
+    x_studio_price: OdooFloat = None
+    x_studio_currency_id: OdooM2O = None
+    x_studio_finishing: OdooStr = None
+
+
+# ---------------------------------------------------------------------------
+# x_kit_part — part line items joining a kit to a listing
+# ---------------------------------------------------------------------------
+
+
+class KitPartRecord(OdooRecord):
+    """A single part in a kit build.
+
+    Links an x_kit to an x_listing (platform = supplier slug, model_type = parts).
+    Quantity and order status live here; price, URL, and supplier come from the
+    listing. Studio-prefixed field names mirror the live schema.
+    """
+
+    x_name: OdooStr = None
+    x_studio_kit_id: OdooM2O = None
+    x_studio_listing_id: OdooM2O = None
+    x_studio_quantity: OdooInt = None
+    x_studio_status: OdooStr = None
+    x_studio_notes: OdooStr = None
+    x_studio_total_price: OdooFloat = None

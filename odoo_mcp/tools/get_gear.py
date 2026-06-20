@@ -9,7 +9,7 @@ from __future__ import annotations
 import odoolib
 from loguru import logger
 
-from models import GearRecord, ListingRecord
+from models import GearRecord, KitRecord, ListingRecord
 
 # ---------------------------------------------------------------------------
 # Private helpers
@@ -28,8 +28,12 @@ def _scalar(value: object, fallback: str = "") -> str:
     return str(value)
 
 
-def _render_gear_header(gear: GearRecord) -> str:
-    """Render the gear header and core fields as a markdown block."""
+def _render_gear_header(gear: GearRecord, kit: KitRecord | None = None) -> str:
+    """Render the gear header and core fields as a markdown block.
+
+    When ``kit`` is provided, an extra "Built from kit" line surfaces the
+    reverse link from ``x_kit.x_gear_id``.
+    """
     name = _scalar(gear.x_name, fallback="(unnamed)")
     status = _scalar(gear.x_status)
     model_name = _label(gear.x_model_id)
@@ -44,6 +48,11 @@ def _render_gear_header(gear: GearRecord) -> str:
         f"**Model**: {model_name} | **Condition**: {condition} | **Intent**: {intent}",
         f"**Acquired for**: {acquiring_price} | **Serial**: {serial}",
     ]
+
+    if kit is not None:
+        kit_name = _scalar(kit.x_name, fallback="(unnamed)")
+        kit_status = _scalar(kit.x_studio_status)
+        lines.append(f"**Built from kit**: {kit_name} [{kit_status}] (id={kit.id})")
 
     if notes:
         lines.append("")
@@ -149,8 +158,18 @@ def run(conn: odoolib.main.Connection, gear_id: int) -> str:
     listings = [ListingRecord.from_odoo(r) for r in listing_rows]
     logger.debug("get_gear: {} listing(s) found", len(listings))
 
+    kit_proxy = conn.get_model("x_kit")
+    kit_rows: list[dict] = kit_proxy.search_read(
+        [("x_studio_gear_id", "=", gear_id)],
+        KitRecord.odoo_fields(),
+        limit=1,
+    )
+    kit = KitRecord.from_odoo(kit_rows[0]) if kit_rows else None
+    if kit is not None:
+        logger.debug("get_gear: linked kit '{}' found", kit.x_name)
+
     sections: list[str] = [
-        _render_gear_header(gear),
+        _render_gear_header(gear, kit=kit),
         "",
         _render_listings_section(listings),
     ]

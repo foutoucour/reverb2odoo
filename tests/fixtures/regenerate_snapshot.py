@@ -29,6 +29,8 @@ _MODELS = (
     "x_models",
     "x_weighted_tags",
     "x_weighted_tag_groups",
+    "x_kit",
+    "x_kit_part",
 )
 
 
