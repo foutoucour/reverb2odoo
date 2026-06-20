@@ -276,3 +276,73 @@ async def test_search_retries_once_on_401():
     assert results == []
     assert search_calls["n"] == 2  # initial + 1 retry
     assert token_calls["n"] == 2  # initial fetch + post-invalidate refetch
+
+
+@pytest.mark.asyncio
+async def test_search_dedupes_across_marketplaces():
+    payload = _load("search_with_results.json")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "oauth2/token" in str(request.url):
+            return httpx.Response(200, json=_ok_token_response("TOK", 7200))
+        # Same payload returned for both EBAY_US and EBAY_CA — duplicate item ids.
+        return httpx.Response(200, json=payload)
+
+    transport = httpx.MockTransport(handler)
+    auth = EbayAuth(client_id="CID", client_secret="SEC", transport=transport)
+    async with EbayScraper(
+        auth=auth, marketplaces=("EBAY_US", "EBAY_CA"), transport=transport
+    ) as scraper:
+        results = await scraper.search("Frank Brothers Arcane")
+
+    urls = [r["url"] for r in results]
+    assert len(urls) == len(set(urls)) == 2
+
+
+@pytest.mark.asyncio
+async def test_search_paginates_when_total_exceeds_page_size():
+    call_count = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "oauth2/token" in str(request.url):
+            return httpx.Response(200, json=_ok_token_response("TOK", 7200))
+        call_count["n"] += 1
+        offset = int(request.url.params.get("offset", "0"))
+
+        # Two items per page with distinct numeric item IDs (offset*2 and offset*2+1).
+        # Total claims 5 items so 3 pages are needed (offsets 0, 2, 4).
+        def _item(idx: int) -> dict:
+            return {
+                "itemId": f"v1|{100000 + idx}|0",
+                "title": f"Item {idx}",
+                "itemWebUrl": f"https://www.ebay.com/itm/{100000 + idx}",
+                "price": {"value": "100.00", "currency": "USD"},
+                "condition": "Used",
+                "seller": {"username": "x"},
+                "itemLocation": {"country": "US"},
+                "shippingOptions": [{"shippingCost": {"value": "10.00", "currency": "USD"}}],
+                "image": {"imageUrl": ""},
+                "categories": [],
+            }
+
+        return httpx.Response(
+            200,
+            json={
+                "total": 5,
+                "limit": 2,
+                "offset": offset,
+                "itemSummaries": [_item(offset * 2), _item(offset * 2 + 1)],
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    auth = EbayAuth(client_id="CID", client_secret="SEC", transport=transport)
+    async with EbayScraper(
+        auth=auth, marketplaces=("EBAY_US",), page_size=2, transport=transport
+    ) as scraper:
+        results = await scraper.search("test")
+
+    # 3 pages requested (offset 0, 2, 4); each returns 2 items = 6 items total before dedup.
+    # Dedup is by item id — all are distinct in this synthetic data.
+    assert call_count["n"] == 3
+    assert len(results) == 6
