@@ -1,0 +1,50 @@
+[1mConnecting to Odoo at lespaulpedia.odoo.com:443 (jsonrpcs)…[0m
+Traceback (most recent call last):
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/bin/reverb2odoo", line 10, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1485, in __call__
+    return self.main(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1406, in main
+    rv = self.invoke(ctx)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1873, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+                           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1269, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 824, in invoke
+    return callback(*args, **kwargs)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/sync_model.py", line 956, in cli
+    all_model_info = _fetch_all_models(conn, wanna_only=wanna)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/sync_model.py", line 238, in _fetch_all_models
+    records = models.search_read(domain, fields)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 279, in search_read
+    records = self.read(record_ids, fields or [], context=context or {})
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 243, in proxy
+    result = self.connection.get_service('object').execute_kw(
+                                            self.connection.database,
+    ...<3 lines>...
+                                            method,
+                                            args, kw)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 131, in proxy
+    result = self.connector.send(self.service_name, method, *args)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 106, in send
+    return json_rpc(self.url, "call", {"service": service_name, "method": method, "args": args})
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/tools.py", line 19, in json_rpc
+    result = result_req.json()
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_models.py", line 832, in json
+    return jsonlib.loads(self.content, **kwargs)
+           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/json/__init__.py", line 352, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "/home/runner/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/json/decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/.local/share/uv/python/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/json/decoder.py", line 363, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)

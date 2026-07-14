@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import re
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 from urllib.parse import urlparse
@@ -235,7 +237,23 @@ def _fetch_all_models(conn, *, wanna_only: bool = False) -> list[dict[str, Any]]
     models = conn.get_model("x_models")
     fields = ["x_name", "x_studio_reverb_category_id"]
     domain: list = [("x_studio_wanna", "=", True)] if wanna_only else []
-    records = models.search_read(domain, fields)
+
+    _MAX_RETRIES = 3
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            records = models.search_read(domain, fields)
+            break
+        except json.JSONDecodeError:
+            if attempt == _MAX_RETRIES:
+                raise
+            delay = 2**attempt
+            logger.warning(
+                "Odoo returned an empty response (attempt {}/{}), retrying in {}s…",
+                attempt,
+                _MAX_RETRIES,
+                delay,
+            )
+            time.sleep(delay)
 
     if not records:
         logger.warning("No models found in Odoo.")

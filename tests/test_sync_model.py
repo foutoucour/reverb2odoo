@@ -1502,6 +1502,53 @@ class TestFetchAllModels:
         call_domain = models_mock.search_read.call_args[0][0]
         assert call_domain == []
 
+    def test_retries_on_empty_odoo_response(self):
+        """search_read is retried when Odoo returns an empty response (JSONDecodeError)."""
+        import json
+
+        conn = MagicMock()
+        models_mock = MagicMock()
+        models_mock.search_read.side_effect = [
+            json.JSONDecodeError("Expecting value", "", 0),
+            [{"id": 1, "x_name": "Wanted", "x_studio_reverb_category_id": False}],
+        ]
+        cat_mock = MagicMock()
+        cat_mock.search_read.return_value = []
+
+        def _get_model(name):
+            if name == "x_reverb_category":
+                return cat_mock
+            return models_mock
+
+        conn.get_model.side_effect = _get_model
+
+        with patch("sync_model.time.sleep"):
+            result = _fetch_all_models(conn, wanna_only=True)
+
+        assert len(result) == 1
+        assert result[0]["id"] == 1
+        assert models_mock.search_read.call_count == 2
+
+    def test_raises_after_max_retries_exhausted(self):
+        """JSONDecodeError propagates once all retry attempts are exhausted."""
+        import json
+
+        conn = MagicMock()
+        models_mock = MagicMock()
+        models_mock.search_read.side_effect = json.JSONDecodeError("Expecting value", "", 0)
+        cat_mock = MagicMock()
+        cat_mock.search_read.return_value = []
+
+        def _get_model(name):
+            if name == "x_reverb_category":
+                return cat_mock
+            return models_mock
+
+        conn.get_model.side_effect = _get_model
+
+        with patch("sync_model.time.sleep"), pytest.raises(json.JSONDecodeError):
+            _fetch_all_models(conn)
+
 
 # ── _collect_sync_data (mocked I/O) ──────────────────────────────────────
 
