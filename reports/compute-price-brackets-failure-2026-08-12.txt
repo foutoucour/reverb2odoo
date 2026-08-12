@@ -1,0 +1,125 @@
+[1mConnecting to Odoo at lespaulpedia.odoo.com:443 (jsonrpcs)…[0m
+Traceback (most recent call last):
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 250, in handle_request
+    resp = self._pool.handle_request(req)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+    raise exc from None
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+    response = connection.handle_request(
+        pool_request.request
+    )
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 103, in handle_request
+    return self._connection.handle_request(request)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/http11.py", line 136, in handle_request
+    raise exc
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/http11.py", line 106, in handle_request
+    ) = self._receive_response_headers(**kwargs)
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/http11.py", line 177, in _receive_response_headers
+    event = self._receive_event(timeout=timeout)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/http11.py", line 217, in _receive_event
+    data = self._network_stream.read(
+        self.READ_NUM_BYTES, timeout=timeout
+    )
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_backends/sync.py", line 126, in read
+    with map_exceptions(exc_map):
+         ~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/runner/.local/share/uv/python/cpython-3.13.15-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ReadTimeout: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/bin/reverb2odoo", line 10, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1485, in __call__
+    return self.main(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1406, in main
+    rv = self.invoke(ctx)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1873, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+                           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1269, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 824, in invoke
+    return callback(*args, **kwargs)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/compute_price_brackets.py", line 214, in cli
+    run_computation(conn, model_name=model_name, dry_run=dry_run)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/compute_price_brackets.py", line 128, in run_computation
+    models = _fetch_models(conn, model_name=model_name)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/compute_price_brackets.py", line 50, in _fetch_models
+    return x_models.search_read(domain, ["id", "x_name"], order="x_name asc")
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 277, in search_read
+    record_ids = self.search(domain or [], offset, limit or False, order or False, context=context or {})
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 243, in proxy
+    result = self.connection.get_service('object').execute_kw(
+                                            self.connection.database,
+    ...<3 lines>...
+                                            method,
+                                            args, kw)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 131, in proxy
+    result = self.connector.send(self.service_name, method, *args)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 106, in send
+    return json_rpc(self.url, "call", {"service": service_name, "method": method, "args": args})
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/tools.py", line 16, in json_rpc
+    result_req = httpx.post(url, json=data, headers={
+        "Content-Type":"application/json",
+    })
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_api.py", line 304, in post
+    return request(
+        "POST",
+    ...<13 lines>...
+        trust_env=trust_env,
+    )
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_api.py", line 109, in request
+    return client.request(
+           ~~~~~~~~~~~~~~^
+        method=method,
+        ^^^^^^^^^^^^^^
+    ...<8 lines>...
+        follow_redirects=follow_redirects,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_client.py", line 825, in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+        request,
+    ...<2 lines>...
+        history=[],
+    )
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+        request,
+        follow_redirects=follow_redirects,
+        history=history,
+    )
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1014, in _send_single_request
+    response = transport.handle_request(request)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 249, in handle_request
+    with map_httpcore_exceptions():
+         ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/runner/.local/share/uv/python/cpython-3.13.15-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ReadTimeout: The read operation timed out
