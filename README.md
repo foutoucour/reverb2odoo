@@ -306,6 +306,31 @@ uv run reverb2odoo set-default-currency x_gear
 uv run reverb2odoo set-default-currency x_listing
 ```
 
+### `gear-page` — Generate a shareable card for one gear item
+
+Renders a single `x_gear` record as a standalone HTML card plus a PNG export.
+`GEAR_REF` is either a numeric gear ID or a name (partial match).
+
+```bash
+uv run reverb2odoo gear-page 42
+uv run reverb2odoo gear-page "Gibson Les Paul Standard"
+uv run reverb2odoo gear-page 42 --output-dir /tmp
+uv run reverb2odoo gear-page 42 --no-image        # HTML only, skip the PNG
+```
+
+The card uses a three-column layout sized to fit one screen: a left rail holds
+the title above the photo, and the spec sections (Instrument, Materials & Finish,
+Pickups, Measurements, Weight, Neck Profile) flow across the two right columns.
+The PNG is captured at a 1600x900 viewport at 2x scale and cropped to the card,
+giving roughly 3120x1250 px. Below 1100px wide the HTML falls back to a single
+column, so the file stays readable when opened on a phone.
+
+The card renders in light mode, using the same GitHub Primer palette as
+cot-ci-hub: a white sheet on a `#f6f8fa` canvas, hairline `#d1d9e0` borders,
+near-black text with muted labels, and colour reserved for the weight gauge.
+
+Output goes to `gear-page/<slug>.html` and `gear-page/<slug>.png` by default.
+
 ## Testing
 
 ```bash

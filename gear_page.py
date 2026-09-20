@@ -97,6 +97,11 @@ class CardContext(BaseModel):
 DEFAULT_OUTPUT_DIR = Path("gear-page")
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 
+#: Screenshot viewport for the rendered card — a 3-column layout sized to fit
+#: a laptop screen without scrolling.
+RENDER_VIEWPORT_WIDTH = 1600
+RENDER_VIEWPORT_HEIGHT = 900
+
 _FIELD_GROUPS: list[tuple[str, list[str]]] = [
     (
         "Instrument",
@@ -491,11 +496,15 @@ def _render_image(html_path: Path) -> Path:
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         page = browser.new_page(
-            viewport={"width": 760, "height": 900},
+            viewport={"width": RENDER_VIEWPORT_WIDTH, "height": RENDER_VIEWPORT_HEIGHT},
             device_scale_factor=2,
         )
         page.goto(f"file://{html_path.resolve()}", wait_until="networkidle")
-        page.screenshot(path=str(png_path), full_page=True)
+        # Capture the card element rather than the page: the 3-column layout is
+        # shorter than the viewport, so a full-page shot would pad the image with
+        # empty background. An element shot also still captures a card that grows
+        # past the viewport.
+        page.locator(".card").screenshot(path=str(png_path))
         browser.close()
     return png_path
 
