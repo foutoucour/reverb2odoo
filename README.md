@@ -247,6 +247,24 @@ In Claude Desktop chat:
 uv sync
 ```
 
+### Locking dependencies
+
+`uv.lock` must resolve against public PyPI — CI runs on GitHub-hosted runners,
+which cannot reach any corporate package mirror. If your shell exports
+`UV_INDEX_URL` / `UV_DEFAULT_INDEX` (or you have a default index in
+`~/.config/uv/uv.toml`), override them when locking:
+
+```bash
+UV_INDEX_URL=https://pypi.org/simple \
+UV_DEFAULT_INDEX=https://pypi.org/simple \
+  uv lock --no-config
+```
+
+Those environment variables outrank a `[[tool.uv.index]]` block in
+`pyproject.toml`, so the project cannot pin the index on your behalf.
+`tests/test_uv_lock.py` fails the build if a non-PyPI host reaches the
+lockfile.
+
 ## Configuration
 
 Set the following environment variables with your Odoo credentials:
@@ -305,6 +323,31 @@ Sets `CAD` as the default value for `x_studio_currency_id` on the given Odoo mod
 uv run reverb2odoo set-default-currency x_gear
 uv run reverb2odoo set-default-currency x_listing
 ```
+
+### `gear-page` — Generate a shareable card for one gear item
+
+Renders a single `x_gear` record as a standalone HTML card plus a PNG export.
+`GEAR_REF` is either a numeric gear ID or a name (partial match).
+
+```bash
+uv run reverb2odoo gear-page 42
+uv run reverb2odoo gear-page "Gibson Les Paul Standard"
+uv run reverb2odoo gear-page 42 --output-dir /tmp
+uv run reverb2odoo gear-page 42 --no-image        # HTML only, skip the PNG
+```
+
+The card uses a three-column layout sized to fit one screen: a left rail holds
+the title above the photo, and the spec sections (Instrument, Materials & Finish,
+Pickups, Measurements, Weight, Neck Profile) flow across the two right columns.
+The PNG is captured at a 1600x900 viewport at 2x scale and cropped to the card,
+giving roughly 3120x1250 px. Below 1100px wide the HTML falls back to a single
+column, so the file stays readable when opened on a phone.
+
+The card renders in light mode, using the same GitHub Primer palette as
+cot-ci-hub: a white sheet on a `#f6f8fa` canvas, hairline `#d1d9e0` borders,
+near-black text with muted labels, and colour reserved for the weight gauge.
+
+Output goes to `gear-page/<slug>.html` and `gear-page/<slug>.png` by default.
 
 ## Testing
 

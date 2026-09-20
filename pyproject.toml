@@ -68,3 +68,16 @@ known-first-party = ["odoo_mcp", "reverb_scraper", "odoo_connector", "sync_model
 # Use --record-mode=once to record missing cassettes, or
 # --record-mode=all to re-record everything.
 default_cassette_options = { record_mode = "none" }
+
+# Resolve against public PyPI, not whatever default index the machine happens
+# to have configured. CI runs on GitHub-hosted runners with no route to a
+# corporate mirror, so a lockfile pointing at one fails every build with a DNS
+# error. This overrides a user-level ~/.config/uv/uv.toml, but NOT the
+# UV_INDEX_URL / UV_DEFAULT_INDEX environment variables — those rank higher
+# still, so unset them (or pass --no-config with them overridden) when
+# re-locking. tests/test_uv_lock.py fails the build if a non-PyPI host lands
+# in uv.lock.
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
