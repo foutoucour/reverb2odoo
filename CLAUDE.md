@@ -141,3 +141,19 @@ uv add package_name
 # Running tests
 uv run pytest
 ```
+
+### Locking against public PyPI
+
+`uv.lock` must only reference `pypi.org` and `files.pythonhosted.org`. This
+machine exports `UV_INDEX_URL` / `UV_DEFAULT_INDEX` pointing at an internal
+Artifactory mirror, and those outrank any index set in `pyproject.toml`, so a
+plain `uv lock` rewrites every URL to a host CI cannot resolve. Always
+override when re-locking:
+
+```bash
+UV_INDEX_URL=https://pypi.org/simple \
+UV_DEFAULT_INDEX=https://pypi.org/simple \
+  uv lock --no-config
+```
+
+`tests/test_uv_lock.py` guards this.

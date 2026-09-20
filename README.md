@@ -247,6 +247,24 @@ In Claude Desktop chat:
 uv sync
 ```
 
+### Locking dependencies
+
+`uv.lock` must resolve against public PyPI — CI runs on GitHub-hosted runners,
+which cannot reach any corporate package mirror. If your shell exports
+`UV_INDEX_URL` / `UV_DEFAULT_INDEX` (or you have a default index in
+`~/.config/uv/uv.toml`), override them when locking:
+
+```bash
+UV_INDEX_URL=https://pypi.org/simple \
+UV_DEFAULT_INDEX=https://pypi.org/simple \
+  uv lock --no-config
+```
+
+Those environment variables outrank a `[[tool.uv.index]]` block in
+`pyproject.toml`, so the project cannot pin the index on your behalf.
+`tests/test_uv_lock.py` fails the build if a non-PyPI host reaches the
+lockfile.
+
 ## Configuration
 
 Set the following environment variables with your Odoo credentials:
