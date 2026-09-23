@@ -34,6 +34,7 @@ from rich.progress import (
 from models import ListingRecord
 from reverb_scraper import ReverbScraper
 from sync_model import (
+    ARCHIVED_WARNING,
     DEFAULT_SHIPPING,
     _compute_changes,
     _download_image_base64,
@@ -153,6 +154,8 @@ def _build_validation_report(
             continue
 
         item["reverb"] = reverb
+        if entry.x_active is False:
+            item["warnings"].append(ARCHIVED_WARNING)
 
         sale_ended = reverb.get("sale_ended", False)
 

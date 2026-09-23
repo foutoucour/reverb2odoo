@@ -918,6 +918,48 @@ class TestBuildReport:
         assert "100" in warn_args
         assert "200" in warn_args
 
+    def test_archived_match_updates_instead_of_creating(self):
+        """An archived listing with the same URL is reused (updated in
+        place, flagged as archived) rather than duplicated."""
+        url = "https://reverb.com/item/1-g"
+        archived = self._make_odoo(url=url, x_active=False)
+        reverb_results = [self._make_reverb(url=url, price="4000.00")]
+
+        report = _build_report(reverb_results, [archived], model_id=42)
+
+        assert report[0]["action"] == "update"
+        assert report[0]["entry"].id == archived.id
+        assert "x_active" not in report[0]["changes"]
+        assert "archived" in report[0]["warnings"]
+
+    def test_active_match_has_no_archived_warning(self):
+        url = "https://reverb.com/item/1-g"
+        report = _build_report(
+            [self._make_reverb(url=url)], [self._make_odoo(url=url, x_active=True)], model_id=42
+        )
+
+        assert "archived" not in report[0]["warnings"]
+
+    @pytest.mark.parametrize(
+        "archived_first",
+        [
+            pytest.param(True, id="archived-listed-first"),
+            pytest.param(False, id="archived-listed-second"),
+        ],
+    )
+    def test_duplicate_url_prefers_active_over_archived(self, archived_first: bool):
+        """When an archived listing and an active duplicate share a URL,
+        the active one is the listing that gets refreshed."""
+        url = "https://reverb.com/item/1-g"
+        archived = self._make_odoo(url=url, id=100, x_active=False)
+        active = self._make_odoo(url=url, id=200, x_active=True)
+        entries = [archived, active] if archived_first else [active, archived]
+
+        with patch("sync_model.logger.warning"):
+            report = _build_report([self._make_reverb(url=url)], entries, model_id=42)
+
+        assert report[0]["entry"].id == 200
+
 
 # ── _print_report ─────────────────────────────────────────────────────────
 
@@ -1816,6 +1858,7 @@ class TestFindEntriesWithoutImage:
         listing.search_read.assert_called_once_with(
             [("id", "in", [100, 200, 300]), ("x_studio_image", "=", False)],
             ["id"],
+            context={"active_test": False},
         )
 
     def test_empty_ids_returns_empty_set(self):
@@ -2044,6 +2087,21 @@ class TestFetchListings:
 
         call_domain = listing.search_read.call_args[0][0]
         assert call_domain == [("x_model_id", "=", 42)]
+
+    @pytest.mark.parametrize(
+        "extra_urls",
+        [
+            pytest.param(None, id="model-only"),
+            pytest.param(["https://reverb.com/item/1-g"], id="with-extra-urls"),
+        ],
+    )
+    def test_includes_archived_listings(self, extra_urls: list[str] | None):
+        """Archived (x_active=False) listings must be fetched so sync and
+        validate reuse them instead of creating duplicates."""
+        conn, listing = self._mock_conn()
+        _fetch_listings(conn, model_id=42, extra_urls=extra_urls)
+
+        assert listing.search_read.call_args.kwargs["context"] == {"active_test": False}
 
     def test_returns_listing_records(self):
         conn, listing = self._mock_conn(

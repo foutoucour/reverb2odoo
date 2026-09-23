@@ -127,6 +127,19 @@ class TestBuildValidationReport:
         base.update(kwargs)
         return base
 
+    def test_archived_entry_is_validated_and_stays_archived(self):
+        """Archived listings are validated like any other, flagged as
+        archived, and never un-archived by the computed changes."""
+        entry = self._make_entry(x_active=False)
+        reverb_data = {entry.x_url: self._make_reverb(price="4000.00")}
+
+        report = _build_validation_report([entry], reverb_data)
+
+        assert report[0]["action"] == "update"
+        assert report[0]["changes"]["x_price"] == 4000.0
+        assert "x_active" not in report[0]["changes"]
+        assert "archived" in report[0]["warnings"]
+
     def test_up_to_date_entry(self):
         url = "https://reverb.com/item/1-g"
         entries = [self._make_entry(url=url)]

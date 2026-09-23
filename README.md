@@ -293,6 +293,8 @@ Matching is done first by exact URL (query-string ignored), then by Reverb numer
 
 URL matches span across models: if a Reverb URL already exists on any `x_listing` — even one attached to a different `x_models` record — the existing listing is updated in place and the report flags it with the other model's id. The listing's `x_model_id` is preserved untouched; if the listing actually belongs under the searched model, move it manually in Odoo.
 
+Archived listings (`x_active = False`) are matched too. Archiving a wrong search hit keeps it out of stats and price brackets, and sync will update it in place — still archived, flagged `archived` in the report — instead of re-creating it. If an archived listing and an active duplicate share a URL, the active one is updated.
+
 Sync **never creates `x_gear` records** — those are created manually in Odoo when a listing is acquired.
 
 By default only **live** listings are searched. Pass `--include-sold` to also include sold/ended listings.
@@ -309,6 +311,8 @@ Starting from existing `x_listing` records that have a Reverb URL, fetch the cur
 that have drifted (price, availability, shipping, etc.). Only updates existing records — never creates new ones.
 
 By default **sold/ended** listings are skipped. Pass `--include-sold` to validate them as well (useful to mark stale entries as unavailable).
+
+Archived listings are validated as well; updates never un-archive them.
 
 ```bash
 uv run reverb2odoo validate "Frank Brothers Arcane"
