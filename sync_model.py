@@ -52,6 +52,14 @@ REWATCH_PRICE_DROP_THRESHOLD = 0.05
 #: Default number of worker threads for ``--all`` mode.
 DEFAULT_WORKERS = 4
 
+#: Odoo search context that also returns archived (``x_active=False``) records.
+#: Archived listings are hidden from stats but must still be matched so sync
+#: and validate reuse them instead of creating duplicates.
+INCLUDE_ARCHIVED_CONTEXT = {"active_test": False}
+
+#: Report warning attached to items whose Odoo listing is archived.
+ARCHIVED_WARNING = "archived"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -111,6 +119,7 @@ def _find_entries_without_image(conn, entry_ids: list[int]) -> set[int]:
     no_img = listing.search_read(
         [("id", "in", entry_ids), ("x_studio_image", "=", False)],
         ["id"],
+        context=INCLUDE_ARCHIVED_CONTEXT,
     )
     return {r["id"] for r in no_img}
 
@@ -184,7 +193,7 @@ def _fetch_listings(
 
     Cross-model rows are returned with their original ``x_model_id`` intact
     so the caller can detect when a Reverb result already exists under a
-    different model.
+    different model.  Archived listings are included.
     """
     listing = conn.get_model("x_listing")
     if extra_urls:
@@ -195,7 +204,9 @@ def _fetch_listings(
         ]
     else:
         domain = [("x_model_id", "=", model_id)]
-    rows = listing.search_read(domain, ListingRecord.odoo_fields())
+    rows = listing.search_read(
+        domain, ListingRecord.odoo_fields(), context=INCLUDE_ARCHIVED_CONTEXT
+    )
     return [ListingRecord.from_odoo(r) for r in rows]
 
 
@@ -469,10 +480,14 @@ def _build_report(
 
     Brand-new listings that do not already exist in Odoo are skipped by
     default.  Pass ``include_brand_new=True`` to create them as well.
+
+    Archived entries are matched like active ones; when both share a URL,
+    the active entry wins so the listing counted in stats is refreshed.
     """
     odoo_by_url: dict[str, ListingRecord] = {}
     odoo_by_item_id: dict[str, ListingRecord] = {}
-    for e in odoo_entries:
+    # Stable sort: active entries first, original order otherwise preserved.
+    for e in sorted(odoo_entries, key=lambda entry: entry.x_active is False):
         clean = _clean_url(e.x_url or "")
         existing_url_match = odoo_by_url.get(clean)
         if existing_url_match is not None and existing_url_match.id != e.id:
@@ -517,6 +532,8 @@ def _build_report(
             item["entry"] = existing
             item["changes"] = _compute_changes(existing, r)
             item["action"] = "update" if item["changes"] else "ok"
+            if existing.x_active is False:
+                item["warnings"].append(ARCHIVED_WARNING)
             entry_model = existing.x_model_id
             entry_model_id = entry_model[0] if entry_model else None
             if entry_model_id is not None and entry_model_id != model_id:
