@@ -1,4 +1,5 @@
-"""MCP tool: search x_listing records by brand, model_type, max_price, platform, status.
+"""MCP tool: search x_listing records by brand, model_type, max_price, platform, status,
+candidate flag, and the linked model's too_expensive flag.
 
 Mirrors :mod:`odoo_mcp.tools.search_gear` but operates on listings (marketplace
 entries) rather than gear (physical items). All parameters are optional.
@@ -49,7 +50,19 @@ def _render_card(listing: ListingRecord) -> str:
     url = _scalar(listing.x_url)
 
     score_part = f" | score={score}" if score else ""
-    line = f"- **{model_name}** [{status}] — {price} {currency} on {platform}{score_part}"
+    flags = [
+        name
+        for name, is_set in (
+            ("candidate", listing.x_studio_is_candidate),
+            ("too_expensive", listing.x_studio_model_id_too_expensive),
+        )
+        if is_set
+    ]
+    flags_part = f" | {', '.join(flags)}" if flags else ""
+    line = (
+        f"- **{model_name}** (id={listing.id}) [{status}] — {price} {currency} on {platform}"
+        f"{score_part}{flags_part}"
+    )
     if url:
         line += f"\n  {url}"
     return line
@@ -62,6 +75,8 @@ def run(
     max_price: float | None = None,
     platform: str = "",
     status: str = "",
+    is_candidate: bool | None = None,
+    too_expensive: bool | None = None,
 ) -> str:
     """Search x_listing records with the supplied filters.
 
@@ -76,7 +91,14 @@ def run(
     platform:
         Exact match on ``x_platform`` (e.g. ``"reverb"``).
     status:
-        Exact match on ``x_status`` (e.g. ``"watching"``, ``"sold"``).
+        Exact match on the ``x_status`` selection key: ``watching``, ``passed``,
+        ``acquired``, ``for_sale``, ``sold``. "Candidate" is not a status — use
+        ``is_candidate``.
+    is_candidate:
+        Filter on the listing's ``x_studio_is_candidate`` boolean. ``None`` = no filter.
+    too_expensive:
+        Filter on the linked model's ``x_studio_too_expensive`` (via the related
+        ``x_studio_model_id_too_expensive``). ``None`` = no filter.
 
     Returns
     -------
@@ -110,6 +132,12 @@ def run(
 
     if status.strip():
         domain.append(("x_status", "=", status.strip()))
+
+    if is_candidate is not None:
+        domain.append(("x_studio_is_candidate", "=", is_candidate))
+
+    if too_expensive is not None:
+        domain.append(("x_studio_model_id_too_expensive", "=", too_expensive))
 
     logger.info("search_listings: domain={}", domain)
     rows: list[dict] = conn.get_model("x_listing").search_read(

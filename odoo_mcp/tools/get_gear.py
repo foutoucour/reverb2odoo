@@ -28,6 +28,11 @@ def _scalar(value: object, fallback: str = "") -> str:
     return str(value)
 
 
+def _yes_no(flag: bool | None) -> str:
+    """Render an Odoo boolean as ``yes``/``no`` (``None`` counts as ``no``)."""
+    return "yes" if flag else "no"
+
+
 def _render_gear_header(gear: GearRecord, kit: KitRecord | None = None) -> str:
     """Render the gear header and core fields as a markdown block.
 
@@ -88,6 +93,9 @@ def _render_listing_detail(listing: ListingRecord) -> str:
         f"### Listing id={listing.id} [{status}] on {platform}",
         f"**Price**: {price} {currency} + shipping {shipping} | {flags_str}",
         f"**Condition**: {condition} | **Published**: {published_at}",
+        f"**Candidate**: {_yes_no(listing.x_studio_is_candidate)}"
+        f" | **Model wanna**: {_yes_no(listing.x_studio_model_id_wanna)}"
+        f" | **Model too expensive**: {_yes_no(listing.x_studio_model_id_too_expensive)}",
     ]
 
     if listing_score or price_score:
