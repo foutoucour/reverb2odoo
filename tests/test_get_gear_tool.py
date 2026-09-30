@@ -362,3 +362,32 @@ def test_run_does_not_query_kit_when_gear_not_found() -> None:
     conn = _make_conn(gear_records=[])
     run(conn, 999)
     conn.get_model("x_kit").search_read.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "overrides, expected",
+    [
+        pytest.param(
+            {
+                "x_studio_is_candidate": True,
+                "x_studio_model_id_wanna": True,
+                "x_studio_model_id_too_expensive": False,
+            },
+            "**Candidate**: yes | **Model wanna**: yes | **Model too expensive**: no",
+            id="candidate-on-wanted-model",
+        ),
+        pytest.param(
+            {"x_studio_model_id_too_expensive": True},
+            "**Candidate**: no | **Model wanna**: no | **Model too expensive**: yes",
+            id="too-expensive-model",
+        ),
+        pytest.param(
+            {},
+            "**Candidate**: no | **Model wanna**: no | **Model too expensive**: no",
+            id="flags-absent-render-no",
+        ),
+    ],
+)
+def test_render_listing_detail_triage_flags(overrides: dict, expected: str) -> None:
+    listing = _make_listing(**overrides)
+    assert expected in _render_listing_detail(listing)

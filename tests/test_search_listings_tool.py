@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from models import ListingRecord
 from odoo_mcp.tools.search_listings import _render_card, run
 
@@ -132,3 +134,75 @@ def test_run_sorts_by_score_desc() -> None:
     conn = _make_conn(listings=[low, high])
     result = run(conn)
     assert result.index("/item/high") < result.index("/item/low")
+
+
+def test_render_card_includes_listing_id() -> None:
+    listing = ListingRecord.from_odoo({"id": 4242, "x_model_id": [10, "Les Paul"]})
+    assert "(id=4242)" in _render_card(listing)
+
+
+@pytest.mark.parametrize(
+    "is_candidate, too_expensive, expected, absent",
+    [
+        pytest.param(True, True, "| candidate, too_expensive", None, id="both-flags"),
+        pytest.param(True, False, "| candidate", "too_expensive", id="candidate-only"),
+        pytest.param(False, True, "| too_expensive", "candidate", id="too-expensive-only"),
+    ],
+)
+def test_render_card_shows_triage_flags(
+    is_candidate: bool, too_expensive: bool, expected: str, absent: str | None
+) -> None:
+    listing = ListingRecord.from_odoo(
+        {
+            "id": 1,
+            "x_model_id": [10, "Les Paul"],
+            "x_studio_is_candidate": is_candidate,
+            "x_studio_model_id_too_expensive": too_expensive,
+        }
+    )
+    result = _render_card(listing)
+    assert expected in result
+    if absent:
+        assert absent not in result
+
+
+def test_render_card_omits_flags_when_unset() -> None:
+    listing = ListingRecord.from_odoo({"id": 1, "x_model_id": [10, "Les Paul"]})
+    result = _render_card(listing)
+    assert "candidate" not in result
+    assert "too_expensive" not in result
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected_clause",
+    [
+        pytest.param({"is_candidate": True}, ("x_studio_is_candidate", "=", True), id="cand-true"),
+        pytest.param(
+            {"is_candidate": False}, ("x_studio_is_candidate", "=", False), id="cand-false"
+        ),
+        pytest.param(
+            {"too_expensive": True},
+            ("x_studio_model_id_too_expensive", "=", True),
+            id="too-expensive-true",
+        ),
+        pytest.param(
+            {"too_expensive": False},
+            ("x_studio_model_id_too_expensive", "=", False),
+            id="too-expensive-false",
+        ),
+    ],
+)
+def test_run_applies_boolean_filters(kwargs: dict, expected_clause: tuple) -> None:
+    conn = _make_conn(listings=[])
+    run(conn, **kwargs)
+    domain = conn.get_model("x_listing").search_read.call_args[0][0]
+    assert expected_clause in domain
+
+
+def test_run_boolean_filters_default_to_no_clause() -> None:
+    conn = _make_conn(listings=[])
+    run(conn)
+    domain = conn.get_model("x_listing").search_read.call_args[0][0]
+    fields = {clause[0] for clause in domain}
+    assert "x_studio_is_candidate" not in fields
+    assert "x_studio_model_id_too_expensive" not in fields

@@ -33,6 +33,7 @@ from odoo_mcp.tools import clear_cache as clear_cache_mod
 from odoo_mcp.tools import get_brand as get_brand_mod
 from odoo_mcp.tools import get_gear as get_gear_mod
 from odoo_mcp.tools import get_kit as get_kit_mod
+from odoo_mcp.tools import get_listing as get_listing_mod
 from odoo_mcp.tools import get_model as get_model_mod
 from odoo_mcp.tools import get_tag as get_tag_mod
 from odoo_mcp.tools import missed_deals as missed_deals_mod
@@ -174,6 +175,13 @@ def get_gear(gear_id: int) -> str:
 
 @mcp.tool()
 @cached
+def get_listing(listing_id: int) -> str:
+    """Get detailed info for a single listing by its Odoo id (includes archived)."""
+    return get_listing_mod.run(get_connection_from_env(), listing_id)
+
+
+@mcp.tool()
+@cached
 def get_kit(kit_id: int) -> str:
     """Get a kit build with parts grouped by supplier and per-supplier subtotals."""
     return get_kit_mod.run(get_connection_from_env(), kit_id)
@@ -248,8 +256,15 @@ def search_listings(
     max_price: float | None = None,
     platform: str = "",
     status: str = "",
+    is_candidate: bool | None = None,
+    too_expensive: bool | None = None,
 ) -> str:
-    """Search x_listing records by brand, model_type, max_price, platform, status."""
+    """Search x_listing records. All params optional; results include each listing id.
+
+    ``status`` is one of ``watching``, ``passed``, ``acquired``, ``for_sale``, ``sold``.
+    "Candidate" is not a status: use ``is_candidate=True``. ``too_expensive`` filters on
+    the linked model's too_expensive flag.
+    """
     return search_listings_mod.run(
         get_connection_from_env(),
         brand=brand,
@@ -257,6 +272,8 @@ def search_listings(
         max_price=max_price,
         platform=platform,
         status=status,
+        is_candidate=is_candidate,
+        too_expensive=too_expensive,
     )
 
 

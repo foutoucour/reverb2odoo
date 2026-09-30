@@ -70,10 +70,11 @@ Fetch a single item by URI without invoking a tool:
 | Tool | Params | Returns |
 |---|---|---|
 | `search_gear` | `brand`, `model_type`, `status`, `intent` (all optional) | Filtered gear cards |
-| `search_listings` | `brand`, `model_type`, `max_price`, `platform`, `status` (all optional) | Filtered listing cards sorted by score |
+| `search_listings` | `brand`, `model_type`, `max_price`, `platform`, `status` (`watching`/`passed`/`acquired`/`for_sale`/`sold`), `is_candidate`, `too_expensive` (all optional) | Filtered listing cards (with listing id, candidate and model too_expensive flags) sorted by score |
 | `search_models` | `query`, `sort_by` (`weighted_score`/`p50`/`name`), `limit` (default 20) | Model cards sorted by the chosen key |
 | `get_model` | `name_or_id` | Full model spec with all linked gear and listings |
 | `get_gear` | `gear_id` | Single gear detail with scores, notes, and listing history (plus reverse-link to its source kit if any) |
+| `get_listing` | `listing_id` | Single listing detail (archived included): model/gear links, price, scores, candidate and model wanna/too_expensive flags |
 | `get_kit` | `kit_id` | Single kit build with parts grouped by supplier, status badges, and a grand total |
 | `get_brand` | `name` | Brand card with description and linked x_models |
 | `get_tag` | `name_or_id` | Weighted tag detail: score, group multiply, and linked x_models |

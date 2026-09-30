@@ -222,6 +222,10 @@ class ListingRecord(OdooRecord):
     # ``x_is_too_expensive`` schema design.
     x_studio_is_candidate: OdooBool = None
 
+    # Studio related fields mirroring the linked x_models flags.
+    x_studio_model_id_too_expensive: OdooBool = None
+    x_studio_model_id_wanna: OdooBool = None
+
 
 # ---------------------------------------------------------------------------
 # x_models — gear catalogue (one per make/model variant)
