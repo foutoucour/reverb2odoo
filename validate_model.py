@@ -42,6 +42,8 @@ from sync_model import (
     _fetch_listings,
     _find_entries_without_image,
     _find_model,
+    _loggable_changes,
+    _preview_value,
 )
 
 _console = Console()
@@ -211,8 +213,8 @@ def _print_validation_report(report: list[dict]) -> int:
             update_count += 1
             warn_str = escape(f"  (⚠ {'; '.join(warnings)})") if warnings else ""
             table.add_row(eid, name, price, f"[bold yellow]~ NEEDS UPDATE[/bold yellow]{warn_str}")
-            for field, new_val in changes.items():
-                old_val = getattr(entry, field, "—")
+            for field, new_val in _loggable_changes(changes).items():
+                old_val = _preview_value(getattr(entry, field, "—"))
                 diff = (
                     f"  [dim]{escape(field)}:[/dim]"
                     f" {escape(str(old_val))} [dim]→[/dim] [bold]{escape(str(new_val))}[/bold]"
@@ -276,8 +278,7 @@ def _apply_validation_updates(conn, report: list[dict]) -> list[dict]:
                 changes["x_studio_image"] = image_b64
                 logger.info("  ↳ downloaded image for id={}", eid)
 
-        # Log changes without the (potentially huge) image blob
-        log_changes = {k: v for k, v in changes.items() if k not in {"x_image", "x_studio_image"}}
+        log_changes = _loggable_changes(changes)
         logger.info("Updating id={}: {}", eid, log_changes)
         listing.write(eid, changes)
         updated_items.append(

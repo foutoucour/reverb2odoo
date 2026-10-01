@@ -8,6 +8,7 @@ from click.testing import CliRunner
 from models import ListingRecord
 from sync_model import (
     DEFAULT_SHIPPING,
+    LOG_VALUE_MAX_CHARS,
     REWATCH_PRICE_DROP_THRESHOLD,
     _apply_updates,
     _build_report,
@@ -20,6 +21,8 @@ from sync_model import (
     _find_entries_without_image,
     _find_model,
     _is_brand_new,
+    _loggable_changes,
+    _preview_value,
     _print_report,
     _reverb_item_id,
     _reverb_to_listing_vals,
@@ -1056,6 +1059,23 @@ class TestPrintReport:
         out = capsys.readouterr().out
         assert "model:" not in out.lower()
 
+    def test_long_description_is_truncated_in_diff(self, capsys):
+        old_notes = "OLDTAIL " * 50
+        new_notes = "NEWTAIL " * 50
+        report = [
+            {
+                "action": "update",
+                "reverb": {"name": "G", "price_display": "$1"},
+                "entry": ListingRecord.from_odoo({"id": 200, "x_studio_notes": old_notes}),
+                "changes": {"x_studio_notes": new_notes},
+                "warnings": [],
+            },
+        ]
+        _print_report(report)
+        out = capsys.readouterr().out
+        assert out.count("OLDTAIL") < 50
+        assert out.count("NEWTAIL") < 50
+
 
 # ── _find_model (mocked Odoo) ─────────────────────────────────────────────
 
@@ -1174,6 +1194,50 @@ class TestFindModel:
 # ── _apply_updates (mocked Odoo) ─────────────────────────────────────────
 
 
+class TestPreviewValue:
+    """Unit tests for _preview_value."""
+
+    @pytest.mark.parametrize(
+        "value, expected",
+        [
+            pytest.param("short", "short", id="keeps-short-string"),
+            pytest.param("a\n\n  b", "a b", id="collapses-whitespace"),
+            pytest.param(4000.0, 4000.0, id="keeps-float"),
+            pytest.param(False, False, id="keeps-bool"),
+            pytest.param(None, None, id="keeps-none"),
+            pytest.param(
+                "x" * LOG_VALUE_MAX_CHARS,
+                "x" * LOG_VALUE_MAX_CHARS,
+                id="keeps-string-at-limit",
+            ),
+        ],
+    )
+    def test_preview_value(self, value, expected):
+        assert _preview_value(value) == expected
+
+    def test_truncates_long_string_with_length(self):
+        text = "y" * (LOG_VALUE_MAX_CHARS + 40)
+        preview = _preview_value(text)
+        assert preview == f"{'y' * LOG_VALUE_MAX_CHARS}… ({len(text)} chars)"
+
+
+class TestLoggableChanges:
+    """Unit tests for _loggable_changes."""
+
+    def test_drops_image_blobs(self):
+        changes = {"x_price": 10.0, "x_studio_image": "BLOB", "x_image": "BLOB"}
+        assert _loggable_changes(changes) == {"x_price": 10.0}
+
+    def test_truncates_long_description(self):
+        notes = "z" * 500
+        result = _loggable_changes({"x_studio_notes": notes})
+        assert result["x_studio_notes"].startswith("z" * LOG_VALUE_MAX_CHARS + "…")
+        assert len(result["x_studio_notes"]) < len(notes)
+
+    def test_empty_changes(self):
+        assert _loggable_changes({}) == {}
+
+
 class TestApplyUpdates:
     """Unit tests for _apply_updates with mocked Odoo connection."""
 
@@ -1200,6 +1264,22 @@ class TestApplyUpdates:
         assert upd == 1
         assert crt == 0
         gear_mock.write.assert_called_once_with(100, {"x_price": 4000.0})
+
+    def test_logs_truncated_description_but_writes_full(self):
+        conn, gear_mock = self._mock_conn()
+        notes = "w" * 500
+        report = [
+            {
+                "action": "update",
+                "entry": ListingRecord.from_odoo({"id": 100}),
+                "changes": {"x_studio_notes": notes},
+            },
+        ]
+        with patch("sync_model.logger.info") as info:
+            _apply_updates(conn, report)
+        gear_mock.write.assert_called_once_with(100, {"x_studio_notes": notes})
+        logged = " ".join(str(a) for call in info.call_args_list for a in call.args)
+        assert notes not in logged
 
     def test_creates_new_entries(self):
         conn, gear_mock = self._mock_conn(gear_create_return=777)
