@@ -5,10 +5,18 @@ Credentials are supplied as explicit arguments (sourced from environment
 variables / CLI options by the caller).
 """
 
+from types import SimpleNamespace
+from typing import Any
 from urllib.parse import urlparse
 
+import httpx
 import odoolib
+import odoolib.tools
 from loguru import logger
+
+#: Read timeout for Odoo JSON-RPC calls.  odoolib uses httpx's 5 s default,
+#: which writes that cascade into stored computed fields routinely exceed.
+ODOO_RPC_TIMEOUT_SECONDS = 120.0
 
 # ---------------------------------------------------------------------------
 # Config helpers
@@ -31,6 +39,22 @@ def _hostname_from_url(raw: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _post_with_rpc_timeout(*args: Any, **kwargs: Any) -> httpx.Response:
+    """``httpx.post`` with :data:`ODOO_RPC_TIMEOUT_SECONDS` applied."""
+    return httpx.post(*args, timeout=ODOO_RPC_TIMEOUT_SECONDS, **kwargs)
+
+
+def _extend_rpc_timeout() -> None:
+    """Make odoolib's JSON-RPC calls use :data:`ODOO_RPC_TIMEOUT_SECONDS`.
+
+    HACK: odoolib exposes no timeout option and calls the module-level
+    ``httpx.post`` from ``odoolib.tools.json_rpc``.  Swapping that module's
+    ``httpx`` reference scopes the override to odoolib without touching
+    ``httpx.post`` for the rest of the process.
+    """
+    odoolib.tools.httpx = SimpleNamespace(post=_post_with_rpc_timeout)
+
+
 def get_connection(
     hostname: str,
     database: str,
@@ -51,6 +75,7 @@ def get_connection(
 
     logger.info("Connecting to Odoo at {}:{} ({})…", clean_host, port, protocol)
 
+    _extend_rpc_timeout()
     connection = odoolib.get_connection(
         hostname=clean_host,
         database=database,

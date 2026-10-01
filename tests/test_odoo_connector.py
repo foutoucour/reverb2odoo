@@ -1,16 +1,20 @@
 """Tests for odoo_connector helper functions."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import httpx
+import odoolib.tools
 import pytest
 
 from models import ListingRecord
 from odoo_connector import (
     GUITAR_FIELDS,
+    ODOO_RPC_TIMEOUT_SECONDS,
     _extract_reverb_item_id,
     _hostname_from_url,
     find_guitar_by_url,
     find_listing_by_url,
+    get_connection,
 )
 
 # ── _hostname_from_url ────────────────────────────────────────────────────
@@ -36,6 +40,33 @@ from odoo_connector import (
 )
 def test_hostname_from_url(raw: str, expected: str):
     assert _hostname_from_url(raw) == expected
+
+
+# ── get_connection ────────────────────────────────────────────────────────
+
+
+def test_get_connection_sends_rpc_calls_with_extended_timeout(monkeypatch):
+    # Restore odoolib's module-level httpx reference after the test.
+    monkeypatch.setattr(odoolib.tools, "httpx", httpx)
+    response = MagicMock()
+    response.json.return_value = {"result": True}
+
+    with patch("odoo_connector.odoolib.get_connection"):
+        get_connection("https://mydb.odoo.com", "db", "login", "secret")
+    with patch("httpx.post", return_value=response) as mock_post:
+        odoolib.tools.json_rpc("https://mydb.odoo.com/jsonrpc", "call", {})
+
+    assert mock_post.call_args.kwargs["timeout"] == ODOO_RPC_TIMEOUT_SECONDS
+
+
+def test_get_connection_leaves_global_httpx_post_untouched(monkeypatch):
+    monkeypatch.setattr(odoolib.tools, "httpx", httpx)
+    original_post = httpx.post
+
+    with patch("odoo_connector.odoolib.get_connection"):
+        get_connection("https://mydb.odoo.com", "db", "login", "secret")
+
+    assert httpx.post is original_post
 
 
 # ── _extract_reverb_item_id ───────────────────────────────────────────────
