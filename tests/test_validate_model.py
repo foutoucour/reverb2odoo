@@ -357,6 +357,23 @@ class TestPrintValidationReport:
     def test_empty_report(self, capsys):
         assert _print_validation_report([]) == 0
 
+    def test_long_description_is_truncated_in_diff(self, capsys):
+        old_notes = "OLDTAIL " * 50
+        new_notes = "NEWTAIL " * 50
+        report = [
+            {
+                "action": "update",
+                "entry": ListingRecord.from_odoo({"id": 2, "x_studio_notes": old_notes}),
+                "reverb": {"price_display": "$2"},
+                "changes": {"x_studio_notes": new_notes},
+                "warnings": [],
+            },
+        ]
+        _print_validation_report(report)
+        out = capsys.readouterr().out
+        assert out.count("OLDTAIL") < 50
+        assert out.count("NEWTAIL") < 50
+
 
 # ── _apply_validation_updates (mocked Odoo) ──────────────────────────────
 
@@ -383,6 +400,23 @@ class TestApplyValidationUpdates:
         updated = _apply_validation_updates(conn, report)
         assert len(updated) == 1
         model.write.assert_called_once_with(100, {"x_price": 4000.0})
+
+    def test_logs_truncated_description_but_writes_full(self):
+        conn, model = self._mock_conn()
+        notes = "w" * 500
+        report = [
+            {
+                "action": "update",
+                "entry": ListingRecord.from_odoo({"id": 100}),
+                "changes": {"x_studio_notes": notes},
+            },
+        ]
+        with patch("validate_model.logger.info") as info:
+            updated = _apply_validation_updates(conn, report)
+        model.write.assert_called_once_with(100, {"x_studio_notes": notes})
+        assert updated[0]["fields"] == ["x_studio_notes"]
+        logged = " ".join(str(a) for call in info.call_args_list for a in call.args)
+        assert notes not in logged
 
     def test_skips_ok_and_skip_entries(self):
         conn, model = self._mock_conn()

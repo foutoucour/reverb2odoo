@@ -60,6 +60,13 @@ INCLUDE_ARCHIVED_CONTEXT = {"active_test": False}
 #: Report warning attached to items whose Odoo listing is archived.
 ARCHIVED_WARNING = "archived"
 
+#: Longest field value shown in reports and logs.  Reverb descriptions run to
+#: thousands of characters and would otherwise flood the output.
+LOG_VALUE_MAX_CHARS = 60
+
+#: Binary fields never shown in reports or logs.
+_BLOB_FIELDS = frozenset({"x_image", "x_studio_image"})
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -449,6 +456,28 @@ def _reverb_to_listing_vals(
     return vals
 
 
+def _preview_value(value: Any) -> Any:
+    """Return a one-line, truncated preview of *value* for reports and logs.
+
+    Non-string values are returned unchanged.
+    """
+    if not isinstance(value, str):
+        return value
+    text = " ".join(value.split())
+    if len(text) <= LOG_VALUE_MAX_CHARS:
+        return text
+    return f"{text[:LOG_VALUE_MAX_CHARS]}… ({len(text)} chars)"
+
+
+def _loggable_changes(changes: dict[str, Any]) -> dict[str, Any]:
+    """Return *changes* without image blobs and with long values truncated."""
+    return {
+        field: _preview_value(value)
+        for field, value in changes.items()
+        if field not in _BLOB_FIELDS
+    }
+
+
 def _round_price(price: float) -> float:
     """Round *price* to the nearest $10 to absorb currency-conversion noise."""
     return round(price / 10) * 10
@@ -601,8 +630,8 @@ def _print_report(report: list[dict]) -> tuple[int, int]:
                 cross = f"  → model: {other_model_name} ({other_model_id})"
             info = escape(f"id={eid}{cross}  {warn_str}".strip())
             table.add_row(str(i), "[bold yellow]~ UPD[/bold yellow]", price, name, info)
-            for field, new_val in item["changes"].items():
-                old_val = getattr(entry, field, "—")
+            for field, new_val in _loggable_changes(item["changes"]).items():
+                old_val = _preview_value(getattr(entry, field, "—"))
                 diff = (
                     f"  [dim]{escape(field)}:[/dim]"
                     f" {escape(str(old_val))} [dim]→[/dim] [bold]{escape(str(new_val))}[/bold]"
@@ -665,9 +694,7 @@ def _apply_updates(conn, report: list[dict]) -> tuple[int, int]:
                     changes["x_studio_image"] = image_b64
                     logger.info("  ↳ downloaded image for listing id={}", eid)
 
-            # Log changes without the (potentially huge) image blob
-            log_changes = {k: v for k, v in changes.items() if k != "x_studio_image"}
-            logger.info("Updating listing id={}: {}", eid, log_changes)
+            logger.info("Updating listing id={}: {}", eid, _loggable_changes(changes))
             listing_model.write(eid, changes)
             updated += 1
 
