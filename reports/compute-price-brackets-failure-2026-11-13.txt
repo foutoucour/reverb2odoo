@@ -1,0 +1,165 @@
+[1mConnecting to Odoo at lespaulpedia.odoo.com:443 (jsonrpcs)…[0m
+[1mComputing price brackets for 491 model(s)…[0m
+[1m  '57 Les Paul Custom Black Beauty Reissue — p25=3870  p50=6230  p75=9320  n=9  (all-time)[0m
+[1m  '68 Les Paul Custom Reissue — p25=6570  p50=7465  p75=8750  n=98  (last 365d)[0m
+[1m  1954 Les Paul Custom Staple Pickup Reissue VOS Ebo — p25=7122  p50=8375  p75=9435  n=30  (all-time)[0m
+[1m  3 SERIES CHORUS — p25=81  p50=98  p75=142  n=11  (last 365d)[0m
+[1m  Aerosol Finishing Kit — p25=112  p50=112  p75=131  n=4  (all-time)[0m
+[1m  Alnico Classic PRO — p25=40  p50=60  p75=140  n=8  (all-time)[0m
+[1m  Amber Spirit of 59 — p25=360  p50=360  p75=360  n=1  (all-time)[0m
+[1m  Analogman: Beano Boost — p25=320  p50=340  p75=550  n=19  (last 365d)[0m
+[1m  Anasounds High Voltage — p25=245  p50=295  p75=396  n=6  (all-time)[0m
+[1m  Anasounds Lazy Comp — p25=123  p50=155  p75=295  n=6  (all-time)[0m
+[1m  Anasounds Savage Overdrive MKII — p25=240  p50=270  p75=300  n=3  (all-time)[0m
+[1m  Anasoungs Bitoun Fuzz — p25=258  p50=285  p75=390  n=6  (all-time)[0m
+[1m  Arcane Analog Fuzz — p25=238  p50=280  p75=420  n=6  (all-time)[0m
+[1m  Ascender Standard — p25=2810  p50=2880  p75=2905  n=8  (last 365d)[0m
+[1m  B3 SL-K — p25=3130  p50=3130  p75=3130  n=1  (all-time)[0m
+[1m  BD-2 Blues Driver — p25=98  p50=305  p75=323  n=12  (last 365d)[0m
+[1m  BOSS SD-1 SUPER OverDrive — p25=56  p50=73  p75=758  n=6  (all-time)[0m
+[1m  Babicz FCH Tune-O-Matic, Original Series — p25=160  p50=170  p75=279  n=7  (all-time)[0m
+[1m  Baker B3 SL — p25=3865  p50=4930  p75=5175  n=21  (last 365d)[0m
+[1m  Banker Excalibur — p25=6085  p50=6440  p75=6945  n=5  (all-time)[0m
+[1m  Banker Leslie — p25=3888  p50=4190  p75=4735  n=8  (all-time)[0m
+[1m  Bartlett Retrospec — p25=7132  p50=8650  p75=8962  n=12  (last 365d)[0m
+[1m  Benson Amps Germanium Boost — p25=228  p50=391  p75=430  n=12  (last 365d)[0m
+[1m  Bigsby B7 — p25=294  p50=329  p75=365  n=2  (all-time)[0m
+[1m  Bigsby B70 — p25=188  p50=250  p75=280  n=16  (last 365d)[0m
+[1m  Bizen Burned Burned — p25=4180  p50=5300  p75=5750  n=19  (all-time)[0m
+[1m  Bizen Burned DC — p25=3530  p50=3530  p75=4700  n=3  (all-time)[0m
+[1m  Boss FZ-5 Fuzz — p25=110  p50=150  p75=180  n=51  (last 365d)[0m
+[1m  Broadway Reissue (1997 - 2022) — p25=965  p50=1120  p75=1405  n=13  (last 365d)[0m
+[1m  Canopée Guitar Sel — p25=2500  p50=2600  p75=4000  n=3  (all-time)[0m
+[1m  Carparelli CLS21 Alnico 2 Vintage Nickel Humbucker — p25=160  p50=160  p75=160  n=1  (all-time)[0m
+[1m  Carparelli HSP90- CLS24 SET Neck & Bridge — p25=160  p50=160  p75=160  n=1  (all-time)[0m
+[1m  Carparelli S4 — p25=567  p50=1324  p75=1605  n=6  (all-time)[0m
+[1m  Case Guitars J1 — p25=1222  p50=2185  p75=3378  n=16  (last 365d)[0m
+[1m  Catalinbread Naga Viper — p25=111  p50=128  p75=216  n=13  (last 365d)[0m
+[1m  Cecca Arena 70 — p25=520  p50=520  p75=520  n=1  (all-time)[0m
+[1m  Centura Professional Overdrive — p25=266  p50=300  p75=330  n=10  (last 365d)[0m
+[1m  Collings 290 — p25=4392  p50=5140  p75=5892  n=88  (last 365d)[0m
+[1m  Collings 620 SM LC — p25=8890  p50=11800  p75=12900  n=7  (all-time)[0m
+[1m  Collings CL City Limit Deluxe — p25=6945  p50=7900  p75=8845  n=42  (last 365d)[0m
+[1m  Collings CL City Limits — p25=6720  p50=7450  p75=8660  n=63  (last 365d)[0m
+[1m  Collings CL Jazz — p25=12580  p50=14870  p75=16780  n=11  (all-time)[0m
+[1m  Collings I-30 LC — p25=8485  p50=9480  p75=11005  n=49  (last 365d)[0m
+[1m  Crazy Tube Circuits Constellation — p25=302  p50=385  p75=410  n=12  (all-time)[0m
+Traceback (most recent call last):
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 250, in handle_request
+    resp = self._pool.handle_request(req)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 256, in handle_request
+    raise exc from None
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/connection_pool.py", line 236, in handle_request
+    response = connection.handle_request(
+        pool_request.request
+    )
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/connection.py", line 103, in handle_request
+    return self._connection.handle_request(request)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/http11.py", line 136, in handle_request
+    raise exc
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/http11.py", line 106, in handle_request
+    ) = self._receive_response_headers(**kwargs)
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/http11.py", line 177, in _receive_response_headers
+    event = self._receive_event(timeout=timeout)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpcore/_sync/http11.py", line 231, in _receive_event
+    raise RemoteProtocolError(msg)
+httpcore.RemoteProtocolError: Server disconnected without sending a response.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/bin/reverb2odoo", line 10, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1485, in __call__
+    return self.main(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1406, in main
+    rv = self.invoke(ctx)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1873, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+                           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 1269, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/core.py", line 824, in invoke
+    return callback(*args, **kwargs)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/click/decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/compute_price_brackets.py", line 214, in cli
+    run_computation(conn, model_name=model_name, dry_run=dry_run)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/compute_price_brackets.py", line 146, in run_computation
+    prices_with_dates = _fetch_listing_prices_for_model(conn, model_id)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/compute_price_brackets.py", line 56, in _fetch_listing_prices_for_model
+    records = listing.search_read(
+        [("x_model_id", "=", model_id), ("x_price", ">", 0)],
+        ["x_price", "x_published_at"],
+    )
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 277, in search_read
+    record_ids = self.search(domain or [], offset, limit or False, order or False, context=context or {})
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 243, in proxy
+    result = self.connection.get_service('object').execute_kw(
+                                            self.connection.database,
+    ...<3 lines>...
+                                            method,
+                                            args, kw)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 131, in proxy
+    result = self.connector.send(self.service_name, method, *args)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/rpc.py", line 106, in send
+    return json_rpc(self.url, "call", {"service": service_name, "method": method, "args": args})
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/odoolib/tools.py", line 16, in json_rpc
+    result_req = httpx.post(url, json=data, headers={
+        "Content-Type":"application/json",
+    })
+  File "/home/runner/work/reverb2odoo/reverb2odoo/odoo_connector.py", line 44, in _post_with_rpc_timeout
+    return httpx.post(*args, timeout=ODOO_RPC_TIMEOUT_SECONDS, **kwargs)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_api.py", line 304, in post
+    return request(
+        "POST",
+    ...<13 lines>...
+        trust_env=trust_env,
+    )
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_api.py", line 109, in request
+    return client.request(
+           ~~~~~~~~~~~~~~^
+        method=method,
+        ^^^^^^^^^^^^^^
+    ...<8 lines>...
+        follow_redirects=follow_redirects,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_client.py", line 825, in request
+    return self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_client.py", line 914, in send
+    response = self._send_handling_auth(
+        request,
+    ...<2 lines>...
+        history=[],
+    )
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_client.py", line 942, in _send_handling_auth
+    response = self._send_handling_redirects(
+        request,
+        follow_redirects=follow_redirects,
+        history=history,
+    )
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_client.py", line 979, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_client.py", line 1014, in _send_single_request
+    response = transport.handle_request(request)
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 249, in handle_request
+    with map_httpcore_exceptions():
+         ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/runner/.local/share/uv/python/cpython-3.13.18-linux-x86_64-gnu/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/home/runner/work/reverb2odoo/reverb2odoo/.venv/lib/python3.13/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.RemoteProtocolError: Server disconnected without sending a response.
